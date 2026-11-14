@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<!-- Hand-made in the GPX 1.0 dialect GPSBabel writes: <name> and <time> straight under <gpx>,
+     and <speed> and <course> inside points. -->
+<gpx version="1.0" creator="GPSBabel - https://www.gpsbabel.org" xmlns="http://www.topografix.com/GPX/1/0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.topografix.com/GPX/1/0 http://www.topografix.com/GPX/1/0/gpx.xsd">
+<name>Converted run</name>
+<time>2024-04-15T13:50:00Z</time>
+<bounds minlat="42.438000" minlon="-76.499000" maxlat="42.440000" maxlon="-76.499000"/>
+<trk>
+<name>ACTIVE LOG</name>
+<number>1</number>
+<trkseg>
+<trkpt lat="42.438000" lon="-76.499000">
+  <ele>120.000</ele>
+  <time>2024-04-15T13:50:00Z</time>
+  <course>0.0</course>
+  <speed>3.000</speed>
+</trkpt>
+<trkpt lat="42.439000" lon="-76.499000">
+  <ele>121.000</ele>
+  <time>2024-04-15T13:50:37Z</time>
+  <course>0.0</course>
+  <speed>3.000</speed>
+</trkpt>
+<trkpt lat="42.440000" lon="-76.499000">
+  <ele>122.000</ele>
+  <time>2024-04-15T13:51:14Z</time>
+  <course>0.0</course>
+  <speed>3.000</speed>
+</trkpt>
+</trkseg>
+</trk>
+</gpx>

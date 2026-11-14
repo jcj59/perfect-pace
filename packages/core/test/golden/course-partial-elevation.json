@@ -1,0 +1,180 @@
+{
+  "name": null,
+  "creator": "hand-made",
+  "defaultTrack": 0,
+  "tracks": [
+    {
+      "kind": "track",
+      "name": null,
+      "segments": 1,
+      "points": 6,
+      "droppedPoints": 0,
+      "pointsWithEle": 3,
+      "distanceM": 556
+    }
+  ],
+  "elevation": {
+    "source": "dem",
+    "gpsIssue": "sparse",
+    "points": 57,
+    "demPoints": 57,
+    "gainM": 0,
+    "lossM": 0,
+    "minM": 122.2,
+    "maxM": 124.1,
+    "gradeBinM": 500,
+    "gradeProfile": [
+      -0.003,
+      -0.004
+    ]
+  },
+  "plan": {
+    "goalTimeS": 166,
+    "units": [
+      {
+        "unit": "mi",
+        "minSegment": 0.2,
+        "flatPace": 482.7,
+        "rmsPaceGapByChanges": [
+          2.1,
+          2.1,
+          2.1,
+          2.1,
+          2.1,
+          2.1,
+          2.1,
+          2.1,
+          2.1,
+          2.1,
+          2.1
+        ],
+        "plans": [
+          {
+            "maxSegments": 1,
+            "totalTimeS": 166,
+            "segments": [
+              {
+                "startM": 0,
+                "endM": 556,
+                "pace": 480.5,
+                "avgGrade": -0.003,
+                "reason": "gentle descent: -0.3% over 0.3 mi"
+              }
+            ]
+          },
+          {
+            "maxSegments": 3,
+            "totalTimeS": 166,
+            "segments": [
+              {
+                "startM": 0,
+                "endM": 556,
+                "pace": 480.5,
+                "avgGrade": -0.003,
+                "reason": "gentle descent: -0.3% over 0.3 mi"
+              }
+            ]
+          },
+          {
+            "maxSegments": 6,
+            "totalTimeS": 166,
+            "segments": [
+              {
+                "startM": 0,
+                "endM": 556,
+                "pace": 480.5,
+                "avgGrade": -0.003,
+                "reason": "gentle descent: -0.3% over 0.3 mi"
+              }
+            ]
+          },
+          {
+            "maxSegments": 10,
+            "totalTimeS": 166,
+            "segments": [
+              {
+                "startM": 0,
+                "endM": 556,
+                "pace": 480.5,
+                "avgGrade": -0.003,
+                "reason": "gentle descent: -0.3% over 0.3 mi"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "unit": "km",
+        "minSegment": 0.3,
+        "flatPace": 299.9,
+        "rmsPaceGapByChanges": [
+          1.3,
+          1.3,
+          1.3,
+          1.3,
+          1.3,
+          1.3,
+          1.3,
+          1.3,
+          1.3,
+          1.3,
+          1.3
+        ],
+        "plans": [
+          {
+            "maxSegments": 1,
+            "totalTimeS": 166,
+            "segments": [
+              {
+                "startM": 0,
+                "endM": 556,
+                "pace": 298.6,
+                "avgGrade": -0.003,
+                "reason": "gentle descent: -0.3% over 0.6 km"
+              }
+            ]
+          },
+          {
+            "maxSegments": 3,
+            "totalTimeS": 166,
+            "segments": [
+              {
+                "startM": 0,
+                "endM": 556,
+                "pace": 298.6,
+                "avgGrade": -0.003,
+                "reason": "gentle descent: -0.3% over 0.6 km"
+              }
+            ]
+          },
+          {
+            "maxSegments": 6,
+            "totalTimeS": 166,
+            "segments": [
+              {
+                "startM": 0,
+                "endM": 556,
+                "pace": 298.6,
+                "avgGrade": -0.003,
+                "reason": "gentle descent: -0.3% over 0.6 km"
+              }
+            ]
+          },
+          {
+            "maxSegments": 10,
+            "totalTimeS": 166,
+            "segments": [
+              {
+                "startM": 0,
+                "endM": 556,
+                "pace": 298.6,
+                "avgGrade": -0.003,
+                "reason": "gentle descent: -0.3% over 0.6 km"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,12 +1,97 @@
 @import "tailwindcss";
 
-@theme {
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --color-accent: oklch(0.62 0.17 152);
+/* Dark mode follows the `dark` class on <html>, which tracks the system unless the user picks a theme. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Semantic colors. Components use these, not raw palette colors, so both themes come from one place. */
+:root {
+  --pp-map: #f3f1ec;
+  --pp-surface: #ffffff;
+  --pp-surface-raised: #f7f6f3;
+  --pp-ink: #1c1917;
+  --pp-ink-muted: #57534e;
+  --pp-ink-subtle: #6f6862;
+  --pp-line: #e8e5e0;
+  --pp-accent: #23864f;
+  --pp-accent-soft: #e3f1e8;
+  --pp-shadow: 0 1px 2px rgb(28 25 23 / 0.06), 0 8px 28px rgb(28 25 23 / 0.1);
+}
+
+.dark {
+  --pp-map: #1a1918;
+  --pp-surface: #222120;
+  --pp-surface-raised: #2a2826;
+  --pp-ink: #f5f4f2;
+  --pp-ink-muted: #b4ada7;
+  --pp-ink-subtle: #9a938d;
+  --pp-line: #353230;
+  --pp-accent: #4cc283;
+  --pp-accent-soft: #1d3327;
+  --pp-shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 10px 32px rgb(0 0 0 / 0.45);
+}
+
+@theme inline {
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --color-map: var(--pp-map);
+  --color-surface: var(--pp-surface);
+  --color-surface-raised: var(--pp-surface-raised);
+  --color-ink: var(--pp-ink);
+  --color-ink-muted: var(--pp-ink-muted);
+  --color-ink-subtle: var(--pp-ink-subtle);
+  --color-line: var(--pp-line);
+  --color-accent: var(--pp-accent);
+  --color-accent-soft: var(--pp-accent-soft);
+  --shadow-panel: var(--pp-shadow);
 }
 
 html,
 body,
 #root {
   height: 100%;
+}
+
+html {
+  /* The map handles its own gestures; never rubber-band or pull-to-refresh the page. */
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  margin: 0;
+  overflow: hidden;
+  background: var(--pp-map);
+  color: var(--pp-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* MapLibre controls, restyled to sit with the panel. Scoped under .maplibregl-map to win over its stylesheet. */
+.maplibregl-map .maplibregl-ctrl-group,
+.maplibregl-map .maplibregl-ctrl.maplibregl-ctrl-attrib {
+  background: var(--pp-surface);
+  color: var(--pp-ink-muted);
+  box-shadow: var(--pp-shadow);
+}
+.maplibregl-map .maplibregl-ctrl-group {
+  border-radius: 10px;
+  overflow: hidden;
+}
+.maplibregl-map .maplibregl-ctrl-group button + button {
+  border-top-color: var(--pp-line);
+}
+.maplibregl-map .maplibregl-ctrl-attrib a {
+  color: inherit;
+}
+.maplibregl-map .maplibregl-ctrl.maplibregl-ctrl-attrib.maplibregl-compact {
+  border-radius: 12px;
+}
+.dark .maplibregl-map .maplibregl-ctrl button .maplibregl-ctrl-icon,
+.dark .maplibregl-map .maplibregl-ctrl-attrib-button {
+  filter: invert(0.9);
+}
+.dark .maplibregl-map .maplibregl-ctrl-attrib-button {
+  background-color: transparent;
 }

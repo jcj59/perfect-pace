@@ -14,7 +14,7 @@ const SUMMARY_FILE = join(GOLDEN_DIR, "golden-summary.md");
 const UPDATE = process.env["GOLDEN_UPDATE"] === "1";
 const HINT = "Run `pnpm golden:update` and explain the change in the PR description.";
 
-const results = goldenCases.map((c) => ({ ...c, ...c.compute() }));
+const results = await Promise.all(goldenCases.map(async (c) => ({ ...c, ...(await c.compute()) })));
 
 function serialize(output: unknown): string {
   return `${JSON.stringify(output, null, 2)}\n`;

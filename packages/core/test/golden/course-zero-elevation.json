@@ -1,0 +1,179 @@
+{
+  "name": null,
+  "creator": "hand-made",
+  "defaultTrack": 0,
+  "tracks": [
+    {
+      "kind": "track",
+      "name": null,
+      "segments": 1,
+      "points": 4,
+      "droppedPoints": 0,
+      "pointsWithEle": 0,
+      "distanceM": 334
+    }
+  ],
+  "elevation": {
+    "source": "dem",
+    "gpsIssue": "missing",
+    "points": 35,
+    "demPoints": 35,
+    "gainM": 0,
+    "lossM": 0,
+    "minM": 123.2,
+    "maxM": 124.1,
+    "gradeBinM": 500,
+    "gradeProfile": [
+      -0.002
+    ]
+  },
+  "plan": {
+    "goalTimeS": 99,
+    "units": [
+      {
+        "unit": "mi",
+        "minSegment": 0.2,
+        "flatPace": 479.2,
+        "rmsPaceGapByChanges": [
+          2.5,
+          2.5,
+          2.5,
+          2.5,
+          2.5,
+          2.5,
+          2.5,
+          2.5,
+          2.5,
+          2.5,
+          2.5
+        ],
+        "plans": [
+          {
+            "maxSegments": 1,
+            "totalTimeS": 99,
+            "segments": [
+              {
+                "startM": 0,
+                "endM": 334,
+                "pace": 477.6,
+                "avgGrade": -0.002,
+                "reason": "flat: -0.2% over 0.2 mi"
+              }
+            ]
+          },
+          {
+            "maxSegments": 3,
+            "totalTimeS": 99,
+            "segments": [
+              {
+                "startM": 0,
+                "endM": 334,
+                "pace": 477.6,
+                "avgGrade": -0.002,
+                "reason": "flat: -0.2% over 0.2 mi"
+              }
+            ]
+          },
+          {
+            "maxSegments": 6,
+            "totalTimeS": 99,
+            "segments": [
+              {
+                "startM": 0,
+                "endM": 334,
+                "pace": 477.6,
+                "avgGrade": -0.002,
+                "reason": "flat: -0.2% over 0.2 mi"
+              }
+            ]
+          },
+          {
+            "maxSegments": 10,
+            "totalTimeS": 99,
+            "segments": [
+              {
+                "startM": 0,
+                "endM": 334,
+                "pace": 477.6,
+                "avgGrade": -0.002,
+                "reason": "flat: -0.2% over 0.2 mi"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "unit": "km",
+        "minSegment": 0.3,
+        "flatPace": 297.7,
+        "rmsPaceGapByChanges": [
+          1.6,
+          1.6,
+          1.6,
+          1.6,
+          1.6,
+          1.6,
+          1.6,
+          1.6,
+          1.6,
+          1.6,
+          1.6
+        ],
+        "plans": [
+          {
+            "maxSegments": 1,
+            "totalTimeS": 99,
+            "segments": [
+              {
+                "startM": 0,
+                "endM": 334,
+                "pace": 296.8,
+                "avgGrade": -0.002,
+                "reason": "flat: -0.2% over 0.3 km"
+              }
+            ]
+          },
+          {
+            "maxSegments": 3,
+            "totalTimeS": 99,
+            "segments": [
+              {
+                "startM": 0,
+                "endM": 334,
+                "pace": 296.8,
+                "avgGrade": -0.002,
+                "reason": "flat: -0.2% over 0.3 km"
+              }
+            ]
+          },
+          {
+            "maxSegments": 6,
+            "totalTimeS": 99,
+            "segments": [
+              {
+                "startM": 0,
+                "endM": 334,
+                "pace": 296.8,
+                "avgGrade": -0.002,
+                "reason": "flat: -0.2% over 0.3 km"
+              }
+            ]
+          },
+          {
+            "maxSegments": 10,
+            "totalTimeS": 99,
+            "segments": [
+              {
+                "startM": 0,
+                "endM": 334,
+                "pace": 296.8,
+                "avgGrade": -0.002,
+                "reason": "flat: -0.2% over 0.3 km"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

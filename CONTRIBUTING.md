@@ -19,7 +19,7 @@ pnpm dev            # Vite on :5173 with /api proxied to wrangler dev on :8787
 | `pnpm lint`          | ESLint plus repo policy checks (no em dashes, Playwright image in sync)    |
 | `pnpm format`        | Prettier (`pnpm format:check` in CI)                                       |
 | `pnpm typecheck`     | `tsc` in every package (`@pp/core` src is checked with no DOM or Node)     |
-| `pnpm test`          | Vitest: `@pp/core` unit, property and golden tests with coverage; Worker   |
+| `pnpm test`          | Vitest: `@pp/core` unit, property and golden (with coverage); web; Worker  |
 | `pnpm perf`          | Vitest benchmarks checked against `packages/core/bench/budgets.json`       |
 | `pnpm e2e`           | Playwright against local `wrangler dev` (run `pnpm build` first)           |
 | `pnpm golden:update` | Rewrite golden snapshots and `golden-summary.md`                           |
@@ -43,6 +43,7 @@ rerun it after changing `wrangler.jsonc` (CI checks it is current).
 | Layer               | Tool                                   | Where                                           | Runs                            |
 | ------------------- | -------------------------------------- | ----------------------------------------------- | ------------------------------- |
 | Unit and property   | Vitest                                 | `packages/core/test/*.test.ts`                  | Every PR                        |
+| Web unit            | Vitest (store, sheet math, worker RPC) | `apps/web/test/*.test.ts`                       | Every PR                        |
 | Golden snapshots    | Vitest                                 | `packages/core/test/golden-cases.ts`            | Every PR                        |
 | Worker integration  | Vitest + `@cloudflare/vitest-plugin`   | `apps/worker/test`                              | Every PR                        |
 | Performance budgets | Vitest bench, Playwright `performance` | `packages/core/bench`, `e2e/tests/perf.spec.ts` | Every PR (over budget fails CI) |
@@ -56,6 +57,8 @@ Rules of thumb:
 - `@pp/core` has a 90% line and branch coverage floor. The UI relies on E2E tests instead.
 - Randomized tests always use a fixed seed (`packages/core/test/support/rng.ts`) and print it on failure.
 - Fixtures are committed and never fetched at test time. Only `@live` tests (nightly) touch the network.
+  E2E tests open the app with `openApp` (`e2e/support/app.ts`), which serves the basemap TileJSON from
+  `e2e/fixtures/openfreemap` and answers every tile and glyph request with an empty response.
 - Every bug fix starts with a failing E2E or golden test that reproduces it.
 - Tag tests that are safe against production `@smoke`, tests that need real third-party services `@live`.
 

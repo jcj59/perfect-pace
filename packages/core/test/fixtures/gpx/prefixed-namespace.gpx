@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Hand-made: every GPX element carries a prefix bound to the GPX namespace, and the
+     extensions use another one. -->
+<g:gpx xmlns:g="http://www.topografix.com/GPX/1/1" xmlns:x="http://example.com/ext" version="1.1" creator="hand-made">
+  <g:metadata><g:name>Prefixed</g:name></g:metadata>
+  <g:trk>
+    <g:name>Prefixed track</g:name>
+    <g:trkseg>
+      <g:trkpt lat="42.43800" lon="-76.49900"><g:ele>120.5</g:ele><g:extensions><x:ele>9999</x:ele></g:extensions></g:trkpt>
+      <g:trkpt lat="42.43900" lon="-76.49900"><g:ele>121.5</g:ele></g:trkpt>
+      <g:trkpt lat="42.44000" lon="-76.49900"><g:ele>122.5</g:ele></g:trkpt>
+    </g:trkseg>
+  </g:trk>
+</g:gpx>

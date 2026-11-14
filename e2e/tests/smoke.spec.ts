@@ -1,13 +1,21 @@
 import { expect, test } from "@playwright/test";
-import { hasHorizontalScroll, openApp } from "../support/app.ts";
+import { hasHorizontalScroll, markTime, openApp } from "../support/app.ts";
 
 // @smoke tests are safe against any deployment, including production after a deploy.
 test.describe("smoke @smoke", () => {
-  test("the page renders and reaches the API", async ({ page }) => {
+  test("the app shell renders the panel, the map and the empty state", async ({ page }) => {
     await openApp(page);
     await expect(page).toHaveTitle("Perfect Pace");
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Perfect Pace");
+    await expect(page.getByRole("region", { name: "Course panel" })).toBeVisible();
+    await expect(page.getByTestId("empty-state")).toBeAttached();
     expect(await hasHorizontalScroll(page)).toBe(false);
+  });
+
+  test("the core Web Worker starts and answers", async ({ page }) => {
+    await openApp(page);
+    // `pp:worker-ready` is set when the worker replies to the startup ping over the RPC bridge.
+    await expect.poll(() => markTime(page, "pp:worker-ready")).not.toBeNull();
   });
 
   test("/api/health reports ok", async ({ request }) => {

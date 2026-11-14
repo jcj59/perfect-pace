@@ -1,0 +1,180 @@
+{
+  "name": null,
+  "creator": "hand-made",
+  "defaultTrack": 0,
+  "tracks": [
+    {
+      "kind": "track",
+      "name": null,
+      "segments": 1,
+      "points": 6,
+      "droppedPoints": 10,
+      "pointsWithEle": 6,
+      "distanceM": 556
+    }
+  ],
+  "elevation": {
+    "source": "gps",
+    "gpsIssue": null,
+    "points": 57,
+    "demPoints": 0,
+    "gainM": 4.6,
+    "lossM": 0,
+    "minM": 120.2,
+    "maxM": 124.8,
+    "gradeBinM": 500,
+    "gradeProfile": [
+      0.009,
+      0.006
+    ]
+  },
+  "plan": {
+    "goalTimeS": 166,
+    "units": [
+      {
+        "unit": "mi",
+        "minSegment": 0.2,
+        "flatPace": 470.6,
+        "rmsPaceGapByChanges": [
+          1.8,
+          1.8,
+          1.8,
+          1.8,
+          1.8,
+          1.8,
+          1.8,
+          1.8,
+          1.8,
+          1.8,
+          1.8
+        ],
+        "plans": [
+          {
+            "maxSegments": 1,
+            "totalTimeS": 166,
+            "segments": [
+              {
+                "startM": 0,
+                "endM": 556,
+                "pace": 480.5,
+                "avgGrade": 0.008,
+                "reason": "gentle climb: +0.8% over 0.3 mi"
+              }
+            ]
+          },
+          {
+            "maxSegments": 3,
+            "totalTimeS": 166,
+            "segments": [
+              {
+                "startM": 0,
+                "endM": 556,
+                "pace": 480.5,
+                "avgGrade": 0.008,
+                "reason": "gentle climb: +0.8% over 0.3 mi"
+              }
+            ]
+          },
+          {
+            "maxSegments": 6,
+            "totalTimeS": 166,
+            "segments": [
+              {
+                "startM": 0,
+                "endM": 556,
+                "pace": 480.5,
+                "avgGrade": 0.008,
+                "reason": "gentle climb: +0.8% over 0.3 mi"
+              }
+            ]
+          },
+          {
+            "maxSegments": 10,
+            "totalTimeS": 166,
+            "segments": [
+              {
+                "startM": 0,
+                "endM": 556,
+                "pace": 480.5,
+                "avgGrade": 0.008,
+                "reason": "gentle climb: +0.8% over 0.3 mi"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "unit": "km",
+        "minSegment": 0.3,
+        "flatPace": 292.4,
+        "rmsPaceGapByChanges": [
+          1.1,
+          1.1,
+          1.1,
+          1.1,
+          1.1,
+          1.1,
+          1.1,
+          1.1,
+          1.1,
+          1.1,
+          1.1
+        ],
+        "plans": [
+          {
+            "maxSegments": 1,
+            "totalTimeS": 166,
+            "segments": [
+              {
+                "startM": 0,
+                "endM": 556,
+                "pace": 298.6,
+                "avgGrade": 0.008,
+                "reason": "gentle climb: +0.8% over 0.6 km"
+              }
+            ]
+          },
+          {
+            "maxSegments": 3,
+            "totalTimeS": 166,
+            "segments": [
+              {
+                "startM": 0,
+                "endM": 556,
+                "pace": 298.6,
+                "avgGrade": 0.008,
+                "reason": "gentle climb: +0.8% over 0.6 km"
+              }
+            ]
+          },
+          {
+            "maxSegments": 6,
+            "totalTimeS": 166,
+            "segments": [
+              {
+                "startM": 0,
+                "endM": 556,
+                "pace": 298.6,
+                "avgGrade": 0.008,
+                "reason": "gentle climb: +0.8% over 0.6 km"
+              }
+            ]
+          },
+          {
+            "maxSegments": 10,
+            "totalTimeS": 166,
+            "segments": [
+              {
+                "startM": 0,
+                "endM": 556,
+                "pace": 298.6,
+                "avgGrade": 0.008,
+                "reason": "gentle climb: +0.8% over 0.6 km"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
