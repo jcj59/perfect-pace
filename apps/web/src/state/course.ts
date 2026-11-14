@@ -15,6 +15,7 @@ export const MAX_FILE_BYTES = 100 * 1024 * 1024;
 export const LOAD_START_MARK = "pp:load-start";
 export const ROUTE_DRAWN_MARK = "pp:route-drawn";
 export const LOAD_MEASURE = "pp:load-course";
+export const PARSED_MARK = "pp:parsed";
 
 const UNREADABLE =
   "Something went wrong while reading this file. Try again, or export it again from where it came from.";
@@ -62,6 +63,7 @@ export async function loadGpxFile(file: File): Promise<void> {
 
   performance.clearMarks(LOAD_START_MARK);
   performance.clearMarks(ROUTE_DRAWN_MARK);
+  performance.clearMarks(PARSED_MARK);
   performance.clearMeasures(LOAD_MEASURE);
   performance.mark(LOAD_START_MARK);
   setCourse({ status: "reading", fileName });
@@ -80,6 +82,7 @@ export async function loadGpxFile(file: File): Promise<void> {
     const text = await file.text();
     if (signal.aborted) return;
     const gpx = await coreClient().call("parse", { text }, { signal });
+    performance.mark(PARSED_MARK);
     showTrack({ status: "loaded", fileName, file: gpx, track: gpx.defaultTrack, elevation: { status: "loading" } });
     raiseSheet();
   } catch (error) {

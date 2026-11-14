@@ -3,7 +3,7 @@
  * drawn over the roads and under the place labels (the start and finish dots go over everything).
  * It is part of the style itself, so a theme change restyles it without losing the data.
  */
-import type { CoursePoint } from "@pp/core";
+import { type CoursePoint, simplify } from "@pp/core";
 import type {
   ExpressionSpecification,
   GeoJSONSourceSpecification,
@@ -31,9 +31,16 @@ export interface CourseFeatures {
 
 export const NO_COURSE: CourseFeatures = { type: "FeatureCollection", features: [] };
 
+/**
+ * How far (m) the drawn line may stray from the track. At the closest course zoom a pixel is about
+ * 2 m, so this is invisible, and it turns a 50k-point watch recording into a few thousand points
+ * for MapLibre to tile and draw.
+ */
+export const ROUTE_TOLERANCE_M = 1;
+
 /** The route line plus start and finish points for a course, as GeoJSON (longitude first). */
 export function courseFeatures(points: readonly CoursePoint[]): CourseFeatures {
-  const coordinates: Coordinates = points.map((p) => [p.lon, p.lat]);
+  const coordinates: Coordinates = simplify(points, ROUTE_TOLERANCE_M).map((p) => [p.lon, p.lat]);
   const first = coordinates[0];
   const last = coordinates.at(-1);
   if (!first || !last) return NO_COURSE;

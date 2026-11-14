@@ -99,7 +99,9 @@ lint` checks) and regenerate the baselines.
 
 Every benchmark in `packages/core/bench/*.bench.ts` needs an entry in `bench/budgets.json` (its
 `file > group > name` key and a `maxMedianMs`), and every budget needs a benchmark. Browser budgets
-read `performance` marks in `e2e/tests/perf.spec.ts`. Raise a budget only with a reason in the PR.
+read `performance` marks in `e2e/tests/perf.spec.ts`, and timing budgets that must not share the CPU
+with other tests (the 50k-point course load) go in `e2e/tests/load-perf.spec.ts`, which the
+`load-perf` project runs alone after the others. Raise a budget only with a reason in the PR.
 
 ## Flaky tests
 
