@@ -1,18 +1,21 @@
 import { type DistanceUnit, type ElevationProfile, type GpxFile, courseLengthM } from "@pp/core";
-import type { ReactNode } from "react";
-import { CHART_HEIGHT_PX, ElevationChart } from "../chart/ElevationChart.tsx";
+import { type ReactNode, useMemo } from "react";
+import { CHART_HEIGHT_PX, type ChartSegment, ElevationChart } from "../chart/ElevationChart.tsx";
+import { segmentTone } from "../plan/tones.ts";
 import { type CourseState, useAppState } from "../state/app.ts";
 import { retryElevation, selectTrack, trackTitle } from "../state/course.ts";
+import { usePlanView } from "../state/plan.ts";
 import { FileButton } from "./FileButton.tsx";
+import { PacingPlan } from "./PacingPlan.tsx";
 import { UnitsSwitch } from "./UnitsSwitch.tsx";
 import { type Quantity, formatDistance, formatElevation, quantityText } from "./format.ts";
 
 type Loaded = Extract<CourseState, { status: "loaded" }>;
 
 /**
- * The loaded course: its name, the track picker for multi-track files, its elevation profile and
- * its stats. `profileFirst` (the phone sheet) leads with the profile, so at the half-height snap
- * the chart sits right under the map it scrubs.
+ * The loaded course: its name, the track picker for multi-track files, its elevation profile, its
+ * pacing plan and its stats. `profileFirst` (the phone sheet) leads with the profile and the plan,
+ * so at the half-height snap the chart sits right under the map it scrubs, with the goal under it.
  */
 export function CourseSummary({ course, profileFirst = false }: { course: Loaded; profileFirst?: boolean }) {
   const units = useAppState((s) => s.units);
@@ -32,11 +35,23 @@ export function CourseSummary({ course, profileFirst = false }: { course: Loaded
       <Profile elevation={elevation} units={units} />
     </section>
   );
+  const plan = elevation.status !== "error" && (
+    <div className="mt-8">
+      {elevation.status === "ready" ? (
+        <PacingPlan profile={elevation.profile} headingLevel={profileFirst ? 2 : 3} />
+      ) : (
+        <p className="rounded-2xl bg-surface-raised px-4 py-3.5 text-[13px] text-ink-muted ring-1 ring-line ring-inset">
+          Your pacing plan appears here once the elevation profile is ready.
+        </p>
+      )}
+    </div>
+  );
 
   return (
     <div className="px-6 pt-2 pb-6" data-testid="course-summary">
       {profileFirst && profile}
-      <div className={`flex items-start justify-between gap-4 ${profileFirst ? "mt-6" : ""}`}>
+      {profileFirst && plan}
+      <div className={`flex items-start justify-between gap-4 ${profileFirst ? "mt-8 border-t border-line pt-6" : ""}`}>
         <div className="min-w-0">
           <p className="text-xs font-semibold tracking-[0.08em] text-accent uppercase">Your course</p>
           <h2
@@ -57,8 +72,9 @@ export function CourseSummary({ course, profileFirst = false }: { course: Loaded
       {file.tracks.length > 1 && <TrackPicker file={file} fileName={fileName} selected={index} units={units} />}
 
       {!profileFirst && profile}
+      {!profileFirst && plan}
 
-      <SectionHeading level={3} className="mt-6">
+      <SectionHeading level={3} className="mt-8">
         Course stats
       </SectionHeading>
       <Stats lengthM={courseLengthM(track.course)} elevation={elevation} units={units} />
@@ -90,7 +106,7 @@ function Profile({ elevation, units }: { elevation: Loaded["elevation"]; units: 
   return (
     <div className="mt-3" aria-busy={elevation.status === "loading"}>
       {elevation.status === "ready" ? (
-        <ElevationChart profile={elevation.profile} units={units} />
+        <PlannedChart profile={elevation.profile} units={units} />
       ) : (
         elevation.status === "loading" && (
           <div
@@ -308,4 +324,22 @@ function ElevationNote({ elevation }: { elevation: Loaded["elevation"] }) {
       {text}
     </p>
   );
+}
+
+/** The chart with the plan's segments in their tones, once the plan for this profile is in. */
+function PlannedChart({ profile, units }: { profile: ElevationProfile; units: DistanceUnit }) {
+  const planProfile = usePlanView((v) => v.profile);
+  const plan = usePlanView((v) => v.plan);
+  const segments = useMemo<ChartSegment[] | undefined>(
+    () =>
+      plan && planProfile === profile
+        ? plan.segments.map((s) => ({
+            startM: s.startM,
+            endM: s.endM,
+            tone: segmentTone(s.paceSPerM, plan.flatPaceSPerM),
+          }))
+        : undefined,
+    [plan, planProfile, profile],
+  );
+  return <ElevationChart profile={profile} units={units} segments={segments} />;
 }

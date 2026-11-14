@@ -93,8 +93,14 @@ describe("app state", () => {
       units: "mi",
       course: { status: "empty" },
       focusDistM: null,
+      goalTimeS: null,
+      paceChanges: 4,
+      minSegmentM: 0.25 * 1609.344,
+      selectedSegment: null,
     });
     expect(initialAppState(storage("light")).theme).toBe("light");
+    // Kilometer users start at half a kilometer.
+    expect(initialAppState(storage(null), "de-DE").minSegmentM).toBe(500);
   });
 
   it("falls back to the system theme for missing, unknown or unreadable values", () => {

@@ -1,8 +1,8 @@
 import { expect, test } from "@playwright/test";
 import { markTime, openApp } from "../support/app.ts";
 
-// Browser-side budgets read `performance` marks the app sets. The course load budget is in
-// `load-perf.spec.ts`, which runs on its own. Later PRs add the plan-recompute mark.
+// Browser-side budgets read `performance` marks the app sets. The course load and plan recompute
+// budgets are in `load-perf.spec.ts` and `plan-perf.spec.ts`, which run on their own.
 const BUDGETS_MS = {
   "pp:ready": 3000,
   // The core worker has loaded and answered its first message.
