@@ -34,6 +34,12 @@ export interface AppState {
   /** Distance unit for every number shown: miles with feet, or kilometers with meters. */
   units: DistanceUnit;
   course: CourseState;
+  /**
+   * The point along the course (meters from the start) the user is pointing at: hovering or
+   * scrubbing the elevation chart, the arrow keys on it, or hovering the route on the map. The
+   * map draws its marker there and the chart its cursor. Null when nothing is pointed at.
+   */
+  focusDistM: number | null;
 }
 
 export const THEME_STORAGE_KEY = "pp:theme";
@@ -84,6 +90,7 @@ export function initialAppState(storage?: Pick<Storage, "getItem">, language?: s
     sheet: "peek",
     units: readUnits(storage, language),
     course: { status: "empty" },
+    focusDistM: null,
   };
 }
 
@@ -126,5 +133,10 @@ export function setUnits(units: DistanceUnit): void {
 
 /** Replace the course state. The load flow in `course.ts` is the only caller. */
 export function setCourse(course: CourseState): void {
-  appStore.set({ course });
+  appStore.set({ course, focusDistM: null });
+}
+
+/** Point at a distance along the course (meters), or clear the pointer with null. */
+export function setFocusDistM(focusDistM: number | null): void {
+  appStore.set({ focusDistM });
 }

@@ -1,5 +1,6 @@
 import { type DistanceUnit, type ElevationProfile, type GpxFile, courseLengthM } from "@pp/core";
 import type { ReactNode } from "react";
+import { CHART_HEIGHT_PX, ElevationChart } from "../chart/ElevationChart.tsx";
 import { type CourseState, useAppState } from "../state/app.ts";
 import { retryElevation, selectTrack, trackTitle } from "../state/course.ts";
 import { FileButton } from "./FileButton.tsx";
@@ -8,17 +9,34 @@ import { type Quantity, formatDistance, formatElevation, quantityText } from "./
 
 type Loaded = Extract<CourseState, { status: "loaded" }>;
 
-/** The loaded course: its name, the track picker for multi-track files, and its stats. */
-export function CourseSummary({ course }: { course: Loaded }) {
+/**
+ * The loaded course: its name, the track picker for multi-track files, its elevation profile and
+ * its stats. `profileFirst` (the phone sheet) leads with the profile, so at the half-height snap
+ * the chart sits right under the map it scrubs.
+ */
+export function CourseSummary({ course, profileFirst = false }: { course: Loaded; profileFirst?: boolean }) {
   const units = useAppState((s) => s.units);
   const { file, fileName, track: index, elevation } = course;
   const track = file.tracks[index];
   if (!track) return null;
   const title = trackTitle(file, index, fileName);
 
+  const profile = (
+    <section aria-labelledby="profile-heading" className={profileFirst ? "" : "mt-6"}>
+      <div className="flex items-center justify-between">
+        <SectionHeading id="profile-heading" level={profileFirst ? 2 : 3}>
+          Elevation profile
+        </SectionHeading>
+        <UnitsSwitch />
+      </div>
+      <Profile elevation={elevation} units={units} />
+    </section>
+  );
+
   return (
     <div className="px-6 pt-2 pb-6" data-testid="course-summary">
-      <div className="flex items-start justify-between gap-4">
+      {profileFirst && profile}
+      <div className={`flex items-start justify-between gap-4 ${profileFirst ? "mt-6" : ""}`}>
         <div className="min-w-0">
           <p className="text-xs font-semibold tracking-[0.08em] text-accent uppercase">Your course</p>
           <h2
@@ -38,11 +56,51 @@ export function CourseSummary({ course }: { course: Loaded }) {
 
       {file.tracks.length > 1 && <TrackPicker file={file} fileName={fileName} selected={index} units={units} />}
 
-      <div className="mt-6 flex items-center justify-between">
-        <h3 className="text-xs font-semibold tracking-[0.08em] text-ink-subtle uppercase">Course stats</h3>
-        <UnitsSwitch />
-      </div>
+      {!profileFirst && profile}
+
+      <SectionHeading level={3} className="mt-6">
+        Course stats
+      </SectionHeading>
       <Stats lengthM={courseLengthM(track.course)} elevation={elevation} units={units} />
+    </div>
+  );
+}
+
+function SectionHeading({
+  id,
+  level,
+  className = "",
+  children,
+}: {
+  id?: string;
+  level: 2 | 3;
+  className?: string;
+  children: ReactNode;
+}) {
+  const Tag = level === 2 ? "h2" : "h3";
+  return (
+    <Tag id={id} className={`text-xs font-semibold tracking-[0.08em] text-ink-subtle uppercase ${className}`}>
+      {children}
+    </Tag>
+  );
+}
+
+/** The chart once the profile is ready (a placeholder of the same size while it builds), and where its elevation came from. */
+function Profile({ elevation, units }: { elevation: Loaded["elevation"]; units: DistanceUnit }) {
+  return (
+    <div className="mt-3" aria-busy={elevation.status === "loading"}>
+      {elevation.status === "ready" ? (
+        <ElevationChart profile={elevation.profile} units={units} />
+      ) : (
+        elevation.status === "loading" && (
+          <div
+            className="animate-pulse rounded-xl bg-surface-raised motion-reduce:animate-none"
+            style={{ height: CHART_HEIGHT_PX }}
+            data-testid="chart-placeholder"
+          />
+        )
+      )}
+      <ElevationNote elevation={elevation} />
     </div>
   );
 }
@@ -137,7 +195,6 @@ function Stats({
           testId="stat-max"
         />
       </dl>
-      <ElevationNote elevation={elevation} />
     </div>
   );
 }

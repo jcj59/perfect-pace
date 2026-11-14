@@ -30,6 +30,30 @@ for (const scheme of ["light", "dark"] satisfies ColorScheme[]) {
     await expect(page).toHaveScreenshot(`loaded-course-${scheme}.png`);
   });
 
+  // The chart's cursor and readout, and the marker on the map, at a fixed point along the course.
+  test(`loaded course with the chart scrubbed, ${scheme} @visual`, async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await openApp(page, scheme);
+    await uploadGpx(page, corpusPath("boston.gpx"));
+    await expectRouteDrawn(page);
+    const line = (await page.getByTestId("chart-line").boundingBox())!;
+    await page.mouse.move(line.x + line.width * 0.6, line.y + line.height / 2);
+    await expect(page.getByTestId("map-marker")).toBeVisible();
+    await expect(page).toHaveScreenshot(`loaded-course-scrubbed-${scheme}.png`);
+  });
+
+  test(`loaded course in the full sheet, ${scheme} @visual`, async ({ page }) => {
+    test.skip((page.viewportSize()?.width ?? 0) >= 768, "phones only: desktop shows it in the side panel");
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await openApp(page, scheme);
+    await uploadGpx(page, corpusPath("boston.gpx"));
+    await expectRouteDrawn(page);
+    await expect(page.getByTestId("elevation-source")).toBeVisible();
+    await page.getByTestId("sheet-handle").click();
+    await expect(page.getByTestId("sheet")).toHaveAttribute("data-snap", "full");
+    await expect(page).toHaveScreenshot(`loaded-course-sheet-full-${scheme}.png`);
+  });
+
   test(`error state, ${scheme} @visual`, async ({ page }) => {
     await openApp(page, scheme);
     await uploadGpx(page, invalidPath("kml.gpx"));
