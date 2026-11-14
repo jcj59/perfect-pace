@@ -104,3 +104,20 @@ body {
 .dark .maplibregl-map .maplibregl-ctrl-attrib-button {
   background-color: transparent;
 }
+
+/*
+ * The point picked on the elevation chart, on the map: the same ring as the chart's cursor. Hollow,
+ * so it never reads as the solid start and finish dots.
+ */
+.pp-course-marker {
+  width: 20px;
+  height: 20px;
+  box-sizing: border-box;
+  border-radius: 9999px;
+  border: 4.5px solid var(--pp-ink);
+  background: var(--pp-surface);
+  box-shadow:
+    0 0 0 2px var(--pp-surface),
+    0 2px 6px 2px rgb(0 0 0 / 0.3);
+  pointer-events: none;
+}

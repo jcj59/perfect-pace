@@ -14,6 +14,10 @@ import type { Theme } from "../state/app.ts";
 
 export const COURSE_SOURCE = "course";
 export const COURSE_LINE_LAYER = "course-line";
+/** An invisible, wide copy of the route line that catches the pointer for hovering the route. */
+export const COURSE_HIT_LAYER = "course-hit";
+/** Width (px) of the hover target along the route, much wider than the drawn line. */
+const HIT_WIDTH_PX = 24;
 
 type Coordinates = [number, number][];
 
@@ -82,6 +86,14 @@ function lineWidth(base: number): ExpressionSpecification {
 function lineLayers(theme: Theme): LayerSpecification[] {
   const c = COLORS[theme];
   return [
+    {
+      id: COURSE_HIT_LAYER,
+      type: "line",
+      source: COURSE_SOURCE,
+      filter: ROUTE,
+      layout: { "line-join": "round", "line-cap": "round" },
+      paint: { "line-width": HIT_WIDTH_PX, "line-color": c.line, "line-opacity": 0 },
+    },
     {
       id: "course-casing",
       type: "line",

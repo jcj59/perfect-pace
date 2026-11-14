@@ -182,7 +182,9 @@ test.describe("phone", () => {
     await uploadGpx(page, corpusPath("Lakefront-Loops-5K.gpx"));
     await expect(page.getByTestId("sheet")).toHaveAttribute("data-snap", "half");
     await expectRouteDrawn(page);
-    await expect(page.getByTestId("stat-distance")).toBeInViewport();
+    // The sheet leads with the profile, right under the map it scrubs; the stats follow below.
+    await expect(page.getByRole("slider", { name: "Elevation profile" })).toBeInViewport({ ratio: 1 });
+    await expect(page.getByTestId("course-title")).toBeAttached();
     await expect(page.getByRole("button", { name: "Load GPX" })).toHaveCount(0);
     expect(await hasHorizontalScroll(page)).toBe(false);
   });
