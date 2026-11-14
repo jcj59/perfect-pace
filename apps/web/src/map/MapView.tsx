@@ -51,7 +51,7 @@ export interface MapViewProps {
   compact: boolean;
   /** The course to draw, or null for none. A new array draws it and frames the camera on it. */
   route: readonly CoursePoint[] | null;
-  /** Called once a new route is on screen (drawn, framed, and every tile in view loaded). */
+  /** Called once a new route is on screen: drawn at its framed view (basemap tiles may still be loading). */
   onRouteDrawn?: () => void;
 }
 
@@ -165,9 +165,12 @@ export default function MapView({ theme, insets, compact, route, onRouteDrawn }:
     const instance = map.current;
     if (!instance) return;
     let cancelled = false;
+    // Checked after each frame: the camera has settled on the course, the new data is tiled, and
+    // the frame drew route features. Basemap tiles are not waited for.
     const confirm = () => {
-      if (cancelled || !route) return;
+      if (cancelled || !route || instance.isMoving() || !instance.isSourceLoaded(COURSE_SOURCE)) return;
       if (instance.queryRenderedFeatures({ layers: [COURSE_LINE_LAYER] }).length === 0) return;
+      instance.off("render", confirm);
       setDrawnRoute(route);
       onDrawn.current?.();
     };
@@ -187,13 +190,13 @@ export default function MapView({ theme, insets, compact, route, onRouteDrawn }:
         maxZoom: COURSE_MAX_ZOOM,
         duration: reducedMotion() ? 0 : 700,
       });
-      instance.once("idle", confirm);
+      instance.on("render", confirm);
     };
     apply();
     return () => {
       cancelled = true;
       instance.off("styledata", apply);
-      instance.off("idle", confirm);
+      instance.off("render", confirm);
     };
   }, [route]);
 
