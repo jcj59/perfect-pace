@@ -6,9 +6,12 @@ export interface FileButtonProps {
   children: ReactNode;
   variant?: "primary" | "secondary" | "compact";
   className?: string;
+  /** When the visible label is shortened (the phone header's "GPX"). */
+  "aria-label"?: string;
 }
 
-const VARIANTS = {
+/** The button looks the panel's actions share (this one, and Draw route). */
+export const BUTTON_VARIANTS = {
   primary:
     "h-11 gap-2 rounded-xl bg-accent px-5 text-[15px] font-semibold text-on-accent shadow-sm hover:brightness-105 active:brightness-95",
   secondary:
@@ -17,19 +20,23 @@ const VARIANTS = {
     "h-9 gap-1.5 rounded-full bg-accent px-3.5 text-[13px] font-semibold text-on-accent shadow-sm hover:brightness-105 active:brightness-95",
 };
 
+export const BUTTON_BASE =
+  "inline-flex shrink-0 cursor-pointer items-center justify-center transition focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface focus-visible:outline-none disabled:cursor-default disabled:opacity-45 disabled:hover:bg-surface-raised";
+
 /**
  * A button that opens the file picker and loads the chosen GPX file. Phones and tablets get no
  * `accept` filter: iOS greys out every file for an extension it has no type for, and `.gpx` is one.
  */
-export function FileButton({ children, variant = "primary", className = "" }: FileButtonProps) {
+export function FileButton({ children, variant = "primary", className = "", ...rest }: FileButtonProps) {
   const input = useRef<HTMLInputElement>(null);
   const finePointer = useMediaQuery("(pointer: fine)");
   return (
     <>
       <button
         type="button"
-        className={`inline-flex shrink-0 cursor-pointer items-center justify-center transition focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface focus-visible:outline-none ${VARIANTS[variant]} ${className}`}
+        className={`${BUTTON_BASE} ${BUTTON_VARIANTS[variant]} ${className}`}
         onClick={() => input.current?.click()}
+        {...rest}
       >
         <UploadIcon />
         {children}

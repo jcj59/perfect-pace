@@ -3,9 +3,14 @@ import { BottomSheet } from "./layout/BottomSheet.tsx";
 import { SIDE_PANEL_GAP_PX, SIDE_PANEL_WIDTH_PX, SidePanel } from "./layout/SidePanel.tsx";
 import { SHEET_PEEK_PX, snapHeights } from "./layout/sheet.ts";
 import { DESKTOP_QUERY, useMediaQuery } from "./layout/useMediaQuery.ts";
+import { DrawButton } from "./draw/DrawButton.tsx";
+import { DrawToolbar } from "./draw/DrawToolbar.tsx";
+import { RouteEditor } from "./draw/RouteEditor.tsx";
 import type { MapSegment } from "./map/course-layer.ts";
+import type { DrawingView, MapDrawEdit } from "./map/draw-layer.ts";
 import type { Insets, MapViewProps } from "./map/MapView.tsx";
-import { CourseSummary } from "./panel/CourseSummary.tsx";
+import { CourseSummary, DrawnCourseSummary } from "./panel/CourseSummary.tsx";
+import { formatDistance } from "./panel/format.ts";
 import { DropOverlay } from "./panel/DropOverlay.tsx";
 import { EmptyState } from "./panel/EmptyState.tsx";
 import { FileButton } from "./panel/FileButton.tsx";
@@ -13,6 +18,7 @@ import { LoadError } from "./panel/LoadError.tsx";
 import { PanelHeader } from "./panel/PanelHeader.tsx";
 import { ThemeSwitch } from "./panel/ThemeSwitch.tsx";
 import { type CourseState, type SheetSnap, setSheet, useAppState } from "./state/app.ts";
+import { drawStore, drawing, useDrawState } from "./state/draw.ts";
 import { LOAD_MEASURE, LOAD_START_MARK, ROUTE_DRAWN_MARK } from "./state/course.ts";
 import { focusNearest, focusPosition, readyProfile } from "./state/focus.ts";
 import { startPlanner, usePlanView } from "./state/plan.ts";
@@ -45,12 +51,32 @@ function markRouteDrawn(): void {
   performance.measure(LOAD_MEASURE, LOAD_START_MARK, ROUTE_DRAWN_MARK);
 }
 
+/** An edit on the map, as a drawing action: a new waypoint's leg gets the mode picked for new legs. */
+function drawOnMap(edit: MapDrawEdit): void {
+  drawing.dispatch(edit.type === "add" ? { ...edit, mode: drawStore.get().newLegMode } : edit);
+}
+
+/** The route being drawn, for the map, or null when not drawing. */
+function useDrawingView(): DrawingView | null {
+  const editing = useDrawState((s) => s.editing);
+  const waypoints = useDrawState((s) => s.history.present.waypoints);
+  const legs = useDrawState((s) => s.legs);
+  return useMemo(() => (editing ? { waypoints, legs } : null), [editing, waypoints, legs]);
+}
+
 /**
- * The map with the course marker at the focused point. Its own component, so pointing along the
- * course re-renders only the map, not the panel around it.
+ * The map with the course marker at the focused point, and the route being drawn. Its own
+ * component, so pointing along the course re-renders only the map, not the panel around it.
  */
-function CourseMap(props: Omit<MapViewProps, "marker" | "onRouteHover" | "segments" | "selectedSegment">) {
+function CourseMap(
+  props: Omit<
+    MapViewProps,
+    "marker" | "onRouteHover" | "segments" | "selectedSegment" | "route" | "drawing" | "onDrawEdit" | "camera"
+  >,
+) {
   const course = useAppState((s) => s.course);
+  const drawingView = useDrawingView();
+  const camera = useDrawState((s) => s.camera);
   const focusDistM = useAppState((s) => s.focusDistM);
   const selectedSegment = useAppState((s) => s.selectedSegment);
   const planProfile = usePlanView((v) => v.profile);
@@ -58,19 +84,30 @@ function CourseMap(props: Omit<MapViewProps, "marker" | "onRouteHover" | "segmen
   const profile = readyProfile(course);
   const marker = useMemo(() => focusPosition(profile, focusDistM), [profile, focusDistM]);
   // Each segment's stretch of the profile's points (which lie on the route), in its tone.
+  // While drawing, the map shows the legs as they are routed; the plan's colors come back after.
   const segments = useMemo<MapSegment[] | null>(
     () =>
-      plan && profile && planProfile === profile
+      !drawingView && plan && profile && planProfile === profile
         ? plan.segments.map((s) => ({
             points: profile.course.points.slice(s.startIndex, s.endIndex + 1),
             tone: segmentTone(s.paceSPerM, plan.flatPaceSPerM),
           }))
         : null,
-    [plan, planProfile, profile],
+    [plan, planProfile, profile, drawingView],
   );
+  const route =
+    course.status === "loaded"
+      ? (course.file.tracks[course.track]?.course.points ?? null)
+      : course.status === "drawn" && !drawingView
+        ? (course.course?.points ?? null)
+        : null;
   return (
     <MapView
       {...props}
+      route={route}
+      drawing={drawingView}
+      onDrawEdit={drawOnMap}
+      camera={camera}
       marker={marker}
       onRouteHover={focusNearest}
       segments={segments}
@@ -81,9 +118,12 @@ function CourseMap(props: Omit<MapViewProps, "marker" | "onRouteHover" | "segmen
 
 /** What the panel shows for the course state, in the side panel or (`sheet`) the phone's bottom sheet. */
 function PanelContent({ course, sheet = false }: { course: CourseState; sheet?: boolean }) {
+  const editing = useDrawState((s) => s.editing);
   switch (course.status) {
     case "loaded":
       return <CourseSummary course={course} profileFirst={sheet} />;
+    case "drawn":
+      return <DrawnCourseSummary course={course} editing={editing} editor={<RouteEditor />} profileFirst={sheet} />;
     case "error":
       return (
         <>
@@ -98,6 +138,60 @@ function PanelContent({ course, sheet = false }: { course: CourseState; sheet?: 
   }
 }
 
+/**
+ * The phone header's action at `peek`, where nothing else of the panel shows: the ways in before
+ * there is a course, and while drawing the live distance and Done.
+ */
+function PhoneHeaderAction({ course }: { course: CourseState }) {
+  const editing = useDrawState((s) => s.editing);
+  const distanceM = useDrawState((s) => s.distanceM);
+  const waypoints = useDrawState((s) => s.history.present.waypoints.length);
+  const units = useAppState((s) => s.units);
+  if (course.status === "drawn" && editing) {
+    const distance = formatDistance(distanceM, units);
+    return (
+      <div className="flex shrink-0 items-center gap-2.5">
+        <span className="text-[15px] font-semibold text-ink tabular-nums" data-testid="draw-distance-compact">
+          {distance.value}
+          <span className="ml-0.5 text-[13px] font-medium text-ink-muted">{distance.unit}</span>
+        </span>
+        <button
+          type="button"
+          onClick={drawing.finish}
+          className="inline-flex h-9 shrink-0 cursor-pointer items-center rounded-full bg-accent px-3.5 text-[13px] font-semibold text-on-accent shadow-sm hover:brightness-105 focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface focus-visible:outline-none"
+        >
+          {waypoints >= 2 ? "Done" : "Cancel"}
+        </button>
+      </div>
+    );
+  }
+  // An error raises the sheet, and its card has its own buttons.
+  if (course.status !== "empty") return null;
+  return (
+    <div className="flex shrink-0 items-center gap-1.5">
+      <FileButton variant="compact" aria-label="Load GPX">
+        GPX
+      </FileButton>
+      <DrawButton variant="compact" aria-label="Draw route">
+        Draw
+      </DrawButton>
+    </div>
+  );
+}
+
+/** Where the drawing toolbar sits: right of the desktop panel, or just above the phone sheet. */
+function useToolbarStyle(desktop: boolean, insets: Insets, sheet: SheetSnap) {
+  return useMemo(
+    () =>
+      desktop
+        ? { top: SIDE_PANEL_GAP_PX, left: SIDE_PANEL_WIDTH_PX + SIDE_PANEL_GAP_PX * 2, right: SIDE_PANEL_GAP_PX }
+        : sheet === "full"
+          ? null
+          : { bottom: insets.bottom + 12, left: 12, right: 12 },
+    [desktop, insets.bottom, sheet],
+  );
+}
+
 /** The app shell: a full-bleed map with the panel beside it (desktop) or over it as a sheet (phones). */
 export function App() {
   const theme = useTheme();
@@ -106,10 +200,8 @@ export function App() {
   const sheet = useAppState((s) => s.sheet);
   const course = useAppState((s) => s.course);
   const phoneInsets = usePhoneInsets(sheet);
-  const route = course.status === "loaded" ? (course.file.tracks[course.track]?.course.points ?? null) : null;
-  // At peek only the header shows, so on a phone it carries the way in until there is a course.
-  // (An error raises the sheet, and its card has its own button.)
-  const headerAction = course.status === "empty" ? <FileButton variant="compact">Load GPX</FileButton> : null;
+  const editing = useDrawState((s) => s.editing);
+  const toolbarStyle = useToolbarStyle(desktop, phoneInsets, sheet);
 
   useEffect(() => startPlanner(), []);
 
@@ -125,10 +217,17 @@ export function App() {
           theme={theme}
           insets={desktop ? DESKTOP_INSETS : phoneInsets}
           compact={!desktop}
-          route={route}
           onRouteDrawn={markRouteDrawn}
         />
       </Suspense>
+      {editing && course.status === "drawn" && toolbarStyle && (
+        <div
+          className={`pointer-events-none absolute z-10 flex ${desktop ? "justify-start" : "justify-center"}`}
+          style={toolbarStyle}
+        >
+          <DrawToolbar placement={desktop ? "top" : "bottom"} />
+        </div>
+      )}
       {desktop ? (
         <SidePanel label={PANEL_LABEL} header={<PanelHeader />} footer={<ThemeSwitch />}>
           <PanelContent course={course} />
@@ -138,7 +237,7 @@ export function App() {
           label={PANEL_LABEL}
           snap={sheet}
           onSnapChange={setSheet}
-          header={<PanelHeader action={headerAction} />}
+          header={<PanelHeader action={<PhoneHeaderAction course={course} />} />}
         >
           <PanelContent course={course} sheet />
           <div className="border-t border-line px-6 pt-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]">

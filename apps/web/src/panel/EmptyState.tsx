@@ -1,9 +1,11 @@
+import { DrawButton } from "../draw/DrawButton.tsx";
+import { DRAW, Icon } from "../draw/icons.tsx";
 import { UploadCard } from "./UploadCard.tsx";
 
 const STEPS = [
   {
     title: "Add your course",
-    body: "Load a GPX file from your watch, Strava or the race website, and see it on the map.",
+    body: "Load a GPX file from your watch, Strava or the race website, or draw the route on the map, each leg following the paths.",
   },
   {
     title: "Set your goal",
@@ -16,7 +18,7 @@ const STEPS = [
 ];
 
 export interface EmptyStateProps {
-  /** Show the upload card. Off while an error card above it offers the same button. */
+  /** Show the upload card. Off while an error card above it offers the same button. The draw card always shows. */
   upload?: boolean;
 }
 
@@ -32,11 +34,10 @@ export function EmptyState({ upload = true }: EmptyStateProps) {
         Perfect Pace turns a course and a goal time into a pacing plan that eases off on the climbs, makes the time back
         on the descents, and keeps the pace changes to as few as you like.
       </p>
-      {upload && (
-        <div className="mt-6">
-          <UploadCard />
-        </div>
-      )}
+      <div className="mt-6 space-y-3">
+        {upload && <UploadCard />}
+        <DrawCard />
+      </div>
       <h3 className="mt-7 text-xs font-semibold tracking-[0.08em] text-ink-subtle uppercase">How it works</h3>
       <ol className="mt-3 space-y-4">
         {STEPS.map((step, i) => (
@@ -54,6 +55,29 @@ export function EmptyState({ upload = true }: EmptyStateProps) {
           </li>
         ))}
       </ol>
+    </div>
+  );
+}
+
+/** The other way in: draw the course on the map. */
+function DrawCard() {
+  return (
+    <div
+      data-testid="draw-card"
+      className="flex gap-3.5 rounded-2xl bg-surface-raised px-4 py-4 ring-1 ring-line ring-inset"
+    >
+      <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-accent-soft text-accent">
+        <Icon className="size-5">{DRAW}</Icon>
+      </span>
+      <div className="min-w-0 flex-1">
+        <h3 className="text-[15px] font-semibold text-ink">Or draw it on the map</h3>
+        <p className="mt-0.5 text-[13px] leading-snug text-pretty text-ink-muted">
+          Place the points and each leg follows the paths between them.
+        </p>
+        <DrawButton variant="secondary" className="mt-3">
+          Draw route
+        </DrawButton>
+      </div>
     </div>
   );
 }
