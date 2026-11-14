@@ -19,7 +19,7 @@ export const goldenCases: GoldenCase[] = [
     name: "harness-prefix-sums",
     description: "Harness check: prefix sums of 16 seeded values in [0, 100).",
     compute: () => {
-      const prefix = Array.from(prefixSums(randomValues(5999, 16, 0, 100)), (v) => roundTo(v, PRECISION.ratio));
+      const prefix = Array.from(prefixSums(randomValues(6000, 16, 0, 100)), (v) => roundTo(v, PRECISION.ratio));
       return {
         output: { count: prefix.length - 1, prefix },
         summary: { count: prefix.length - 1, total: prefix.at(-1) ?? 0 },
