@@ -58,6 +58,8 @@ Rules of thumb:
 - `@pp/core` has a 90% line and branch coverage floor. The UI relies on E2E tests instead.
 - Randomized tests always use a fixed seed (`packages/core/test/support/rng.ts`) and print it on failure.
 - Fixtures are committed and never fetched at test time. Only `@live` tests (nightly) touch the network.
+  E2E serves map and DEM tiles from fixtures (`e2e/support/app.ts`), and answers `/api/route` from the
+  ORS fixtures through the Worker's own parser (`e2e/support/draw.ts`), so drawing tests need no key.
   E2E tests open the app with `openApp` (`e2e/support/app.ts`), which serves the basemap TileJSON from
   `e2e/fixtures/openfreemap` and answers every tile and glyph request with an empty response.
 - Every bug fix starts with a failing E2E or golden test that reproduces it.

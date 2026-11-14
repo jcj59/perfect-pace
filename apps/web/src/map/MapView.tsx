@@ -32,6 +32,17 @@ import {
   routeLineOpacity,
   withCourse,
 } from "./course-layer.ts";
+import {
+  DRAW_SOURCE,
+  type DrawFeatures,
+  DrawHandles,
+  type DrawPreview,
+  type DrawingView,
+  type MapDrawEdit,
+  NO_DRAWING,
+  drawFeatures,
+  withDrawing,
+} from "./draw-layer.ts";
 import { mapStyle } from "./style.ts";
 
 /** Screen space covered by the panel or sheet, in CSS pixels. The camera keeps content out of it. */
@@ -52,6 +63,20 @@ const VIEW_MARGIN_PX = 24;
 const COURSE_MAX_ZOOM = 16;
 /** Room around a framed course, so its start and finish dots sit clear of the edges and controls. */
 const COURSE_MARGIN_PX = 56;
+/**
+ * Drawing: zoomed out further than this, a click zooms in to `DRAW_ZOOM_IN` there instead of
+ * adding a waypoint (a click on a whole-country view can't be meant as one, and its legs would be
+ * too long to route).
+ */
+export const MIN_DRAW_ZOOM = 11;
+const DRAW_ZOOM_IN = 14;
+
+/** Where to move the camera; a new `id` moves it again. */
+export interface CameraRequest {
+  id: number;
+  center: LatLon;
+  zoom: number;
+}
 
 export interface MapViewProps {
   theme: Theme;
@@ -74,6 +99,14 @@ export interface MapViewProps {
   segments?: readonly MapSegment[] | null;
   /** The plan segment to highlight (wider, the rest faded), or null. */
   selectedSegment?: number | null;
+  /**
+   * The route being drawn, or null when not drawing. While drawing, a click on the map adds a
+   * waypoint (see `draw-layer.ts` for the handles), reported through `onDrawEdit`.
+   */
+  drawing?: DrawingView | null;
+  onDrawEdit?: (edit: MapDrawEdit) => void;
+  /** Move the camera here, once per `id` (for example to where the user is, to start drawing). */
+  camera?: CameraRequest | null;
 }
 
 /**
@@ -122,6 +155,9 @@ export default function MapView({
   onRouteHover,
   segments = null,
   selectedSegment = null,
+  drawing = null,
+  onDrawEdit,
+  camera = null,
 }: MapViewProps) {
   const container = useRef<HTMLDivElement>(null);
   const map = useRef<MapLibreMap | null>(null);
@@ -141,12 +177,17 @@ export default function MapView({
   });
   const onDrawn = useRef(onRouteDrawn);
   const onHover = useRef(onRouteHover);
+  const onEdit = useRef(onDrawEdit);
+  const drawData = useRef<DrawFeatures>(NO_DRAWING);
+  const latestDrawing = useRef(drawing);
   const courseMarker = useRef<Marker | null>(null);
   const [drawnRoute, setDrawnRoute] = useState<readonly CoursePoint[] | null>(null);
   useLayoutEffect(() => {
     latestInsets.current = insets;
     onDrawn.current = onRouteDrawn;
     onHover.current = onRouteHover;
+    onEdit.current = onDrawEdit;
+    latestDrawing.current = drawing;
   });
 
   useEffect(() => {
@@ -157,7 +198,11 @@ export default function MapView({
     try {
       instance = new MapLibreMap({
         container: element,
-        style: withCourse(mapStyle(theme), theme, courseData.current, planData.current, latestSelected.current),
+        style: withDrawing(
+          withCourse(mapStyle(theme), theme, courseData.current, planData.current, latestSelected.current),
+          theme,
+          drawData.current,
+        ),
         bounds: INITIAL_BOUNDS,
         fitBoundsOptions: { padding: padding(insets) },
         attributionControl: false,
@@ -178,6 +223,15 @@ export default function MapView({
     instance.on("mousemove", COURSE_HIT_LAYER, hover);
     instance.on("click", COURSE_HIT_LAYER, hover);
     instance.on("mouseleave", COURSE_HIT_LAYER, leave);
+    // Drawing: a click on the map itself (not on a handle or a control) adds a waypoint.
+    instance.on("click", (event) => {
+      if (!latestDrawing.current || !(event.originalEvent.target instanceof HTMLCanvasElement)) return;
+      if (instance.getZoom() < MIN_DRAW_ZOOM) {
+        instance.easeTo({ center: event.lngLat, zoom: DRAW_ZOOM_IN, duration: reducedMotion() ? 0 : 600 });
+        return;
+      }
+      onEdit.current?.({ type: "add", at: { lat: event.lngLat.lat, lon: event.lngLat.lng } });
+    });
     map.current = instance;
     return () => {
       courseMarker.current?.remove();
@@ -214,7 +268,11 @@ export default function MapView({
     styledTheme.current = theme;
     // The course is part of the style, so it survives the switch with its current data.
     map.current?.setStyle(
-      withCourse(mapStyle(theme), theme, courseData.current, planData.current, latestSelected.current),
+      withDrawing(
+        withCourse(mapStyle(theme), theme, courseData.current, planData.current, latestSelected.current),
+        theme,
+        drawData.current,
+      ),
     );
   }, [theme]);
 
@@ -307,6 +365,79 @@ export default function MapView({
     instance.setFilter(PLAN_HALO_LAYER, paint.halo);
   }, [selectedSegment]);
 
+  // The route being drawn: its legs in the draw source, its waypoints and midpoints as handles.
+  const handles = useRef<DrawHandles | null>(null);
+  const preview = useRef<DrawPreview | null>(null);
+  useEffect(() => {
+    const instance = map.current;
+    if (!instance) return;
+    // Reads the refs, so the handles' preview callback (made once) always draws the latest route.
+    const show = () => {
+      const data = drawFeatures(latestDrawing.current, preview.current);
+      drawData.current = data;
+      void instance.getSource<GeoJSONSource>(DRAW_SOURCE)?.setData(data);
+    };
+    if (!drawing) {
+      handles.current?.remove();
+      handles.current = null;
+      preview.current = null;
+      show();
+      return;
+    }
+    handles.current ??= new DrawHandles(instance, {
+      onEdit: (edit) => onEdit.current?.(edit),
+      onPreview: (next) => {
+        preview.current = next;
+        show();
+      },
+    });
+    handles.current.update(drawing);
+    show();
+  }, [drawing]);
+
+  const isDrawing = drawing !== null;
+  useEffect(() => {
+    const instance = map.current;
+    if (!instance) return;
+    // Two quick clicks are two waypoints while drawing, not a zoom.
+    if (isDrawing) instance.doubleClickZoom.disable();
+    else instance.doubleClickZoom.enable();
+    instance.getCanvas().style.cursor = isDrawing ? "crosshair" : "";
+  }, [isDrawing]);
+
+  useEffect(
+    () => () => {
+      handles.current?.remove();
+      handles.current = null;
+    },
+    [],
+  );
+
+  const latestCamera = useRef(camera);
+  /** The last camera request the map has finished moving to, for the `data-camera` attribute. */
+  const [cameraDone, setCameraDone] = useState<number | null>(null);
+  useLayoutEffect(() => {
+    latestCamera.current = camera;
+  });
+  // Only a new request moves the camera, not a re-render with the same one.
+  const cameraId = camera?.id;
+  useEffect(() => {
+    const instance = map.current;
+    const camera = latestCamera.current;
+    if (!instance || !camera || cameraId === undefined) return;
+    const done = () => setCameraDone(cameraId);
+    instance.once("moveend", done);
+    instance.flyTo({
+      center: [camera.center.lon, camera.center.lat],
+      zoom: camera.zoom,
+      padding: padding(latestInsets.current, 0),
+      duration: reducedMotion() ? 0 : 1200,
+    });
+    return () => {
+      instance.off("moveend", done);
+    };
+  }, [cameraId]);
+
   // The marker is a DOM element over the map, so moving it costs no map redraw.
   const markerLat = marker?.lat;
   const markerLon = marker?.lon;
@@ -335,6 +466,8 @@ export default function MapView({
       data-course={courseState}
       data-segments={drawnSegments.of === segments ? drawnSegments.count : 0}
       data-selected-segment={selectedSegment ?? undefined}
+      data-drawing={drawing ? "on" : undefined}
+      data-camera={cameraDone ?? undefined}
     >
       <div ref={container} className="size-full" />
       {state === "unavailable" && (

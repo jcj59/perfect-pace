@@ -223,3 +223,85 @@ body {
     transition: opacity 0s linear 180ms;
   }
 }
+
+/*
+ * Drawing handles (map/draw-layer.ts). Each is a touch-sized target around a small dot: waypoints
+ * (44 px) over leg midpoints (32 px). Start and finish are solid like a course's end dots, the
+ * points between are hollow, and midpoints are smaller and lighter, since they only add points.
+ */
+.pp-waypoint,
+.pp-midpoint {
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: grab;
+  touch-action: none;
+}
+.pp-waypoint {
+  width: 44px;
+  height: 44px;
+  z-index: 2;
+}
+.pp-midpoint {
+  width: 32px;
+  height: 32px;
+  z-index: 1;
+}
+.pp-waypoint:active,
+.pp-midpoint:active {
+  cursor: grabbing;
+}
+.pp-waypoint > span,
+.pp-midpoint > span {
+  box-sizing: border-box;
+  border-radius: 9999px;
+  background: var(--pp-surface);
+  transition: transform 120ms ease-out;
+}
+.pp-waypoint > span {
+  width: 16px;
+  height: 16px;
+  border: 3.5px solid var(--pp-accent);
+  box-shadow:
+    0 0 0 2px var(--pp-surface),
+    0 1px 4px rgb(0 0 0 / 0.3);
+}
+.pp-waypoint[data-role="start"] > span,
+.pp-waypoint[data-role="finish"] > span {
+  width: 18px;
+  height: 18px;
+  border-color: var(--pp-surface);
+  background: var(--pp-accent);
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.35);
+}
+.pp-waypoint[data-role="finish"] > span {
+  background: var(--pp-ink);
+}
+.pp-midpoint > span {
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--pp-accent);
+  opacity: 0.9;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.25);
+}
+.pp-waypoint:hover > span,
+.pp-midpoint:hover > span {
+  transform: scale(1.25);
+  opacity: 1;
+}
+.pp-waypoint:focus-visible {
+  outline: none;
+}
+.pp-waypoint:focus-visible > span {
+  box-shadow:
+    0 0 0 3px var(--pp-surface),
+    0 0 0 5px var(--pp-accent);
+}
+@media (prefers-reduced-motion: reduce) {
+  .pp-waypoint > span,
+  .pp-midpoint > span {
+    transition: none;
+  }
+}

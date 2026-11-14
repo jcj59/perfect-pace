@@ -1,4 +1,4 @@
-import type { DistanceUnit, ElevationProfile, GpxFile } from "@pp/core";
+import type { Course, DistanceUnit, ElevationProfile, GpxFile } from "@pp/core";
 import { defaultMinSegmentM, snapMinSegmentM } from "../plan/inputs.ts";
 import { createStore, useStore } from "./store.ts";
 
@@ -15,14 +15,20 @@ export type ElevationState =
   { status: "loading" } | { status: "ready"; profile: ElevationProfile } | { status: "error"; message: string };
 
 /**
- * The course from a GPX file, from the moment the user picks one. `error` keeps the typed error's
- * `code` (a `GpxErrorCode`, when the parser rejected the file) and its user-facing message.
+ * The course: from a GPX file, from the moment the user picks one, or drawn on the map. `error`
+ * keeps the typed error's `code` (a `GpxErrorCode`, when the parser rejected the file) and its
+ * user-facing message.
+ *
+ * A `drawn` course (see `state/draw.ts`) has a `course` once the route has two waypoints and every
+ * leg has its line, and then an elevation profile from the DEM. While an edit is being routed or
+ * its profile built, `updating` is set and the last profile stays in `elevation`.
  */
 export type CourseState =
   | { status: "empty" }
   | { status: "reading"; fileName: string }
   | { status: "error"; fileName: string; code?: string; message: string }
-  | { status: "loaded"; fileName: string; file: GpxFile; track: number; elevation: ElevationState };
+  | { status: "loaded"; fileName: string; file: GpxFile; track: number; elevation: ElevationState }
+  | { status: "drawn"; course: Course | null; elevation: ElevationState | null; updating: boolean };
 
 /** The pace changes a plan starts with, before the user moves the slider. */
 export const DEFAULT_PACE_CHANGES = 4;
@@ -153,8 +159,9 @@ export function setUnits(units: DistanceUnit): void {
 }
 
 /**
- * Replace the course state. The load flow in `course.ts` is the only caller. `fresh` marks a
- * different course (a new file or another track), which also drops the goal entered for the last.
+ * Replace the course state. The load flow in `course.ts` and the drawing flow in `draw.ts` are the
+ * only callers. `fresh` marks a different course (a new file, another track or a new drawing),
+ * which also drops the goal entered for the last; edits to a drawn route keep it.
  */
 export function setCourse(course: CourseState, fresh = false): void {
   appStore.set({ course, focusDistM: null, selectedSegment: null, ...(fresh ? { goalTimeS: null } : {}) });

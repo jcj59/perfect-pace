@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { openApp, type ColorScheme } from "../support/app.ts";
 import { corpusPath, expectRouteDrawn, invalidPath, isPhone, uploadGpx } from "../support/course.ts";
+import { ITHACA, addPoints, expectLegsSettled, startDrawing } from "../support/draw.ts";
 import { expectPlanSettled, planBoston } from "../support/plan.ts";
 
 /** Scroll the panel (`scroller`) so `target` sits at its top, moving nothing else (unlike `scrollIntoView`). */
@@ -98,3 +99,44 @@ for (const scheme of ["light", "dark"] satisfies ColorScheme[]) {
     await expect(page).toHaveScreenshot(`error-state-${scheme}.png`);
   });
 }
+
+// B2: drawing mode near Ithaca (the fixture DEM), with `/api/route` stubbed from the ORS fixture.
+// Four points and three routed legs, with the profile and plan worked out in the panel; then the
+// same with the second leg failing to route, its error and the straight-line offer showing.
+test.describe("drawing", () => {
+  test.use({ geolocation: ITHACA, permissions: ["geolocation"] });
+  const FOUR: [number, number][] = [
+    [0.25, 0.3],
+    [0.7, 0.25],
+    [0.75, 0.7],
+    [0.3, 0.75],
+  ];
+
+  async function settle(page: Page): Promise<void> {
+    await expectLegsSettled(page, 3);
+    await expect(page.getByTestId("elevation-source")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId("segment-table")).toBeAttached({ timeout: 15_000 });
+    await expect(page.getByTestId("plan-pending")).not.toHaveAttribute("data-pending");
+    // Off the handles, so none shows its hover state.
+    if (!isPhone(page)) await page.mouse.move(page.viewportSize()!.width - 2, page.viewportSize()!.height - 2);
+  }
+
+  for (const scheme of ["light", "dark"] satisfies ColorScheme[]) {
+    test(`drawing mode, ${scheme} @visual`, async ({ page }) => {
+      await startDrawing(page, scheme);
+      await addPoints(page, FOUR);
+      await settle(page);
+      await expect(page).toHaveScreenshot(`drawing-${scheme}.png`);
+    });
+
+    test(`drawing with a leg that failed to route, ${scheme} @visual`, async ({ page }) => {
+      const stub = await startDrawing(page, scheme);
+      stub.failRequest(2);
+      await addPoints(page, FOUR);
+      await expect(page.getByTestId("routing-error")).toBeVisible();
+      await expectLegsSettled(page, 3);
+      if (!isPhone(page)) await page.mouse.move(page.viewportSize()!.width - 2, page.viewportSize()!.height - 2);
+      await expect(page).toHaveScreenshot(`drawing-error-${scheme}.png`);
+    });
+  }
+});

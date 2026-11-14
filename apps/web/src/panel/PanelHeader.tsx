@@ -19,7 +19,9 @@ export function PanelHeader({ action }: { action?: ReactNode }) {
         </svg>
       </span>
       <div className="min-w-0 flex-1">
-        <h1 className="text-[17px] leading-tight font-semibold tracking-tight text-ink">Perfect Pace</h1>
+        <h1 className="text-[17px] leading-tight font-semibold tracking-tight whitespace-nowrap text-ink">
+          Perfect Pace
+        </h1>
         <p className="truncate text-sm leading-snug text-ink-muted">Elevation-aware pacing plans</p>
       </div>
       {action}

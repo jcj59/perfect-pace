@@ -6,9 +6,10 @@ import { type ElevationProfile, type LatLon, pointAtDistance } from "@pp/core";
 import { nearestIndex } from "../chart/scale.ts";
 import { type CourseState, appStore, setFocusDistM } from "./app.ts";
 
-/** The loaded course's elevation profile, once it is ready. */
+/** The course's elevation profile (a loaded file's or a drawn route's), once it is ready. */
 export function readyProfile(course: CourseState): ElevationProfile | undefined {
-  return course.status === "loaded" && course.elevation.status === "ready" ? course.elevation.profile : undefined;
+  if (course.status !== "loaded" && course.status !== "drawn") return undefined;
+  return course.elevation?.status === "ready" ? course.elevation.profile : undefined;
 }
 
 /** Point at the course point nearest a map position (hovering the route), or clear it with null. */

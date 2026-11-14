@@ -2,7 +2,10 @@ import { type DistanceUnit, type ElevationProfile, type GpxFile, courseLengthM }
 import { type ReactNode, useMemo } from "react";
 import { CHART_HEIGHT_PX, type ChartSegment, ElevationChart } from "../chart/ElevationChart.tsx";
 import { segmentTone } from "../plan/tones.ts";
-import { type CourseState, useAppState } from "../state/app.ts";
+import { type CourseState, type ElevationState, useAppState } from "../state/app.ts";
+import { drawing, useDrawState } from "../state/draw.ts";
+import { DRAW, Icon } from "../draw/icons.tsx";
+import { DrawButton, SECONDARY_BUTTON } from "../draw/DrawButton.tsx";
 import { retryElevation, selectTrack, trackTitle } from "../state/course.ts";
 import { usePlanView } from "../state/plan.ts";
 import { FileButton } from "./FileButton.tsx";
@@ -11,11 +14,11 @@ import { UnitsSwitch } from "./UnitsSwitch.tsx";
 import { type Quantity, formatDistance, formatElevation, quantityText } from "./format.ts";
 
 type Loaded = Extract<CourseState, { status: "loaded" }>;
+type Drawn = Extract<CourseState, { status: "drawn" }>;
 
 /**
- * The loaded course: its name, the track picker for multi-track files, its elevation profile, its
- * pacing plan and its stats. `profileFirst` (the phone sheet) leads with the profile and the plan,
- * so at the half-height snap the chart sits right under the map it scrubs, with the goal under it.
+ * A loaded file: its name, the track picker for multi-track files, then the profile, plan and stats
+ * (see `CourseDetails`).
  */
 export function CourseSummary({ course, profileFirst = false }: { course: Loaded; profileFirst?: boolean }) {
   const units = useAppState((s) => s.units);
@@ -24,6 +27,125 @@ export function CourseSummary({ course, profileFirst = false }: { course: Loaded
   if (!track) return null;
   const title = trackTitle(file, index, fileName);
 
+  return (
+    <CourseDetails
+      profileFirst={profileFirst}
+      lengthM={courseLengthM(track.course)}
+      elevation={elevation}
+      onRetry={retryElevation}
+      header={
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold tracking-[0.08em] text-accent uppercase">Your course</p>
+            <h2
+              className="mt-1 text-2xl leading-tight font-semibold tracking-tight text-balance break-words text-ink"
+              data-testid="course-title"
+            >
+              {title}
+            </h2>
+            <p className="mt-1 truncate text-sm text-ink-muted" title={fileName}>
+              {fileName}
+            </p>
+          </div>
+          <div className="mt-1 flex shrink-0 flex-col items-end gap-2">
+            <FileButton variant="secondary">Replace</FileButton>
+            <DrawButton variant="secondary">Draw a route</DrawButton>
+          </div>
+        </div>
+      }
+      extra={file.tracks.length > 1 && <TrackPicker file={file} fileName={fileName} selected={index} units={units} />}
+    />
+  );
+}
+
+/**
+ * A drawn course. While drawing, the route editor leads (on the phone too, since it is what the
+ * person is working on); once done, its header offers to edit it again. The profile, plan and stats
+ * follow once the route has two waypoints and every leg has its line.
+ */
+export function DrawnCourseSummary({
+  course,
+  editing,
+  editor,
+  profileFirst = false,
+}: {
+  course: Drawn;
+  editing: boolean;
+  /** The route editor, shown in place of the header while drawing. */
+  editor: ReactNode;
+  profileFirst?: boolean;
+}) {
+  const waypoints = useDrawState((s) => s.history.present.waypoints.length);
+  const header = editing ? (
+    editor
+  ) : (
+    <div className="flex items-start justify-between gap-4">
+      <div className="min-w-0">
+        <p className="text-xs font-semibold tracking-[0.08em] text-accent uppercase">Your course</p>
+        <h2
+          className="mt-1 text-2xl leading-tight font-semibold tracking-tight text-balance text-ink"
+          data-testid="course-title"
+        >
+          Drawn route
+        </h2>
+        <p className="mt-1 text-sm text-ink-muted">{waypoints} points, drawn on the map</p>
+      </div>
+      <div className="mt-1 flex shrink-0 flex-col items-end gap-2">
+        <button type="button" onClick={drawing.edit} className={SECONDARY_BUTTON} data-testid="edit-route">
+          <Icon className="size-4">{DRAW}</Icon>
+          Edit route
+        </button>
+        <FileButton variant="secondary">Load GPX</FileButton>
+      </div>
+    </div>
+  );
+  if (!course.course || !course.elevation) {
+    return (
+      <div className="px-6 pt-2 pb-6" data-testid="course-summary">
+        {header}
+      </div>
+    );
+  }
+  return (
+    <CourseDetails
+      profileFirst={profileFirst && !editing}
+      lengthM={courseLengthM(course.course)}
+      elevation={course.elevation}
+      updating={course.updating}
+      drawn
+      onRetry={drawing.retryElevation}
+      header={header}
+    />
+  );
+}
+
+/**
+ * A course's header, its elevation profile, its pacing plan and its stats. `profileFirst` (the
+ * phone sheet) leads with the profile and the plan, so at the half-height snap the chart sits
+ * right under the map it scrubs, with the goal under it.
+ */
+function CourseDetails({
+  header,
+  extra,
+  lengthM,
+  elevation,
+  updating = false,
+  drawn = false,
+  onRetry,
+  profileFirst,
+}: {
+  header: ReactNode;
+  extra?: ReactNode;
+  lengthM: number;
+  elevation: ElevationState;
+  /** A newer version of the course is on its way; `elevation` is still the last one's. */
+  updating?: boolean;
+  /** Drawn on the map (its elevation always comes from terrain data), not loaded from a file. */
+  drawn?: boolean;
+  onRetry: () => void;
+  profileFirst: boolean;
+}) {
+  const units = useAppState((s) => s.units);
   const profile = (
     <section aria-labelledby="profile-heading" className={profileFirst ? "" : "mt-6"}>
       <div className="flex items-center justify-between">
@@ -32,7 +154,7 @@ export function CourseSummary({ course, profileFirst = false }: { course: Loaded
         </SectionHeading>
         <UnitsSwitch />
       </div>
-      <Profile elevation={elevation} units={units} />
+      <Profile elevation={elevation} units={units} updating={updating} drawn={drawn} onRetry={onRetry} />
     </section>
   );
   const plan = elevation.status !== "error" && (
@@ -51,25 +173,9 @@ export function CourseSummary({ course, profileFirst = false }: { course: Loaded
     <div className="px-6 pt-2 pb-6" data-testid="course-summary">
       {profileFirst && profile}
       {profileFirst && plan}
-      <div className={`flex items-start justify-between gap-4 ${profileFirst ? "mt-8 border-t border-line pt-6" : ""}`}>
-        <div className="min-w-0">
-          <p className="text-xs font-semibold tracking-[0.08em] text-accent uppercase">Your course</p>
-          <h2
-            className="mt-1 text-2xl leading-tight font-semibold tracking-tight text-balance break-words text-ink"
-            data-testid="course-title"
-          >
-            {title}
-          </h2>
-          <p className="mt-1 truncate text-sm text-ink-muted" title={fileName}>
-            {fileName}
-          </p>
-        </div>
-        <FileButton variant="secondary" className="mt-1">
-          Replace
-        </FileButton>
-      </div>
+      <div className={profileFirst ? "mt-8 border-t border-line pt-6" : ""}>{header}</div>
 
-      {file.tracks.length > 1 && <TrackPicker file={file} fileName={fileName} selected={index} units={units} />}
+      {extra}
 
       {!profileFirst && profile}
       {!profileFirst && plan}
@@ -77,7 +183,7 @@ export function CourseSummary({ course, profileFirst = false }: { course: Loaded
       <SectionHeading level={3} className="mt-8">
         Course stats
       </SectionHeading>
-      <Stats lengthM={courseLengthM(track.course)} elevation={elevation} units={units} />
+      <Stats lengthM={lengthM} elevation={elevation} units={units} />
     </div>
   );
 }
@@ -102,9 +208,21 @@ function SectionHeading({
 }
 
 /** The chart once the profile is ready (a placeholder of the same size while it builds), and where its elevation came from. */
-function Profile({ elevation, units }: { elevation: Loaded["elevation"]; units: DistanceUnit }) {
+function Profile({
+  elevation,
+  units,
+  updating,
+  drawn,
+  onRetry,
+}: {
+  elevation: ElevationState;
+  units: DistanceUnit;
+  updating: boolean;
+  drawn: boolean;
+  onRetry: () => void;
+}) {
   return (
-    <div className="mt-3" aria-busy={elevation.status === "loading"}>
+    <div className="mt-3" aria-busy={elevation.status === "loading" || updating}>
       {elevation.status === "ready" ? (
         <PlannedChart profile={elevation.profile} units={units} />
       ) : (
@@ -116,7 +234,7 @@ function Profile({ elevation, units }: { elevation: Loaded["elevation"]; units: 
           />
         )
       )}
-      <ElevationNote elevation={elevation} />
+      <ElevationNote elevation={elevation} updating={updating} drawn={drawn} onRetry={onRetry} />
     </div>
   );
 }
@@ -166,15 +284,7 @@ function TrackPicker({
   );
 }
 
-function Stats({
-  lengthM,
-  elevation,
-  units,
-}: {
-  lengthM: number;
-  elevation: Loaded["elevation"];
-  units: DistanceUnit;
-}) {
+function Stats({ lengthM, elevation, units }: { lengthM: number; elevation: ElevationState; units: DistanceUnit }) {
   const profile = elevation.status === "ready" ? elevation.profile : undefined;
   const ele = (pick: (p: ElevationProfile) => number) => (profile ? formatElevation(pick(profile), units) : undefined);
   return (
@@ -274,11 +384,23 @@ const DEM_REASONS: Record<string, string> = {
   spiky: "This file's elevation is too noisy to trust, so it comes from terrain data for the area.",
 };
 
-function ElevationNote({ elevation }: { elevation: Loaded["elevation"] }) {
-  if (elevation.status === "loading") {
+function ElevationNote({
+  elevation,
+  updating,
+  drawn,
+  onRetry,
+}: {
+  elevation: ElevationState;
+  updating: boolean;
+  drawn: boolean;
+  onRetry: () => void;
+}) {
+  if (elevation.status === "loading" || (updating && elevation.status === "ready")) {
     return (
       <p className="mt-3 text-[13px] text-ink-muted" role="status">
-        Working out the elevation profile...
+        {elevation.status === "loading"
+          ? "Working out the elevation profile..."
+          : "Updating for the route's changes..."}
       </p>
     );
   }
@@ -292,7 +414,7 @@ function ElevationNote({ elevation }: { elevation: Loaded["elevation"] }) {
         <p className="text-[13px] leading-snug text-ink">{elevation.message}</p>
         <button
           type="button"
-          onClick={retryElevation}
+          onClick={onRetry}
           className="h-8 shrink-0 cursor-pointer rounded-lg bg-surface px-3 text-[13px] font-medium text-ink ring-1 ring-line ring-inset hover:bg-surface-raised focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
         >
           Try again
@@ -301,8 +423,9 @@ function ElevationNote({ elevation }: { elevation: Loaded["elevation"] }) {
     );
   }
   const { source, gpsIssue } = elevation.profile;
-  const text =
-    source === "gps"
+  const text = drawn
+    ? "Elevation from terrain data for the area, since a drawn route has none of its own."
+    : source === "gps"
       ? "Elevation from the file's GPS data, smoothed to remove noise."
       : source === "gps+dem"
         ? "Elevation from the file's GPS data, with its gaps filled from terrain data."

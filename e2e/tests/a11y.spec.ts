@@ -2,6 +2,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 import { openApp, type ColorScheme } from "../support/app.ts";
 import { corpusPath, expectRouteDrawn, invalidPath, uploadGpx } from "../support/course.ts";
+import { ITHACA, addPoints, expectLegsSettled, startDrawing } from "../support/draw.ts";
 import { enterGoal, planBoston } from "../support/plan.ts";
 
 for (const scheme of ["light", "dark"] satisfies ColorScheme[]) {
@@ -39,3 +40,22 @@ for (const scheme of ["light", "dark"] satisfies ColorScheme[]) {
     expect(violations.map((v) => `${v.id}: ${v.help}`)).toEqual([]);
   });
 }
+
+test.describe("drawing", () => {
+  test.use({ geolocation: ITHACA, permissions: ["geolocation"] });
+
+  for (const scheme of ["light", "dark"] satisfies ColorScheme[]) {
+    test(`drawing mode, with a leg that failed to route, has no axe violations, ${scheme}`, async ({ page }) => {
+      const stub = await startDrawing(page, scheme);
+      stub.failRequest(2);
+      await addPoints(page, [
+        [0.25, 0.3],
+        [0.7, 0.25],
+        [0.75, 0.7],
+      ]);
+      await expect(page.getByTestId("routing-error")).toBeVisible();
+      await expectLegsSettled(page, 2);
+      expect((await new AxeBuilder({ page }).analyze()).violations.map((v) => `${v.id}: ${v.help}`)).toEqual([]);
+    });
+  }
+});
