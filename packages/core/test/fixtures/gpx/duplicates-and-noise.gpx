@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Hand-made: a watch waiting at the start line and at a crossing (fixes that differ only in
+     time), an exact duplicate, a time-only point with no position, a 0,0 "no fix" point, and
+     out-of-range and unparseable coordinates. 6 distinct positions survive. -->
+<gpx version="1.1" creator="hand-made" xmlns="http://www.topografix.com/GPX/1/1">
+  <trk>
+    <trkseg>
+      <trkpt lat="42.43800" lon="-76.49900"><time>2024-04-15T13:49:57Z</time></trkpt>
+      <trkpt lat="42.43800" lon="-76.49900"><ele>120.0</ele><time>2024-04-15T13:49:58Z</time></trkpt>
+      <trkpt lat="42.43800" lon="-76.49900"><ele>120.4</ele><time>2024-04-15T13:49:59Z</time></trkpt>
+      <trkpt lat="42.43900" lon="-76.49900"><ele>121.0</ele><time>2024-04-15T13:50:36Z</time></trkpt>
+      <trkpt lat="42.43900" lon="-76.49900"><ele>121.0</ele><time>2024-04-15T13:50:36Z</time></trkpt>
+      <trkpt><time>2024-04-15T13:50:40Z</time></trkpt>
+      <trkpt lat="0" lon="0"><ele>0</ele><time>2024-04-15T13:50:45Z</time></trkpt>
+      <trkpt lat="42.44000" lon="-76.49900"><ele>122.0</ele><time>2024-04-15T13:51:13Z</time></trkpt>
+      <trkpt lat="42.44000" lon="-76.49900"><ele>122.0</ele><time>2024-04-15T13:51:14Z</time></trkpt>
+      <trkpt lat="42.44000" lon="-76.49900"><ele>122.0</ele><time>2024-04-15T13:51:15Z</time></trkpt>
+      <trkpt lat="42.44000" lon="-76.49900"><ele>122.0</ele><time>2024-04-15T13:51:16Z</time></trkpt>
+      <trkpt lat="91.5" lon="-76.49900"><ele>122.0</ele></trkpt>
+      <trkpt lat="42.44050" lon="abc"><ele>122.0</ele></trkpt>
+      <trkpt lat="42.44100" lon="-76.49900"><ele>123.0</ele><time>2024-04-15T13:51:50Z</time></trkpt>
+      <trkpt lat="42.44200" lon="-76.49900"><ele>124.0</ele><time>2024-04-15T13:52:27Z</time></trkpt>
+      <trkpt lat="42.44300" lon="-76.49900"><ele>125.0</ele><time>2024-04-15T13:53:04Z</time></trkpt>
+    </trkseg>
+  </trk>
+</gpx>

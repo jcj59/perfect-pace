@@ -1,0 +1,16 @@
+{
+  "name": "2.54 mi route",
+  "creator": "https://onthegomap.com",
+  "defaultTrack": 0,
+  "tracks": [
+    {
+      "kind": "track",
+      "name": "2.54 mi route",
+      "segments": 1,
+      "points": 156,
+      "droppedPoints": 0,
+      "pointsWithEle": 156,
+      "distanceM": 4087
+    }
+  ]
+}

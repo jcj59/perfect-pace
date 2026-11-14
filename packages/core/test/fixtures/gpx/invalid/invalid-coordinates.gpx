@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="hand-made" xmlns="http://www.topografix.com/GPX/1/1">
+  <trk>
+    <trkseg>
+      <trkpt lat="north" lon="west"/>
+      <trkpt lat="142.438" lon="-76.499"/>
+      <trkpt lat="42.438" lon="-276.499"/>
+      <trkpt lat="" lon=""/>
+    </trkseg>
+  </trk>
+</gpx>

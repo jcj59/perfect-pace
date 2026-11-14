@@ -1,0 +1,16 @@
+{
+  "name": "Ithaca Hills Loop",
+  "creator": "http://ridewithgps.com/",
+  "defaultTrack": 0,
+  "tracks": [
+    {
+      "kind": "route",
+      "name": "Ithaca Hills Loop",
+      "segments": 1,
+      "points": 300,
+      "droppedPoints": 0,
+      "pointsWithEle": 300,
+      "distanceM": 5535
+    }
+  ]
+}

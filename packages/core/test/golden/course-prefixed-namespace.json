@@ -1,0 +1,16 @@
+{
+  "name": "Prefixed",
+  "creator": "hand-made",
+  "defaultTrack": 0,
+  "tracks": [
+    {
+      "kind": "track",
+      "name": "Prefixed track",
+      "segments": 1,
+      "points": 3,
+      "droppedPoints": 0,
+      "pointsWithEle": 3,
+      "distanceM": 222
+    }
+  ]
+}

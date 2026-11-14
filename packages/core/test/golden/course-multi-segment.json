@@ -1,0 +1,16 @@
+{
+  "name": null,
+  "creator": "hand-made",
+  "defaultTrack": 0,
+  "tracks": [
+    {
+      "kind": "track",
+      "name": "Paused twice",
+      "segments": 4,
+      "points": 7,
+      "droppedPoints": 0,
+      "pointsWithEle": 7,
+      "distanceM": 667
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "name": null,
+  "creator": "Apple Health Export",
+  "defaultTrack": 0,
+  "tracks": [
+    {
+      "kind": "track",
+      "name": "Route 2024-03-02 7:15am",
+      "segments": 1,
+      "points": 450,
+      "droppedPoints": 0,
+      "pointsWithEle": 450,
+      "distanceM": 2771
+    }
+  ]
+}

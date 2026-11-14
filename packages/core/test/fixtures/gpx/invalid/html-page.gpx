@@ -1,0 +1,5 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Log in</title></head>
+<body><form action="/session" method="post"><input name="email"></form></body>
+</html>

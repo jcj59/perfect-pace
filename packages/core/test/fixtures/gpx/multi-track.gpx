@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Hand-made: a warm-up track, the race (longest, so the default), a cool-down route, and a
+     one-point track that is skipped. -->
+<gpx version="1.1" creator="hand-made" xmlns="http://www.topografix.com/GPX/1/1">
+  <metadata><name>Race day</name></metadata>
+  <wpt lat="42.43800" lon="-76.49900"><name>Start</name></wpt>
+  <trk>
+    <name>Warm-up</name>
+    <trkseg>
+      <trkpt lat="42.43800" lon="-76.49900"><ele>120</ele></trkpt>
+      <trkpt lat="42.43900" lon="-76.49900"><ele>121</ele></trkpt>
+    </trkseg>
+  </trk>
+  <trk>
+    <name>Race</name>
+    <trkseg>
+      <trkpt lat="42.43800" lon="-76.49900"><ele>120</ele></trkpt>
+      <trkpt lat="42.44300" lon="-76.49900"><ele>125</ele></trkpt>
+      <trkpt lat="42.44300" lon="-76.49300"><ele>131</ele></trkpt>
+      <trkpt lat="42.43800" lon="-76.49300"><ele>126</ele></trkpt>
+    </trkseg>
+  </trk>
+  <trk>
+    <name>Lost signal</name>
+    <trkseg>
+      <trkpt lat="42.43800" lon="-76.49300"/>
+    </trkseg>
+  </trk>
+  <rte>
+    <name>Cool-down</name>
+    <rtept lat="42.43800" lon="-76.49300"/>
+    <rtept lat="42.43800" lon="-76.49600"/>
+    <rtept lat="42.43800" lon="-76.49900"/>
+  </rte>
+</gpx>

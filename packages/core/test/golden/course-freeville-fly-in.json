@@ -1,0 +1,16 @@
+{
+  "name": null,
+  "creator": "Run Go - http://rungoapp.com",
+  "defaultTrack": 0,
+  "tracks": [
+    {
+      "kind": "track",
+      "name": null,
+      "segments": 1,
+      "points": 453,
+      "droppedPoints": 3,
+      "pointsWithEle": 453,
+      "distanceM": 21085
+    }
+  ]
+}

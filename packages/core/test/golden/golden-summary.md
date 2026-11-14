@@ -8,3 +8,210 @@ Harness check: prefix sums of 16 seeded values in [0, 100).
 
 - count: 16
 - total: 822.721
+
+## course-fh-fox
+
+Parsed course from `test/fixtures/gpx/FH-Fox.gpx`.
+
+- tracks: 1
+- points: 313
+- distance (m): 8096
+- distance (mi): 5.03
+
+## course-freeville-fly-in
+
+Parsed course from `test/fixtures/gpx/Freeville-Fly-In.gpx`.
+
+- tracks: 1
+- points: 453
+- distance (m): 21085
+- distance (mi): 13.1
+
+## course-lakefront-loops-5k
+
+Parsed course from `test/fixtures/gpx/Lakefront-Loops-5K.gpx`.
+
+- tracks: 1
+- points: 141
+- distance (m): 4975
+- distance (mi): 3.09
+
+## course-apple-health-route
+
+Parsed course from `test/fixtures/gpx/apple-health-route.gpx`.
+
+- tracks: 1
+- points: 450
+- distance (m): 2771
+- distance (mi): 1.72
+
+## course-bom-crlf-cdata
+
+Parsed course from `test/fixtures/gpx/bom-crlf-cdata.gpx`.
+
+- tracks: 1
+- points: 3
+- distance (m): 222
+- distance (mi): 0.14
+
+## course-boston
+
+Parsed course from `test/fixtures/gpx/boston.gpx`.
+
+- tracks: 1
+- points: 318
+- distance (m): 42287
+- distance (mi): 26.28
+
+## course-dodge
+
+Parsed course from `test/fixtures/gpx/dodge.gpx`.
+
+- tracks: 1
+- points: 274
+- distance (m): 10847
+- distance (mi): 6.74
+
+## course-duplicates-and-noise
+
+Parsed course from `test/fixtures/gpx/duplicates-and-noise.gpx`.
+
+- tracks: 1
+- points: 6
+- distance (m): 556
+- distance (mi): 0.35
+
+## course-forest-home
+
+Parsed course from `test/fixtures/gpx/forest_home.gpx`.
+
+- tracks: 1
+- points: 256
+- distance (m): 9160
+- distance (mi): 5.69
+
+## course-garmin-connect-activity
+
+Parsed course from `test/fixtures/gpx/garmin-connect-activity.gpx`.
+
+- tracks: 1
+- points: 380
+- distance (m): 3535
+- distance (mi): 2.2
+
+## course-gpx-1-0
+
+Parsed course from `test/fixtures/gpx/gpx-1.0.gpx`.
+
+- tracks: 1
+- points: 3
+- distance (m): 222
+- distance (mi): 0.14
+
+## course-multi-segment
+
+Parsed course from `test/fixtures/gpx/multi-segment.gpx`.
+
+- tracks: 1
+- points: 7
+- distance (m): 667
+- distance (mi): 0.41
+
+## course-multi-track
+
+Parsed course from `test/fixtures/gpx/multi-track.gpx`.
+
+- tracks: 3
+- points: 4
+- distance (m): 1604
+- distance (mi): 1
+
+## course-newyork
+
+Parsed course from `test/fixtures/gpx/newyork.gpx`.
+
+- tracks: 1
+- points: 455
+- distance (m): 42608
+- distance (mi): 26.48
+
+## course-no-elevation
+
+Parsed course from `test/fixtures/gpx/no-elevation.gpx`.
+
+- tracks: 1
+- points: 4
+- distance (m): 334
+- distance (mi): 0.21
+
+## course-partial-elevation
+
+Parsed course from `test/fixtures/gpx/partial-elevation.gpx`.
+
+- tracks: 1
+- points: 6
+- distance (m): 556
+- distance (mi): 0.35
+
+## course-prefixed-namespace
+
+Parsed course from `test/fixtures/gpx/prefixed-namespace.gpx`.
+
+- tracks: 1
+- points: 3
+- distance (m): 222
+- distance (mi): 0.14
+
+## course-ridewithgps-route
+
+Parsed course from `test/fixtures/gpx/ridewithgps-route.gpx`.
+
+- tracks: 1
+- points: 300
+- distance (m): 5535
+- distance (mi): 3.44
+
+## course-ridewithgps-track
+
+Parsed course from `test/fixtures/gpx/ridewithgps-track.gpx`.
+
+- tracks: 1
+- points: 300
+- distance (m): 5535
+- distance (mi): 3.44
+
+## course-scurve
+
+Parsed course from `test/fixtures/gpx/scurve.gpx`.
+
+- tracks: 1
+- points: 156
+- distance (m): 4087
+- distance (mi): 2.54
+
+## course-strava-activity
+
+Parsed course from `test/fixtures/gpx/strava-activity.gpx`.
+
+- tracks: 1
+- points: 420
+- distance (m): 2598
+- distance (mi): 1.61
+
+## course-wineglass
+
+Parsed course from `test/fixtures/gpx/wineglass.gpx`.
+
+- tracks: 1
+- points: 632
+- distance (m): 42789
+- distance (mi): 26.59
+
+## course-zero-elevation
+
+Parsed course from `test/fixtures/gpx/zero-elevation.gpx`.
+
+- tracks: 1
+- points: 4
+- distance (m): 334
+- distance (mi): 0.21

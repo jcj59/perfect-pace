@@ -1,0 +1,16 @@
+{
+  "name": "Fish & Chips <5K>",
+  "creator": "Notepad & friends",
+  "defaultTrack": 0,
+  "tracks": [
+    {
+      "kind": "track",
+      "name": "Café loop → home",
+      "segments": 1,
+      "points": 3,
+      "droppedPoints": 0,
+      "pointsWithEle": 3,
+      "distanceM": 222
+    }
+  ]
+}

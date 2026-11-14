@@ -1,0 +1,16 @@
+{
+  "name": "TCS New York City Marathon 2024 - 42.195 km",
+  "creator": "Garmin Connect",
+  "defaultTrack": 0,
+  "tracks": [
+    {
+      "kind": "track",
+      "name": "TCS New York City Marathon 2024 - 42.195 km",
+      "segments": 1,
+      "points": 455,
+      "droppedPoints": 0,
+      "pointsWithEle": 455,
+      "distanceM": 42608
+    }
+  ]
+}

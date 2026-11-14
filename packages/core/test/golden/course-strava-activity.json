@@ -1,0 +1,16 @@
+{
+  "name": null,
+  "creator": "StravaGPX",
+  "defaultTrack": 0,
+  "tracks": [
+    {
+      "kind": "track",
+      "name": "Morning Run",
+      "segments": 1,
+      "points": 420,
+      "droppedPoints": 12,
+      "pointsWithEle": 420,
+      "distanceM": 2598
+    }
+  ]
+}

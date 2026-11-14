@@ -1,0 +1,25 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE gpx [
+  <!ENTITY course "Lakeside">
+]>
+<!-- Hand-made: a byte order mark, CRLF line endings, a doctype, CDATA, comments and entity references. -->
+<gpx version="1.1" creator="Notepad &amp; friends" xmlns="http://www.topografix.com/GPX/1/1">
+  <metadata>
+    <name><![CDATA[Fish & Chips <5K>]]></name>
+  </metadata>
+  <trk>
+    <name>Caf&#233; loop &#x2192; home</name>
+    <trkseg>
+      <trkpt lat="42.43800" lon="-76.49900">
+        <ele>
+          120.0
+        </ele>
+      </trkpt>
+      <!-- <trkpt lat="1" lon="1"><ele>1</ele></trkpt> -->
+      <trkpt lat='42.43900' lon='-76.49900'>
+        <ele><![CDATA[121.0]]></ele>
+      </trkpt>
+      <trkpt lat="42.44000" lon="-76.49900"><ele>122.0</ele></trkpt>
+    </trkseg>
+  </trk>
+</gpx>

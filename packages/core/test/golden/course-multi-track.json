@@ -1,0 +1,34 @@
+{
+  "name": "Race day",
+  "creator": "hand-made",
+  "defaultTrack": 1,
+  "tracks": [
+    {
+      "kind": "track",
+      "name": "Warm-up",
+      "segments": 1,
+      "points": 2,
+      "droppedPoints": 0,
+      "pointsWithEle": 2,
+      "distanceM": 111
+    },
+    {
+      "kind": "track",
+      "name": "Race",
+      "segments": 1,
+      "points": 4,
+      "droppedPoints": 0,
+      "pointsWithEle": 4,
+      "distanceM": 1604
+    },
+    {
+      "kind": "route",
+      "name": "Cool-down",
+      "segments": 1,
+      "points": 3,
+      "droppedPoints": 0,
+      "pointsWithEle": 0,
+      "distanceM": 492
+    }
+  ]
+}
