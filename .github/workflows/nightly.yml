@@ -25,9 +25,19 @@ jobs:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
       - run: pnpm --dir e2e exec playwright install --with-deps chromium
+      - name: Live routing key present
+        env:
+          ORS_API_KEY: ${{ secrets.ORS_API_KEY }}
+        run: |
+          if [ -z "$ORS_API_KEY" ]; then
+            echo "::warning::ORS_API_KEY is not set: the live routing test (routing @live) is skipped."
+          fi
       - name: "@smoke and @live against production"
         env:
           PP_BASE_URL: ${{ env.PRODUCTION_URL }}
+          # The live routing test runs only when the key exists; it calls production's /api/route,
+          # which holds the key as a Worker secret (uploaded by the Deploy workflow).
+          PP_ORS_KEY_SET: ${{ secrets.ORS_API_KEY != '' && '1' || '' }}
         run: pnpm e2e --grep "@smoke|@live"
       - uses: actions/upload-artifact@v7
         if: failure()

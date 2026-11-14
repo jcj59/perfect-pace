@@ -1,0 +1,20 @@
+[
+  {
+    "name": "central-park",
+    "description": "A short walk in Central Park, New York: Bethesda Terrace to the Reservoir's south gate",
+    "from": { "lat": 40.77423, "lon": -73.97169 },
+    "to": { "lat": 40.78267, "lon": -73.96463 }
+  },
+  {
+    "name": "ithaca-falls",
+    "description": "Cornell's Arts Quad down the hill to Ithaca Falls, with switchbacks and stairs",
+    "from": { "lat": 42.44922, "lon": -76.48525 },
+    "to": { "lat": 42.45276, "lon": -76.49222 }
+  },
+  {
+    "name": "atlantic-ocean",
+    "description": "Both ends in the Atlantic, far from any path: ORS error 2010 (no routable point)",
+    "from": { "lat": 40.5, "lon": -70 },
+    "to": { "lat": 40.51, "lon": -70 }
+  }
+]

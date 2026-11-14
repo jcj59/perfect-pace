@@ -1,0 +1,93 @@
+{
+  "source": "synthetic",
+  "recordedAt": null,
+  "case": {
+    "name": "central-park",
+    "description": "A short walk in Central Park, New York: Bethesda Terrace to the Reservoir's south gate",
+    "from": {
+      "lat": 40.77423,
+      "lon": -73.97169
+    },
+    "to": {
+      "lat": 40.78267,
+      "lon": -73.96463
+    }
+  },
+  "upstream": {
+    "url": "https://api.openrouteservice.org/v2/directions/foot-walking/geojson",
+    "body": {
+      "coordinates": [
+        [-73.97169, 40.77423],
+        [-73.96463, 40.78267]
+      ],
+      "instructions": false
+    }
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "type": "FeatureCollection",
+      "bbox": [-73.97169, 40.77423, -73.96463, 40.78267],
+      "features": [
+        {
+          "bbox": [-73.97169, 40.77423, -73.96463, 40.78267],
+          "type": "Feature",
+          "properties": {
+            "segments": [
+              {
+                "distance": 1115.9,
+                "duration": 803.4
+              }
+            ],
+            "way_points": [0, 14],
+            "summary": {
+              "distance": 1115.9,
+              "duration": 803.4
+            }
+          },
+          "geometry": {
+            "coordinates": [
+              [-73.97169, 40.77423],
+              [-73.97151, 40.77462],
+              [-73.97108, 40.77501],
+              [-73.97069, 40.77553],
+              [-73.97012, 40.77611],
+              [-73.96958, 40.77668],
+              [-73.96921, 40.77731],
+              [-73.9688, 40.77804],
+              [-73.96822, 40.77872],
+              [-73.96761, 40.77943],
+              [-73.96702, 40.78011],
+              [-73.96633, 40.78078],
+              [-73.96571, 40.78142],
+              [-73.96512, 40.78203],
+              [-73.96463, 40.78267]
+            ],
+            "type": "LineString"
+          }
+        }
+      ],
+      "metadata": {
+        "attribution": "openrouteservice.org | OpenStreetMap contributors",
+        "service": "routing",
+        "timestamp": 1763078400000,
+        "query": {
+          "coordinates": [
+            [-73.97169, 40.77423],
+            [-73.96463, 40.78267]
+          ],
+          "profile": "foot-walking",
+          "profileName": "foot-walking",
+          "format": "geojson",
+          "instructions": false
+        },
+        "engine": {
+          "version": "9.5.0",
+          "build_date": "2026-09-30T08:12:41Z",
+          "graph_date": "2026-11-02T00:00:00Z",
+          "osm_date": "2026-10-27T00:00:02Z"
+        }
+      }
+    }
+  }
+}

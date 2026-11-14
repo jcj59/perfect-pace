@@ -8,9 +8,11 @@
     "build": "wrangler deploy --dry-run --outdir dist",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run",
-    "cf-typegen": "wrangler types"
+    "cf-typegen": "wrangler types",
+    "fixtures:record": "node scripts/record-ors-fixtures.mjs"
   },
   "devDependencies": {
+    "@pp/core": "workspace:*",
     "@cloudflare/vitest-plugin": "1.6.0",
     "@pp/web": "workspace:*",
     "vitest": "4.1.12",

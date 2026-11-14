@@ -1,0 +1,91 @@
+{
+  "source": "synthetic",
+  "recordedAt": null,
+  "case": {
+    "name": "ithaca-falls",
+    "description": "Cornell's Arts Quad down the hill to Ithaca Falls, with switchbacks and stairs",
+    "from": {
+      "lat": 42.44922,
+      "lon": -76.48525
+    },
+    "to": {
+      "lat": 42.45276,
+      "lon": -76.49222
+    }
+  },
+  "upstream": {
+    "url": "https://api.openrouteservice.org/v2/directions/foot-walking/geojson",
+    "body": {
+      "coordinates": [
+        [-76.48525, 42.44922],
+        [-76.49222, 42.45276]
+      ],
+      "instructions": false
+    }
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "type": "FeatureCollection",
+      "bbox": [-76.49222, 42.44922, -76.48525, 42.45276],
+      "features": [
+        {
+          "bbox": [-76.49222, 42.44922, -76.48525, 42.45276],
+          "type": "Feature",
+          "properties": {
+            "segments": [
+              {
+                "distance": 741.2,
+                "duration": 533.7
+              }
+            ],
+            "way_points": [0, 12],
+            "summary": {
+              "distance": 741.2,
+              "duration": 533.7
+            }
+          },
+          "geometry": {
+            "coordinates": [
+              [-76.48525, 42.44922],
+              [-76.48571, 42.44951],
+              [-76.48633, 42.44979],
+              [-76.48702, 42.45013],
+              [-76.4876, 42.45047],
+              [-76.48731, 42.45081],
+              [-76.48802, 42.45109],
+              [-76.48876, 42.45131],
+              [-76.48951, 42.4516],
+              [-76.49013, 42.45192],
+              [-76.49075, 42.45218],
+              [-76.49139, 42.45241],
+              [-76.49222, 42.45276]
+            ],
+            "type": "LineString"
+          }
+        }
+      ],
+      "metadata": {
+        "attribution": "openrouteservice.org | OpenStreetMap contributors",
+        "service": "routing",
+        "timestamp": 1763078400000,
+        "query": {
+          "coordinates": [
+            [-76.48525, 42.44922],
+            [-76.49222, 42.45276]
+          ],
+          "profile": "foot-walking",
+          "profileName": "foot-walking",
+          "format": "geojson",
+          "instructions": false
+        },
+        "engine": {
+          "version": "9.5.0",
+          "build_date": "2026-09-30T08:12:41Z",
+          "graph_date": "2026-11-02T00:00:00Z",
+          "osm_date": "2026-10-27T00:00:02Z"
+        }
+      }
+    }
+  }
+}

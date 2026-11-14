@@ -1,3 +1,5 @@
+import { handleRoute } from "./route.ts";
+
 function json(body: unknown, status = 200, headers: Record<string, string> = {}): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -6,7 +8,7 @@ function json(body: unknown, status = 200, headers: Record<string, string> = {})
 }
 
 export default {
-  async fetch(request, env): Promise<Response> {
+  async fetch(request, env, ctx): Promise<Response> {
     const url = new URL(request.url);
 
     if (url.pathname === "/api/health") {
@@ -14,6 +16,10 @@ export default {
         return json({ error: "method_not_allowed" }, 405, { allow: "GET, HEAD" });
       }
       return json({ status: "ok", version: env.CF_VERSION_METADATA.id });
+    }
+
+    if (url.pathname === "/api/route") {
+      return handleRoute(request, env, ctx);
     }
 
     if (url.pathname.startsWith("/api/")) {
