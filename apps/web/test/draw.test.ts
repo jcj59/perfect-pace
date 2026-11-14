@@ -239,7 +239,7 @@ describe("the drawing controller", () => {
     controller = createDrawController({
       store,
       draws,
-      routing: { route: async (r) => bent(r.from, r.to) },
+      routing: { route: (r) => Promise.resolve(bent(r.from, r.to)) },
       elevation: () => Promise.reject(new Error("tile fetch failed")),
       locate: () => Promise.reject(new Error("no")),
     });
