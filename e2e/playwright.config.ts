@@ -14,18 +14,27 @@ const LOCAL_PORT = 8788;
 const baseURL = process.env["PP_BASE_URL"] || `http://localhost:${LOCAL_PORT}`;
 const quarantine = process.env["PP_QUARANTINE"] === "1";
 
+// Timing budgets that must not share the CPU with other tests run in their own project, last.
+const ISOLATED = /load-perf\.spec\.ts/;
+
 // Per-PR projects: Chromium only, at desktop and two phone sizes.
 const projects: Project[] = [
-  { name: "desktop", use: { ...devices["Desktop Chrome"] } },
-  { name: "iphone", use: { ...devices["iPhone 15"], defaultBrowserType: "chromium" } },
-  { name: "pixel", use: { ...devices["Pixel 7"] } },
+  { name: "desktop", use: { ...devices["Desktop Chrome"] }, testIgnore: ISOLATED },
+  { name: "iphone", use: { ...devices["iPhone 15"], defaultBrowserType: "chromium" }, testIgnore: ISOLATED },
+  { name: "pixel", use: { ...devices["Pixel 7"] }, testIgnore: ISOLATED },
+  {
+    name: "load-perf",
+    use: { ...devices["Desktop Chrome"] },
+    testMatch: ISOLATED,
+    dependencies: ["desktop", "iphone", "pixel"],
+  },
 ];
 
 if (process.env["PP_BROWSERS"] === "all") {
   projects.push(
-    { name: "desktop-firefox", use: { ...devices["Desktop Firefox"] }, grepInvert: /@visual/ },
-    { name: "desktop-webkit", use: { ...devices["Desktop Safari"] }, grepInvert: /@visual/ },
-    { name: "iphone-webkit", use: { ...devices["iPhone 15"] }, grepInvert: /@visual/ },
+    { name: "desktop-firefox", use: { ...devices["Desktop Firefox"] }, grepInvert: /@visual/, testIgnore: ISOLATED },
+    { name: "desktop-webkit", use: { ...devices["Desktop Safari"] }, grepInvert: /@visual/, testIgnore: ISOLATED },
+    { name: "iphone-webkit", use: { ...devices["iPhone 15"] }, grepInvert: /@visual/, testIgnore: ISOLATED },
   );
 }
 

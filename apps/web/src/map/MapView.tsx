@@ -1,16 +1,27 @@
 import "maplibre-gl/dist/maplibre-gl.css";
+import type { CoursePoint } from "@pp/core";
 import {
   AttributionControl,
   type ControlPosition,
+  type GeoJSONSource,
   type IControl,
   Map as MapLibreMap,
   NavigationControl,
   setWorkerUrl,
 } from "maplibre-gl";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 // MapLibre finds its worker next to its own module, which a bundle moves; point it at the built file.
 import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url";
 import type { Theme } from "../state/app.ts";
+import {
+  COURSE_LINE_LAYER,
+  COURSE_SOURCE,
+  type CourseFeatures,
+  NO_COURSE,
+  courseBounds,
+  courseFeatures,
+  withCourse,
+} from "./course-layer.ts";
 import { mapStyle } from "./style.ts";
 
 /** Screen space covered by the panel or sheet, in CSS pixels. The camera keeps content out of it. */
@@ -27,14 +38,39 @@ export type MapState = "loading" | "ready" | "unavailable";
 /** The contiguous United States, the view before any course is loaded. */
 const INITIAL_BOUNDS: [number, number, number, number] = [-124.8, 24.5, -66.9, 49.4];
 const VIEW_MARGIN_PX = 24;
+/** Course framing: never closer than this, so a short track still shows its streets. */
+const COURSE_MAX_ZOOM = 16;
+/** Room around a framed course, so its start and finish dots sit clear of the edges and controls. */
+const COURSE_MARGIN_PX = 56;
 
 export interface MapViewProps {
   theme: Theme;
-  /** Where the panel sits when the map first frames its view. */
+  /** Where the panel sits: the camera frames the initial view and each new course clear of it. */
   insets: Insets;
   /** Desktop gets zoom buttons; phones pinch. */
   compact: boolean;
+  /** The course to draw, or null for none. A new array draws it and frames the camera on it. */
+  route: readonly CoursePoint[] | null;
+  /** Called once a new route is on screen: drawn at its framed view (basemap tiles may still be loading). */
+  onRouteDrawn?: () => void;
 }
+
+/**
+ * Whether the route is on the map, as the `data-course` attribute: `none`, `drawing` (sent to the
+ * map, not yet confirmed) or `drawn` (the map has rendered route features in view).
+ */
+export type CourseDrawState = "none" | "drawing" | "drawn";
+
+function padding(insets: Insets, margin = VIEW_MARGIN_PX) {
+  return {
+    top: insets.top + margin,
+    right: insets.right + margin,
+    bottom: insets.bottom + margin,
+    left: insets.left + margin,
+  };
+}
+
+const reducedMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 setWorkerUrl(workerUrl);
 
@@ -46,13 +82,22 @@ function hasWebGL(): boolean {
   return context !== null;
 }
 
-export default function MapView({ theme, insets, compact }: MapViewProps) {
+export default function MapView({ theme, insets, compact, route, onRouteDrawn }: MapViewProps) {
   const container = useRef<HTMLDivElement>(null);
   const map = useRef<MapLibreMap | null>(null);
   const [webgl] = useState(hasWebGL);
   const [state, setState] = useState<MapState>(webgl ? "loading" : "unavailable");
   // The first render's props frame the initial view; later changes go through the effects below.
   const initial = useRef({ theme, insets });
+  // The latest insets and route, read when framing a course and when rebuilding the style.
+  const latestInsets = useRef(insets);
+  const courseData = useRef<CourseFeatures>(NO_COURSE);
+  const onDrawn = useRef(onRouteDrawn);
+  const [drawnRoute, setDrawnRoute] = useState<readonly CoursePoint[] | null>(null);
+  useLayoutEffect(() => {
+    latestInsets.current = insets;
+    onDrawn.current = onRouteDrawn;
+  });
 
   useEffect(() => {
     const element = container.current;
@@ -62,16 +107,9 @@ export default function MapView({ theme, insets, compact }: MapViewProps) {
     try {
       instance = new MapLibreMap({
         container: element,
-        style: mapStyle(theme),
+        style: withCourse(mapStyle(theme), theme, courseData.current),
         bounds: INITIAL_BOUNDS,
-        fitBoundsOptions: {
-          padding: {
-            top: insets.top + VIEW_MARGIN_PX,
-            right: insets.right + VIEW_MARGIN_PX,
-            bottom: insets.bottom + VIEW_MARGIN_PX,
-            left: insets.left + VIEW_MARGIN_PX,
-          },
-        },
+        fitBoundsOptions: { padding: padding(insets) },
         attributionControl: false,
         dragRotate: false,
         pitchWithRotate: false,
@@ -112,12 +150,60 @@ export default function MapView({ theme, insets, compact }: MapViewProps) {
     };
   }, [compact]);
 
+  const styledTheme = useRef(theme);
   useEffect(() => {
-    map.current?.setStyle(mapStyle(theme));
+    if (theme === styledTheme.current) return; // the map was created with this theme
+    styledTheme.current = theme;
+    // The course is part of the style, so it survives the switch with its current data.
+    map.current?.setStyle(withCourse(mapStyle(theme), theme, courseData.current));
   }, [theme]);
 
+  // Draw a new route, frame it clear of the panel, and report once it is on screen.
+  useEffect(() => {
+    const data = route ? courseFeatures(route) : NO_COURSE;
+    courseData.current = data;
+    const instance = map.current;
+    if (!instance) return;
+    let cancelled = false;
+    // Checked after each frame: the camera has settled on the course, the new data is tiled, and
+    // the frame drew route features. Basemap tiles are not waited for.
+    const confirm = () => {
+      if (cancelled || !route || instance.isMoving() || !instance.isSourceLoaded(COURSE_SOURCE)) return;
+      if (instance.queryRenderedFeatures({ layers: [COURSE_LINE_LAYER] }).length === 0) return;
+      instance.off("render", confirm);
+      setDrawnRoute(route);
+      onDrawn.current?.();
+    };
+    const apply = () => {
+      if (cancelled) return;
+      const source = instance.getSource<GeoJSONSource>(COURSE_SOURCE);
+      // Mid style switch the source can be missing for a moment; the new style brings the data.
+      if (!source) {
+        instance.once("styledata", apply);
+        return;
+      }
+      void source.setData(data);
+      const bounds = route && courseBounds(route);
+      if (!bounds) return;
+      instance.fitBounds(bounds, {
+        padding: padding(latestInsets.current, COURSE_MARGIN_PX),
+        maxZoom: COURSE_MAX_ZOOM,
+        duration: reducedMotion() ? 0 : 700,
+      });
+      instance.on("render", confirm);
+    };
+    apply();
+    return () => {
+      cancelled = true;
+      instance.off("styledata", apply);
+      instance.off("render", confirm);
+    };
+  }, [route]);
+
+  const courseState: CourseDrawState = !route ? "none" : drawnRoute === route ? "drawn" : "drawing";
+
   return (
-    <div className="absolute inset-0 bg-map" data-testid="map" data-map-state={state}>
+    <div className="absolute inset-0 bg-map" data-testid="map" data-map-state={state} data-course={courseState}>
       <div ref={container} className="size-full" />
       {state === "unavailable" && (
         <p className="absolute inset-x-0 top-1/3 px-8 text-center text-sm text-ink-muted">
