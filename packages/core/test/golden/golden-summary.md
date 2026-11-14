@@ -17,6 +17,9 @@ Parsed course from `test/fixtures/gpx/FH-Fox.gpx`.
 - points: 313
 - distance (m): 8096
 - distance (mi): 5.03
+- elevation source: gps
+- gain / loss (m): 73 / 74.4
+- min / max (m): 270 / 312.8
 
 ## course-freeville-fly-in
 
@@ -26,6 +29,9 @@ Parsed course from `test/fixtures/gpx/Freeville-Fly-In.gpx`.
 - points: 453
 - distance (m): 21085
 - distance (mi): 13.1
+- elevation source: gps
+- gain / loss (m): 108.1 / 108.1
+- min / max (m): 303.2 / 349.5
 
 ## course-lakefront-loops-5k
 
@@ -35,6 +41,9 @@ Parsed course from `test/fixtures/gpx/Lakefront-Loops-5K.gpx`.
 - points: 141
 - distance (m): 4975
 - distance (mi): 3.09
+- elevation source: gps
+- gain / loss (m): 4 / 7
+- min / max (m): 112.8 / 119.8
 
 ## course-apple-health-route
 
@@ -44,6 +53,9 @@ Parsed course from `test/fixtures/gpx/apple-health-route.gpx`.
 - points: 450
 - distance (m): 2771
 - distance (mi): 1.72
+- elevation source: gps
+- gain / loss (m): 16.1 / 0
+- min / max (m): 251.4 / 267.5
 
 ## course-bom-crlf-cdata
 
@@ -53,6 +65,9 @@ Parsed course from `test/fixtures/gpx/bom-crlf-cdata.gpx`.
 - points: 3
 - distance (m): 222
 - distance (mi): 0.14
+- elevation source: gps
+- gain / loss (m): 0 / 0
+- min / max (m): 120.2 / 121.8
 
 ## course-boston
 
@@ -62,6 +77,9 @@ Parsed course from `test/fixtures/gpx/boston.gpx`.
 - points: 318
 - distance (m): 42287
 - distance (mi): 26.28
+- elevation source: gps
+- gain / loss (m): 191.4 / 327.6
+- min / max (m): 2.7 / 139.2
 
 ## course-dodge
 
@@ -71,6 +89,9 @@ Parsed course from `test/fixtures/gpx/dodge.gpx`.
 - points: 274
 - distance (m): 10847
 - distance (mi): 6.74
+- elevation source: gps
+- gain / loss (m): 96.5 / 96.5
+- min / max (m): 245.3 / 329.9
 
 ## course-duplicates-and-noise
 
@@ -80,6 +101,9 @@ Parsed course from `test/fixtures/gpx/duplicates-and-noise.gpx`.
 - points: 6
 - distance (m): 556
 - distance (mi): 0.35
+- elevation source: gps
+- gain / loss (m): 4.6 / 0
+- min / max (m): 120.2 / 124.8
 
 ## course-forest-home
 
@@ -89,6 +113,9 @@ Parsed course from `test/fixtures/gpx/forest_home.gpx`.
 - points: 256
 - distance (m): 9160
 - distance (mi): 5.69
+- elevation source: gps
+- gain / loss (m): 77.2 / 77.1
+- min / max (m): 244.1 / 294.9
 
 ## course-garmin-connect-activity
 
@@ -98,6 +125,9 @@ Parsed course from `test/fixtures/gpx/garmin-connect-activity.gpx`.
 - points: 380
 - distance (m): 3535
 - distance (mi): 2.2
+- elevation source: gps
+- gain / loss (m): 8.7 / 12.1
+- min / max (m): 238.4 / 250.5
 
 ## course-gpx-1-0
 
@@ -107,6 +137,9 @@ Parsed course from `test/fixtures/gpx/gpx-1.0.gpx`.
 - points: 3
 - distance (m): 222
 - distance (mi): 0.14
+- elevation source: gps
+- gain / loss (m): 0 / 0
+- min / max (m): 120.2 / 121.8
 
 ## course-multi-segment
 
@@ -116,6 +149,9 @@ Parsed course from `test/fixtures/gpx/multi-segment.gpx`.
 - points: 7
 - distance (m): 667
 - distance (mi): 0.41
+- elevation source: gps
+- gain / loss (m): 5.6 / 0
+- min / max (m): 120.2 / 125.8
 
 ## course-multi-track
 
@@ -125,6 +161,9 @@ Parsed course from `test/fixtures/gpx/multi-track.gpx`.
 - points: 4
 - distance (m): 1604
 - distance (mi): 1
+- elevation source: gps
+- gain / loss (m): 10.5 / 4.6
+- min / max (m): 120.2 / 130.7
 
 ## course-newyork
 
@@ -134,6 +173,9 @@ Parsed course from `test/fixtures/gpx/newyork.gpx`.
 - points: 455
 - distance (m): 42608
 - distance (mi): 26.48
+- elevation source: gps
+- gain / loss (m): 107.7 / 130
+- min / max (m): 2.5 / 55
 
 ## course-no-elevation
 
@@ -143,6 +185,9 @@ Parsed course from `test/fixtures/gpx/no-elevation.gpx`.
 - points: 4
 - distance (m): 334
 - distance (mi): 0.21
+- elevation source: dem
+- gain / loss (m): 0 / 0
+- min / max (m): 123.2 / 124.1
 
 ## course-partial-elevation
 
@@ -152,6 +197,9 @@ Parsed course from `test/fixtures/gpx/partial-elevation.gpx`.
 - points: 6
 - distance (m): 556
 - distance (mi): 0.35
+- elevation source: dem
+- gain / loss (m): 0 / 0
+- min / max (m): 122.2 / 124.1
 
 ## course-prefixed-namespace
 
@@ -161,6 +209,9 @@ Parsed course from `test/fixtures/gpx/prefixed-namespace.gpx`.
 - points: 3
 - distance (m): 222
 - distance (mi): 0.14
+- elevation source: gps
+- gain / loss (m): 0 / 0
+- min / max (m): 120.7 / 122.3
 
 ## course-ridewithgps-route
 
@@ -170,6 +221,9 @@ Parsed course from `test/fixtures/gpx/ridewithgps-route.gpx`.
 - points: 300
 - distance (m): 5535
 - distance (mi): 3.44
+- elevation source: gps
+- gain / loss (m): 29.5 / 21.4
+- min / max (m): 240.3 / 260.4
 
 ## course-ridewithgps-track
 
@@ -179,6 +233,9 @@ Parsed course from `test/fixtures/gpx/ridewithgps-track.gpx`.
 - points: 300
 - distance (m): 5535
 - distance (mi): 3.44
+- elevation source: gps
+- gain / loss (m): 29.5 / 21.4
+- min / max (m): 240.3 / 260.4
 
 ## course-scurve
 
@@ -188,6 +245,9 @@ Parsed course from `test/fixtures/gpx/scurve.gpx`.
 - points: 156
 - distance (m): 4087
 - distance (mi): 2.54
+- elevation source: gps
+- gain / loss (m): 42 / 44.3
+- min / max (m): 130 / 170.6
 
 ## course-strava-activity
 
@@ -197,6 +257,9 @@ Parsed course from `test/fixtures/gpx/strava-activity.gpx`.
 - points: 420
 - distance (m): 2598
 - distance (mi): 1.61
+- elevation source: gps
+- gain / loss (m): 8.3 / 7.2
+- min / max (m): 245.6 / 252.7
 
 ## course-wineglass
 
@@ -206,6 +269,9 @@ Parsed course from `test/fixtures/gpx/wineglass.gpx`.
 - points: 632
 - distance (m): 42789
 - distance (mi): 26.59
+- elevation source: gps
+- gain / loss (m): 69.4 / 128.6
+- min / max (m): 283.5 / 351.2
 
 ## course-zero-elevation
 
@@ -215,3 +281,6 @@ Parsed course from `test/fixtures/gpx/zero-elevation.gpx`.
 - points: 4
 - distance (m): 334
 - distance (mi): 0.21
+- elevation source: dem
+- gain / loss (m): 0 / 0
+- min / max (m): 123.2 / 124.1
