@@ -35,7 +35,7 @@ export function App() {
         </svg>
         <h1 className="mt-6 text-4xl font-semibold tracking-tight">Perfect Pace</h1>
         <p className="mt-3 text-lg text-stone-600 dark:text-stone-400">Elevation-aware pacing plans for any course.</p>
-        <p className="mt-8 inline-flex items-center gap-2 rounded-full border border-stone-200 px-4 py-1.5 text-sm text-stone-600 dark:border-stone-800 dark:text-stone-400">
+        <p className="mt-12 inline-flex items-center gap-2 rounded-full border border-stone-200 px-4 py-1.5 text-sm text-stone-600 dark:border-stone-800 dark:text-stone-400">
           <span
             className={
               status === "online"
