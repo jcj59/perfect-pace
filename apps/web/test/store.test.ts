@@ -1,5 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
-import { THEME_STORAGE_KEY, initialAppState, readThemePreference } from "../src/state/app.ts";
+import {
+  THEME_STORAGE_KEY,
+  UNITS_STORAGE_KEY,
+  defaultUnits,
+  initialAppState,
+  readThemePreference,
+  readUnits,
+} from "../src/state/app.ts";
 import { createStore } from "../src/state/store.ts";
 import { nextSnap, releaseSnap, snapHeights, stepSnap, SHEET_PEEK_PX, SHEET_TOP_GAP_PX } from "../src/layout/sheet.ts";
 
@@ -50,11 +57,42 @@ describe("createStore", () => {
   });
 });
 
+describe("units", () => {
+  const stored = (value: string | null) => ({ getItem: (key: string) => (key === UNITS_STORAGE_KEY ? value : null) });
+
+  it("defaults to miles where road distances are in miles, kilometers elsewhere", () => {
+    expect(defaultUnits("en-US")).toBe("mi");
+    expect(defaultUnits("en")).toBe("mi"); // maximizes to en-Latn-US
+    expect(defaultUnits("en-GB")).toBe("mi");
+    expect(defaultUnits("de-DE")).toBe("km");
+    expect(defaultUnits("fr-CA")).toBe("km");
+    expect(defaultUnits(undefined)).toBe("km");
+    expect(defaultUnits("not a tag!")).toBe("km");
+  });
+
+  it("prefers the stored choice, and ignores a bad or unreadable one", () => {
+    expect(readUnits(stored("km"), "en-US")).toBe("km");
+    expect(readUnits(stored("mi"), "de-DE")).toBe("mi");
+    expect(readUnits(stored("furlongs"), "de-DE")).toBe("km");
+    const throwing = {
+      getItem: () => {
+        throw new Error("blocked");
+      },
+    };
+    expect(readUnits(throwing, "en-US")).toBe("mi");
+  });
+});
+
 describe("app state", () => {
   const storage = (value: string | null) => ({ getItem: (key: string) => (key === THEME_STORAGE_KEY ? value : null) });
 
   it("starts at the stored theme with the sheet at peek", () => {
-    expect(initialAppState(storage("dark"))).toEqual({ theme: "dark", sheet: "peek" });
+    expect(initialAppState(storage("dark"), "en-US")).toEqual({
+      theme: "dark",
+      sheet: "peek",
+      units: "mi",
+      course: { status: "empty" },
+    });
     expect(initialAppState(storage("light")).theme).toBe("light");
   });
 

@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { expect, type Page } from "@playwright/test";
 
 export type ColorScheme = "light" | "dark";
@@ -20,10 +20,30 @@ export async function stubMapNetwork(page: Page): Promise<void> {
   });
 }
 
+const DEM_DIR = new URL("../../packages/core/test/fixtures/dem/", import.meta.url);
+const TERRARIUM = "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/**";
+
+/**
+ * Serve Terrarium elevation tiles from the core fixtures (`packages/core/test/fixtures/dem`), the
+ * same tiles the elevation unit tests use, so DEM lookups never touch the network. A tile that is
+ * not in the fixtures gets a 404, which the app reports as an elevation download failure.
+ * Routed on the context, because the requests come from the core Web Worker.
+ */
+export async function stubDemTiles(page: Page): Promise<void> {
+  await page.context().route(TERRARIUM, (route) => {
+    const match = /terrarium\/(\d+)\/(\d+)\/(\d+)\.png$/.exec(new URL(route.request().url()).pathname);
+    const file = match ? new URL(`${match[1]}/${match[2]}/${match[3]}.png`, DEM_DIR) : undefined;
+    const headers = { "access-control-allow-origin": "*" };
+    if (!file || !existsSync(file)) return route.fulfill({ status: 404, headers });
+    return route.fulfill({ contentType: "image/png", headers, body: readFileSync(file) });
+  });
+}
+
 /** Open the app in a color scheme and wait until the panel and the map have rendered. */
 export async function openApp(page: Page, colorScheme: ColorScheme = "light"): Promise<void> {
   await page.emulateMedia({ colorScheme });
   await stubMapNetwork(page);
+  await stubDemTiles(page);
   await page.goto("/");
   await expect(page.getByRole("heading", { level: 1, name: "Perfect Pace" })).toBeVisible();
   await expect(page.getByTestId("map")).toHaveAttribute("data-map-state", "ready", { timeout: 15_000 });

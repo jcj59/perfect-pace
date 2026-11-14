@@ -1,7 +1,9 @@
+import { UploadCard } from "./UploadCard.tsx";
+
 const STEPS = [
   {
     title: "Add your course",
-    body: "Upload a GPX file from your watch or the race website, or draw a route on the map.",
+    body: "Load a GPX file from your watch, Strava or the race website, and see it on the map.",
   },
   {
     title: "Set your goal",
@@ -13,8 +15,13 @@ const STEPS = [
   },
 ];
 
+export interface EmptyStateProps {
+  /** Show the upload card. Off while an error card above it offers the same button. */
+  upload?: boolean;
+}
+
 /** What the panel shows before there is a course. */
-export function EmptyState() {
+export function EmptyState({ upload = true }: EmptyStateProps) {
   return (
     <div className="px-6 pt-2 pb-6" data-testid="empty-state">
       <ProfileIllustration />
@@ -25,6 +32,11 @@ export function EmptyState() {
         Perfect Pace turns a course and a goal time into a pacing plan that eases off on the climbs, makes the time back
         on the descents, and keeps the pace changes to as few as you like.
       </p>
+      {upload && (
+        <div className="mt-6">
+          <UploadCard />
+        </div>
+      )}
       <h3 className="mt-7 text-xs font-semibold tracking-[0.08em] text-ink-subtle uppercase">How it works</h3>
       <ol className="mt-3 space-y-4">
         {STEPS.map((step, i) => (
