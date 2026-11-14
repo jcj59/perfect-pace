@@ -99,8 +99,9 @@ jobs:
       image: mcr.microsoft.com/playwright:v1.65.0-noble
       options: --ipc=host
     env:
-      PP_BASE_URL: ${{ needs.preview.outputs.url }}
-      PP_EXPECT_VERSION: ${{ needs.preview.outputs.version }}
+      # Throwaway: preview uploaded with local credentials from PR 1's head (a613030).
+      PP_BASE_URL: https://7163fbf7-perfect-pace.hf-worker.workers.dev
+      PP_EXPECT_VERSION: 7163fbf7-20ee-42bd-8212-54ab8bf6178a
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
