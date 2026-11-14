@@ -14,17 +14,18 @@ pnpm build          # web app, then a dry-run bundle of the Worker
 pnpm dev            # Vite on :5173 with /api proxied to wrangler dev on :8787
 ```
 
-| Command              | What it does                                                               |
-| -------------------- | -------------------------------------------------------------------------- |
-| `pnpm lint`          | ESLint plus repo policy checks (no em dashes, Playwright image in sync)    |
-| `pnpm format`        | Prettier (`pnpm format:check` in CI)                                       |
-| `pnpm typecheck`     | `tsc` in every package (`@pp/core` src is checked with no DOM or Node)     |
-| `pnpm test`          | Vitest: `@pp/core` unit, property and golden (with coverage); web; Worker  |
-| `pnpm perf`          | Vitest benchmarks checked against `packages/core/bench/budgets.json`       |
-| `pnpm e2e`           | Playwright against local `wrangler dev` (run `pnpm build` first)           |
-| `pnpm golden:update` | Rewrite golden snapshots and `golden-summary.md`                           |
-| `pnpm visual:update` | Regenerate screenshot baselines in the Linux Playwright container          |
-| `pnpm rollback`      | Roll production back to the previous Worker version (`--dry-run` to check) |
+| Command                | What it does                                                               |
+| ---------------------- | -------------------------------------------------------------------------- |
+| `pnpm lint`            | ESLint plus repo policy checks (no em dashes, Playwright image in sync)    |
+| `pnpm format`          | Prettier (`pnpm format:check` in CI)                                       |
+| `pnpm typecheck`       | `tsc` in every package (`@pp/core` src is checked with no DOM or Node)     |
+| `pnpm test`            | Vitest: `@pp/core` unit, property and golden (with coverage); web; Worker  |
+| `pnpm perf`            | Vitest benchmarks checked against `packages/core/bench/budgets.json`       |
+| `pnpm e2e`             | Playwright against local `wrangler dev` (run `pnpm build` first)           |
+| `pnpm golden:update`   | Rewrite golden snapshots and `golden-summary.md`                           |
+| `pnpm fixtures:record` | Re-record the ORS fixtures with a real key (`ORS_API_KEY` in the env)      |
+| `pnpm visual:update`   | Regenerate screenshot baselines in the Linux Playwright container          |
+| `pnpm rollback`        | Roll production back to the previous Worker version (`--dry-run` to check) |
 
 ## Workspace
 
@@ -126,12 +127,41 @@ Deploys need two repository secrets: `CLOUDFLARE_API_TOKEN` (a token from the "E
 Workers" template) and `CLOUDFLARE_ACCOUNT_ID`. Without them the `preview` job skips the deploy and
 `e2e` runs against a local `wrangler dev` instead, and `Deploy` skips.
 
+A third, optional secret, `ORS_API_KEY`, is the OpenRouteService key `/api/route` uses (see
+[Routing](#routing)). `Deploy` uploads it to the Worker with each production version, previews
+inherit it, and `Nightly` runs the live routing test only when it is set. Without it nothing fails:
+`/api/route` answers `503 not_configured` and the live routing test is skipped with a warning.
+
 To exercise the rollback path without touching production traffic, run the `Deploy` workflow by
 hand with "force smoke failure" and "dry run" checked, or locally:
 
 ```sh
 DRY_RUN=1 PP_FORCE_SMOKE_FAIL=1 bash scripts/post-deploy-smoke.sh <production-url> <live-version> <previous-version>
 ```
+
+## Routing
+
+`POST /api/route` (in `apps/worker/src/route.ts`) routes one leg on foot through hosted
+OpenRouteService, holding the key server side. The request, response and error codes are the wire
+contract in `packages/core/src/routing.ts`, with the `RoutingProvider` interface and
+`httpRoutingProvider`, the client for it.
+
+- **Key:** get a free one at <https://openrouteservice.org/dev/#/signup> (2,000 directions requests
+  a day, 40 a minute). Set it as the `ORS_API_KEY` repository secret (`gh secret set ORS_API_KEY`),
+  and the next deploy uploads it; or set it directly with
+  `pnpm --filter @pp/worker exec wrangler secret put ORS_API_KEY`. For `pnpm dev`, put
+  `ORS_API_KEY=...` in `apps/worker/.dev.vars` (gitignored).
+- **Cache:** successful legs are cached for a week with the Cache API, keyed by profile and
+  coordinates rounded to 5 decimals (about 1 m). The Cache API does nothing on `*.workers.dev`, so
+  this only takes effect on a custom domain.
+- **Rate limit:** 20 upstream (uncached) requests per client IP per minute, with the Workers Rate
+  Limiting binding `ROUTE_RATE_LIMITER` in `wrangler.jsonc`. A counter in Worker memory would be
+  per isolate, and so easy to exceed; the binding is shared within each Cloudflare location (and
+  eventually consistent, so bursts can overshoot slightly). It does not cap the shared daily quota;
+  ORS answers `upstream_rate_limited` once that is used up.
+- **Fixtures:** the Worker tests replay `apps/worker/test/fixtures/ors/` and never call ORS. The
+  committed files are synthetic until someone runs `ORS_API_KEY=... pnpm fixtures:record` (see the
+  README there).
 
 ## Dependencies
 

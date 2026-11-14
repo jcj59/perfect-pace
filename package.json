@@ -16,6 +16,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "golden:update": "pnpm --filter @pp/core golden:update",
+    "fixtures:record": "pnpm --filter @pp/worker fixtures:record",
     "e2e": "pnpm --filter @pp/e2e e2e",
     "visual:update": "bash scripts/visual-update.sh",
     "rollback": "bash scripts/rollback.sh"

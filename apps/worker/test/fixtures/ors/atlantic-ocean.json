@@ -1,0 +1,44 @@
+{
+  "source": "synthetic",
+  "recordedAt": null,
+  "case": {
+    "name": "atlantic-ocean",
+    "description": "Both ends in the Atlantic, far from any path: ORS error 2010 (no routable point)",
+    "from": {
+      "lat": 40.5,
+      "lon": -70
+    },
+    "to": {
+      "lat": 40.51,
+      "lon": -70
+    }
+  },
+  "upstream": {
+    "url": "https://api.openrouteservice.org/v2/directions/foot-walking/geojson",
+    "body": {
+      "coordinates": [
+        [-70, 40.5],
+        [-70, 40.51]
+      ],
+      "instructions": false
+    }
+  },
+  "response": {
+    "status": 404,
+    "body": {
+      "error": {
+        "code": 2010,
+        "message": "Could not find routable point within a radius of 350.0 meters of specified coordinate 0: -70.0000000 40.5000000."
+      },
+      "info": {
+        "engine": {
+          "version": "9.5.0",
+          "build_date": "2026-09-30T08:12:41Z",
+          "graph_date": "2026-11-02T00:00:00Z",
+          "osm_date": "2026-10-27T00:00:02Z"
+        },
+        "timestamp": 1763078400000
+      }
+    }
+  }
+}

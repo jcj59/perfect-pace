@@ -21,14 +21,16 @@ export default tseslint.config(
   {
     languageOptions: {
       parserOptions: {
-        projectService: { allowDefaultProject: ["*.js", "scripts/*.mjs", "packages/core/bench/*.mjs"] },
+        projectService: {
+          allowDefaultProject: ["*.js", "scripts/*.mjs", "apps/worker/scripts/*.mjs", "packages/core/bench/*.mjs"],
+        },
       },
     },
   },
   {
     files: ["**/*.js", "**/*.mjs"],
     ...tseslint.configs.disableTypeChecked,
-    languageOptions: { globals: { console: "readonly", process: "readonly", URL: "readonly" } },
+    languageOptions: { globals: { console: "readonly", process: "readonly", URL: "readonly", fetch: "readonly" } },
   },
   {
     files: ["apps/web/src/**/*.{ts,tsx}"],
