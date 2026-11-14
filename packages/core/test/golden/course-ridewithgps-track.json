@@ -12,5 +12,30 @@
       "pointsWithEle": 300,
       "distanceM": 5535
     }
-  ]
+  ],
+  "elevation": {
+    "source": "gps",
+    "gpsIssue": null,
+    "points": 555,
+    "demPoints": 0,
+    "gainM": 29.5,
+    "lossM": 21.4,
+    "minM": 240.3,
+    "maxM": 260.4,
+    "gradeBinM": 500,
+    "gradeProfile": [
+      -0.014,
+      -0.004,
+      0.013,
+      0.008,
+      0.017,
+      -0.004,
+      -0.006,
+      -0.004,
+      0.002,
+      -0.01,
+      0.017,
+      0.018
+    ]
+  }
 }

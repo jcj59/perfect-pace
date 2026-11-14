@@ -1,5 +1,7 @@
 {
   "bench/prefix-sums.bench.ts > core > prefixSums over 50k values": { "maxMedianMs": 1 },
   "bench/gpx.bench.ts > gpx > parseGpx 50k-point Garmin activity": { "maxMedianMs": 400 },
-  "bench/gpx.bench.ts > gpx > simplify 50k points at 2 m": { "maxMedianMs": 30 }
+  "bench/gpx.bench.ts > gpx > simplify 50k points at 2 m": { "maxMedianMs": 30 },
+  "bench/elevation.bench.ts > elevation > smoothElevations marathon at 10 m": { "maxMedianMs": 10 },
+  "bench/elevation.bench.ts > elevation > buildElevationProfile marathon with GPS elevation": { "maxMedianMs": 25 }
 }

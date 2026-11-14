@@ -12,5 +12,20 @@
       "pointsWithEle": 3,
       "distanceM": 556
     }
-  ]
+  ],
+  "elevation": {
+    "source": "dem",
+    "gpsIssue": "sparse",
+    "points": 57,
+    "demPoints": 57,
+    "gainM": 0,
+    "lossM": 0,
+    "minM": 122.2,
+    "maxM": 124.1,
+    "gradeBinM": 500,
+    "gradeProfile": [
+      -0.003,
+      -0.004
+    ]
+  }
 }
