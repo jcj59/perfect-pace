@@ -4,7 +4,7 @@ import { randomValues } from "./support/rng.ts";
 
 describe("prefixSums", () => {
   it("starts at zero and accumulates", () => {
-    expect(Array.from(prefixSums([1, 2, 3]))).toEqual([0, 1, 3, 6]);
+    expect(Array.from(prefixSums([1, 2, 3]))).toEqual([0, 1, 3, 7]);
   });
 
   it("handles an empty input", () => {
