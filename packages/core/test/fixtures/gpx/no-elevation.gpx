@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Hand-made: no point has an elevation, the way many route planners export. -->
+<gpx version="1.1" creator="hand-made" xmlns="http://www.topografix.com/GPX/1/1">
+  <trk>
+    <name>Flat as a map</name>
+    <trkseg>
+      <trkpt lat="42.43800" lon="-76.49900"/>
+      <trkpt lat="42.43900" lon="-76.49900"/>
+      <trkpt lat="42.44000" lon="-76.49900"><time>2024-04-15T13:50:00Z</time></trkpt>
+      <trkpt lat="42.44100" lon="-76.49900"></trkpt>
+    </trkseg>
+  </trk>
+</gpx>

@@ -23,3 +23,5 @@ export {
   parseDuration,
   unitToMeters,
 } from "./units.ts";
+export { type GpxErrorCode, type GpxFile, type GpxTrack, GpxError, parseGpx } from "./gpx.ts";
+export { simplify } from "./simplify.ts";

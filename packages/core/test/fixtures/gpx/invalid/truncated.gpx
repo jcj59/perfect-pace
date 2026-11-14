@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<gpx version="1.1" creator="https://onthegomap.com" xmlns="http://www.topografix.com/GPX/1/1">
+  <metadata>
+    <name>6.73 mi route</name>
+    <link href="https://onthegomap.com">
+      <text>On The Go Map</text>
+    </link>
+    <time>2024-11-13T00:54:47.851Z</time>
+    <copyright author="On The Go Map, OpenStreetMap Contributors">
+      <year>2024</year>
+    </copyright>
+  </metadata>
+  <trk>
+    <name>6.73 mi route</name>
+    <trkseg>
+      <trkpt lat="42.44964" lon="-76.48287">
+        <ele>253</ele>
+      </trkpt>
+      <trkpt lat="42.44849" lon="-76.48282">
+        <ele>253.6</ele>
+      </trkpt>
+      <trkpt lat="42.44822" lon="-76.4828">
+        <ele>253.8</ele>
+      </trkpt>
+      <trkpt lat="42.44764" lon="-76.48277">
+        <ele>253.3</ele>
+      </trkpt>
+      <trkpt lat="42.44757" lon="-76.48276">
+        <ele>253</ele>
+      </trkpt>
+      <trkpt lat="42.44747" lon="-76.48275">
+        <ele>252.5</ele>
+      </trkpt>
+      <trkpt lat="42.44706" lon="-76.48273">
+        <ele>249.5</ele>
+      </trkpt>
+      <trkpt lat="42.44691" lon="-76.48272">
+        <ele>248.7</ele>
+      </trkpt>
+      <trkpt lat="42.44593" lon="-76.48267">
+        <ele>247.3</ele>
+      </trkpt>
+      <trkpt lat="42.44526" lon="-76.48263">
+        <ele>245.6</ele>
+      </trkpt>
+      <trkpt lat="42.44516" lon="-76.48263">
+        <ele>245.2</ele>
+      </trkpt>
+      <trkpt lat="42.44516" lon="-76.48267">
+        <ele>245.2</ele>
+   

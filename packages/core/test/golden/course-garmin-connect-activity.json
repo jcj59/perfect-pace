@@ -1,0 +1,16 @@
+{
+  "name": null,
+  "creator": "Garmin Connect",
+  "defaultTrack": 0,
+  "tracks": [
+    {
+      "kind": "track",
+      "name": "Ithaca Running",
+      "segments": 1,
+      "points": 380,
+      "droppedPoints": 8,
+      "pointsWithEle": 380,
+      "distanceM": 3535
+    }
+  ]
+}

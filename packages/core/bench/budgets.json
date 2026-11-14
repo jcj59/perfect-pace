@@ -1,3 +1,5 @@
 {
-  "bench/prefix-sums.bench.ts > core > prefixSums over 50k values": { "maxMedianMs": 1 }
+  "bench/prefix-sums.bench.ts > core > prefixSums over 50k values": { "maxMedianMs": 1 },
+  "bench/gpx.bench.ts > gpx > parseGpx 50k-point Garmin activity": { "maxMedianMs": 400 },
+  "bench/gpx.bench.ts > gpx > simplify 50k points at 2 m": { "maxMedianMs": 30 }
 }

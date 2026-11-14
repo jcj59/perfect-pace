@@ -1,0 +1,16 @@
+{
+  "name": "Wineglass Marathon and Half Marathon",
+  "creator": "StravaGPX",
+  "defaultTrack": 0,
+  "tracks": [
+    {
+      "kind": "track",
+      "name": "Wineglass Marathon and Half Marathon",
+      "segments": 1,
+      "points": 632,
+      "droppedPoints": 0,
+      "pointsWithEle": 632,
+      "distanceM": 42789
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "name": null,
+  "creator": "hand-made",
+  "defaultTrack": 0,
+  "tracks": [
+    {
+      "kind": "track",
+      "name": null,
+      "segments": 1,
+      "points": 6,
+      "droppedPoints": 0,
+      "pointsWithEle": 3,
+      "distanceM": 556
+    }
+  ]
+}
