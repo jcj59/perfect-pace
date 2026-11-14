@@ -3,7 +3,7 @@ import { BottomSheet } from "./layout/BottomSheet.tsx";
 import { SIDE_PANEL_GAP_PX, SIDE_PANEL_WIDTH_PX, SidePanel } from "./layout/SidePanel.tsx";
 import { SHEET_PEEK_PX, snapHeights } from "./layout/sheet.ts";
 import { DESKTOP_QUERY, useMediaQuery } from "./layout/useMediaQuery.ts";
-import type { Insets } from "./map/MapView.tsx";
+import type { Insets, MapViewProps } from "./map/MapView.tsx";
 import { CourseSummary } from "./panel/CourseSummary.tsx";
 import { DropOverlay } from "./panel/DropOverlay.tsx";
 import { EmptyState } from "./panel/EmptyState.tsx";
@@ -13,6 +13,7 @@ import { PanelHeader } from "./panel/PanelHeader.tsx";
 import { ThemeSwitch } from "./panel/ThemeSwitch.tsx";
 import { type CourseState, type SheetSnap, setSheet, useAppState } from "./state/app.ts";
 import { LOAD_MEASURE, LOAD_START_MARK, ROUTE_DRAWN_MARK } from "./state/course.ts";
+import { focusNearest, focusPosition, readyProfile } from "./state/focus.ts";
 import { useApplyTheme, useTheme } from "./theme.ts";
 import { warmUpCoreWorker } from "./worker/client.ts";
 
@@ -41,11 +42,23 @@ function markRouteDrawn(): void {
   performance.measure(LOAD_MEASURE, LOAD_START_MARK, ROUTE_DRAWN_MARK);
 }
 
-/** What the panel shows for the course state, the same in the side panel and the sheet. */
-function PanelContent({ course }: { course: CourseState }) {
+/**
+ * The map with the course marker at the focused point. Its own component, so pointing along the
+ * course re-renders only the map, not the panel around it.
+ */
+function CourseMap(props: Omit<MapViewProps, "marker" | "onRouteHover">) {
+  const course = useAppState((s) => s.course);
+  const focusDistM = useAppState((s) => s.focusDistM);
+  const profile = readyProfile(course);
+  const marker = useMemo(() => focusPosition(profile, focusDistM), [profile, focusDistM]);
+  return <MapView {...props} marker={marker} onRouteHover={focusNearest} />;
+}
+
+/** What the panel shows for the course state, in the side panel or (`sheet`) the phone's bottom sheet. */
+function PanelContent({ course, sheet = false }: { course: CourseState; sheet?: boolean }) {
   switch (course.status) {
     case "loaded":
-      return <CourseSummary course={course} />;
+      return <CourseSummary course={course} profileFirst={sheet} />;
     case "error":
       return (
         <>
@@ -81,7 +94,7 @@ export function App() {
   return (
     <main className="relative h-dvh w-full overflow-hidden bg-map text-ink">
       <Suspense fallback={<div className="absolute inset-0 bg-map" data-testid="map" data-map-state="loading" />}>
-        <MapView
+        <CourseMap
           theme={theme}
           insets={desktop ? DESKTOP_INSETS : phoneInsets}
           compact={!desktop}
@@ -100,7 +113,7 @@ export function App() {
           onSnapChange={setSheet}
           header={<PanelHeader action={headerAction} />}
         >
-          <PanelContent course={course} />
+          <PanelContent course={course} sheet />
           <div className="border-t border-line px-6 pt-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
             <ThemeSwitch />
           </div>

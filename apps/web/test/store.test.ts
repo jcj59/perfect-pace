@@ -92,6 +92,7 @@ describe("app state", () => {
       sheet: "peek",
       units: "mi",
       course: { status: "empty" },
+      focusDistM: null,
     });
     expect(initialAppState(storage("light")).theme).toBe("light");
   });
