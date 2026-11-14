@@ -31,8 +31,9 @@ if [[ "${1:-}" == "--ci" ]]; then
   gh pr edit "$pr" --add-label "$label" >/dev/null
   run_id=""
   for _ in $(seq 1 30); do
-    run_id=$(gh run list --workflow visual-update.yml --commit "$head" --event pull_request --limit 1 \
-      --json databaseId,status --jq '[.[] | select(.status != "completed")][0].databaseId // empty')
+    # Filter by name rather than --workflow, which only resolves workflows already on main.
+    run_id=$(gh run list --commit "$head" --event pull_request --limit 20 --json databaseId,status,workflowName \
+      --jq '[.[] | select(.workflowName == "Visual baselines" and .status != "completed")][0].databaseId // empty')
     [[ -n "$run_id" ]] && break
     sleep 3
   done
