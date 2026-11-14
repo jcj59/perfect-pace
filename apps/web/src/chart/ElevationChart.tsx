@@ -8,9 +8,10 @@ import {
   useLayoutEffect,
   useMemo,
   useRef,
-  useState,
 } from "react";
+import { useWidth } from "../layout/useWidth.ts";
 import { type Quantity, elevationInUnits, formatDistance, formatElevation, quantityText } from "../panel/format.ts";
+import { type Tone, toneVar } from "../plan/tones.ts";
 import { appStore, setFocusDistM, useAppState } from "../state/app.ts";
 import { type LinearScale, distanceTicks, linearScale, niceAxis, thinForColumns } from "./scale.ts";
 
@@ -29,9 +30,21 @@ const MIN_SPAN: Record<DistanceUnit, number> = { mi: 100, km: 30 };
 /** Approximate width of one 11 px tabular digit, for sizing the elevation label gutter. */
 const LABEL_CHAR_PX = 6.6;
 
+/** A plan segment to color on the chart: its span along the course and its tone. */
+export interface ChartSegment {
+  startM: number;
+  endM: number;
+  tone: Tone;
+}
+
 export interface ElevationChartProps {
   profile: ElevationProfile;
   units: DistanceUnit;
+  /**
+   * The plan's segments, colored by tone with a gap at each boundary. Without them the profile is
+   * drawn in the accent color. The store's `selectedSegment` is highlighted and the rest dimmed.
+   */
+  segments?: readonly ChartSegment[] | undefined;
 }
 
 interface Geometry {
@@ -107,33 +120,20 @@ function layout(profile: ElevationProfile, units: DistanceUnit, width: number): 
   };
 }
 
-/** The width of an element, kept current as it resizes. */
-function useWidth<T extends HTMLElement>() {
-  const ref = useRef<T>(null);
-  const [width, setWidth] = useState(0);
-  useLayoutEffect(() => {
-    const element = ref.current;
-    if (!element) return;
-    setWidth(element.getBoundingClientRect().width);
-    const observer = new ResizeObserver(([entry]) => entry && setWidth(entry.contentRect.width));
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, []);
-  return [ref, width] as const;
-}
-
 /**
  * The course's elevation against distance, in the selected units. Hovering it (or dragging along
  * it by touch, or the arrow keys once focused) points at a spot on the course: the map shows a
  * marker there, and hovering the route on the map moves this chart's cursor in turn. A slider to
  * assistive technology, with the distance and elevation as its value.
  */
-export function ElevationChart({ profile, units }: ElevationChartProps) {
+export function ElevationChart({ profile, units, segments }: ElevationChartProps) {
   const [root, width] = useWidth<HTMLDivElement>();
   const readout = useRef<HTMLDivElement>(null);
   const gradient = useId();
   const description = useId();
   const focusDistM = useAppState((s) => s.focusDistM);
+  const selectedSegment = useAppState((s) => s.selectedSegment);
+  const clipId = useId();
   const geometry = useMemo(() => (width > 0 ? layout(profile, units, width) : null), [profile, units, width]);
   const { points } = profile.course;
   const lengthM = points.at(-1)?.distM ?? 0;
@@ -281,16 +281,28 @@ export function ElevationChart({ profile, units }: ElevationChartProps) {
               </g>
             ))}
           </g>
-          <path d={geometry.area} fill={`url(#${gradient})`} />
-          <path
-            d={geometry.line}
-            fill="none"
-            stroke="var(--pp-accent)"
-            strokeWidth={2}
-            strokeLinejoin="round"
-            strokeLinecap="round"
-            data-testid="chart-line"
-          />
+          {segments && segments.length > 0 ? (
+            <SegmentLayers
+              geometry={geometry}
+              segments={segments}
+              selected={selectedSegment}
+              units={units}
+              clipId={clipId}
+            />
+          ) : (
+            <>
+              <path d={geometry.area} fill={`url(#${gradient})`} />
+              <path
+                d={geometry.line}
+                fill="none"
+                stroke="var(--pp-accent)"
+                strokeWidth={2}
+                strokeLinejoin="round"
+                strokeLinecap="round"
+                data-testid="chart-line"
+              />
+            </>
+          )}
           <g data-testid="chart-x-ticks">
             {geometry.xTicks.map(({ value, label, anchor }) => (
               <text
@@ -340,5 +352,83 @@ export function ElevationChart({ profile, units }: ElevationChartProps) {
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * The profile cut into plan segments: each one's area and line in its tone, clipped to its span,
+ * with a surface-colored gap at every boundary so neighbors of the same tone still read as two.
+ * A selected segment gets a band behind it and full strength; the others recede.
+ */
+function SegmentLayers({
+  geometry,
+  segments,
+  selected,
+  units,
+  clipId,
+}: {
+  geometry: Geometry;
+  segments: readonly ChartSegment[];
+  selected: number | null;
+  units: DistanceUnit;
+  clipId: string;
+}) {
+  const { x, plotTop, plotBottom } = geometry;
+  const spans = segments.map((s) => ({ x0: x(metersToUnit(s.startM, units)), x1: x(metersToUnit(s.endM, units)) }));
+  const picked = selected !== null && selected < segments.length ? selected : null;
+  return (
+    <>
+      <defs>
+        {spans.map(({ x0, x1 }, i) => (
+          <clipPath key={i} id={`${clipId}-${i}`}>
+            <rect x={x0} y={0} width={Math.max(0, x1 - x0)} height={CHART_HEIGHT_PX} />
+          </clipPath>
+        ))}
+      </defs>
+      {picked !== null && spans[picked] && (
+        <rect
+          x={spans[picked].x0}
+          y={plotTop - 6}
+          width={Math.max(0, spans[picked].x1 - spans[picked].x0)}
+          height={plotBottom - plotTop + 6}
+          rx={4}
+          fill="var(--pp-ink)"
+          fillOpacity={0.06}
+          data-testid="chart-selection"
+        />
+      )}
+      {segments.map((segment, i) => {
+        const state = picked === null ? "normal" : picked === i ? "selected" : "dimmed";
+        const color = toneVar(segment.tone);
+        return (
+          <g
+            key={i}
+            clipPath={`url(#${clipId}-${i})`}
+            data-testid="chart-segment"
+            data-index={i}
+            data-tone={segment.tone}
+            data-selected={state === "selected" || undefined}
+            opacity={state === "dimmed" ? 0.35 : 1}
+          >
+            <path d={geometry.area} fill={color} fillOpacity={state === "selected" ? 0.42 : 0.26} />
+            <path
+              d={geometry.line}
+              fill="none"
+              stroke={color}
+              strokeWidth={state === "selected" ? 3 : 2}
+              strokeLinejoin="round"
+              strokeLinecap="round"
+            />
+          </g>
+        );
+      })}
+      {/* The whole line, unclipped and unpainted, for its extent (tests measure the plot by it). */}
+      <path d={geometry.line} fill="none" stroke="none" data-testid="chart-line" />
+      <g data-testid="chart-boundaries">
+        {spans.slice(1).map(({ x0 }, i) => (
+          <line key={i} x1={x0} x2={x0} y1={plotTop - 2} y2={plotBottom} stroke="var(--pp-surface)" strokeWidth={2} />
+        ))}
+      </g>
+    </>
   );
 }

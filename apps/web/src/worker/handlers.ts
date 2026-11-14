@@ -2,6 +2,9 @@ import { type ElevationProvider, buildElevationProfile, computePlan, parseGpx, t
 import { CORE_PROTOCOL_VERSION, type CoreOps } from "./protocol.ts";
 import type { Handlers } from "./rpc.ts";
 
+/** `computePlan` alone, measured inside the worker. */
+export const PLAN_COMPUTE_MEASURE = "pp:plan-compute";
+
 export interface CoreHandlerOptions {
   /** Makes the DEM provider on first use. Default: Terrarium tiles decoded with OffscreenCanvas. */
   elevationProvider?: () => ElevationProvider;
@@ -16,6 +19,13 @@ export function createCoreHandlers(options: CoreHandlerOptions = {}): Handlers<C
     parse: ({ text }) => parseGpx(text),
     elevation: ({ course, ...rest }) =>
       buildElevationProfile(course, { ...rest, provider: (provider ??= makeProvider()) }),
-    plan: ({ course, inputs }) => computePlan(course, inputs),
+    plan: ({ course, inputs }) => {
+      const start = performance.now();
+      const plan = computePlan(course, inputs);
+      // In the worker's own timeline; `e2e/tests/plan-perf.spec.ts` reads it there.
+      performance.clearMeasures(PLAN_COMPUTE_MEASURE);
+      performance.measure(PLAN_COMPUTE_MEASURE, { start, end: performance.now() });
+      return plan;
+    },
   };
 }

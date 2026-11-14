@@ -20,9 +20,16 @@ import {
   COURSE_LINE_LAYER,
   COURSE_SOURCE,
   type CourseFeatures,
+  type MapSegment,
   NO_COURSE,
+  PLAN_HALO_LAYER,
+  PLAN_LINE_LAYER,
+  PLAN_SOURCE,
   courseBounds,
   courseFeatures,
+  planFeatures,
+  planPaint,
+  routeLineOpacity,
   withCourse,
 } from "./course-layer.ts";
 import { mapStyle } from "./style.ts";
@@ -63,6 +70,10 @@ export interface MapViewProps {
    * once it leaves the line.
    */
   onRouteHover?: (at: LatLon | null) => void;
+  /** The plan's segments, drawn over the route in their tones (without moving the camera), or null. */
+  segments?: readonly MapSegment[] | null;
+  /** The plan segment to highlight (wider, the rest faded), or null. */
+  selectedSegment?: number | null;
 }
 
 /**
@@ -109,6 +120,8 @@ export default function MapView({
   onRouteDrawn,
   marker = null,
   onRouteHover,
+  segments = null,
+  selectedSegment = null,
 }: MapViewProps) {
   const container = useRef<HTMLDivElement>(null);
   const map = useRef<MapLibreMap | null>(null);
@@ -119,6 +132,13 @@ export default function MapView({
   // The latest insets and route, read when framing a course and when rebuilding the style.
   const latestInsets = useRef(insets);
   const courseData = useRef<CourseFeatures>(NO_COURSE);
+  const planData = useRef<CourseFeatures>(NO_COURSE);
+  const latestSelected = useRef(selectedSegment);
+  /** Segments the map has rendered of which set, for the `data-segments` attribute (tests wait on it). */
+  const [drawnSegments, setDrawnSegments] = useState<{ of: readonly MapSegment[] | null; count: number }>({
+    of: null,
+    count: 0,
+  });
   const onDrawn = useRef(onRouteDrawn);
   const onHover = useRef(onRouteHover);
   const courseMarker = useRef<Marker | null>(null);
@@ -137,7 +157,7 @@ export default function MapView({
     try {
       instance = new MapLibreMap({
         container: element,
-        style: withCourse(mapStyle(theme), theme, courseData.current),
+        style: withCourse(mapStyle(theme), theme, courseData.current, planData.current, latestSelected.current),
         bounds: INITIAL_BOUNDS,
         fitBoundsOptions: { padding: padding(insets) },
         attributionControl: false,
@@ -193,7 +213,9 @@ export default function MapView({
     if (theme === styledTheme.current) return; // the map was created with this theme
     styledTheme.current = theme;
     // The course is part of the style, so it survives the switch with its current data.
-    map.current?.setStyle(withCourse(mapStyle(theme), theme, courseData.current));
+    map.current?.setStyle(
+      withCourse(mapStyle(theme), theme, courseData.current, planData.current, latestSelected.current),
+    );
   }, [theme]);
 
   // Draw a new route, frame it clear of the panel, and report once it is on screen.
@@ -238,6 +260,53 @@ export default function MapView({
     };
   }, [route]);
 
+  // Draw the plan's segments over the route, in place: the camera stays where it is.
+  useEffect(() => {
+    const data = planFeatures(segments);
+    planData.current = data;
+    const instance = map.current;
+    if (!instance) return;
+    let cancelled = false;
+    const expected = segments?.length ?? 0;
+    const confirm = () => {
+      if (cancelled || !instance.isSourceLoaded(PLAN_SOURCE)) return;
+      const drawn = new Set(
+        instance.queryRenderedFeatures({ layers: [PLAN_LINE_LAYER] }).map((f) => f.properties["index"] as number),
+      );
+      if (drawn.size < expected) return;
+      instance.off("render", confirm);
+      setDrawnSegments({ of: segments, count: drawn.size });
+    };
+    const apply = () => {
+      if (cancelled) return;
+      const source = instance.getSource<GeoJSONSource>(PLAN_SOURCE);
+      if (!source) {
+        instance.once("styledata", apply);
+        return;
+      }
+      void source.setData(data);
+      instance.setPaintProperty(COURSE_LINE_LAYER, "line-opacity", routeLineOpacity(expected > 0));
+      if (expected > 0) instance.on("render", confirm);
+    };
+    apply();
+    return () => {
+      cancelled = true;
+      instance.off("styledata", apply);
+      instance.off("render", confirm);
+    };
+  }, [segments]);
+
+  // Highlight the selected segment. The style carries it too, for a theme switch.
+  useEffect(() => {
+    latestSelected.current = selectedSegment;
+    const instance = map.current;
+    if (!instance?.getLayer(PLAN_LINE_LAYER)) return;
+    const paint = planPaint(selectedSegment);
+    instance.setPaintProperty(PLAN_LINE_LAYER, "line-opacity", paint.opacity);
+    instance.setPaintProperty(PLAN_LINE_LAYER, "line-width", paint.width);
+    instance.setFilter(PLAN_HALO_LAYER, paint.halo);
+  }, [selectedSegment]);
+
   // The marker is a DOM element over the map, so moving it costs no map redraw.
   const markerLat = marker?.lat;
   const markerLon = marker?.lon;
@@ -259,7 +328,14 @@ export default function MapView({
   const courseState: CourseDrawState = !route ? "none" : drawnRoute === route ? "drawn" : "drawing";
 
   return (
-    <div className="absolute inset-0 bg-map" data-testid="map" data-map-state={state} data-course={courseState}>
+    <div
+      className="absolute inset-0 bg-map"
+      data-testid="map"
+      data-map-state={state}
+      data-course={courseState}
+      data-segments={drawnSegments.of === segments ? drawnSegments.count : 0}
+      data-selected-segment={selectedSegment ?? undefined}
+    >
       <div ref={container} className="size-full" />
       {state === "unavailable" && (
         <p className="absolute inset-x-0 top-1/3 px-8 text-center text-sm text-ink-muted">

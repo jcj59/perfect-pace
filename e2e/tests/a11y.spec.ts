@@ -2,6 +2,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 import { openApp, type ColorScheme } from "../support/app.ts";
 import { corpusPath, expectRouteDrawn, invalidPath, uploadGpx } from "../support/course.ts";
+import { enterGoal, planBoston } from "../support/plan.ts";
 
 for (const scheme of ["light", "dark"] satisfies ColorScheme[]) {
   test(`empty state has no axe violations, ${scheme}`, async ({ page }) => {
@@ -17,6 +18,17 @@ for (const scheme of ["light", "dark"] satisfies ColorScheme[]) {
     await expect(page.getByTestId("elevation-source")).toBeVisible();
     const { violations } = await new AxeBuilder({ page }).analyze();
     expect(violations.map((v) => `${v.id}: ${v.help}`)).toEqual([]);
+  });
+
+  test(`the pacing plan has no axe violations, ${scheme}`, async ({ page }) => {
+    await planBoston(page, scheme);
+    await page.getByTestId("segment-row").nth(1).getByRole("button").click();
+    await expect(page.getByTestId("map")).toHaveAttribute("data-selected-segment", "1");
+    expect((await new AxeBuilder({ page }).analyze()).violations.map((v) => `${v.id}: ${v.help}`)).toEqual([]);
+    // With a goal it cannot plan, and its error showing.
+    await enterGoal(page, "3:30");
+    await expect(page.getByTestId("goal-error")).toBeVisible();
+    expect((await new AxeBuilder({ page }).analyze()).violations.map((v) => `${v.id}: ${v.help}`)).toEqual([]);
   });
 
   test(`the error state has no axe violations, ${scheme}`, async ({ page }) => {

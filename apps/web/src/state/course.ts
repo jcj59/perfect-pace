@@ -66,7 +66,7 @@ export async function loadGpxFile(file: File): Promise<void> {
   performance.clearMarks(PARSED_MARK);
   performance.clearMeasures(LOAD_MEASURE);
   performance.mark(LOAD_START_MARK);
-  setCourse({ status: "reading", fileName });
+  setCourse({ status: "reading", fileName }, true);
 
   try {
     if (file.size > MAX_FILE_BYTES) {
@@ -99,7 +99,7 @@ export async function loadGpxFile(file: File): Promise<void> {
 export function selectTrack(index: number): void {
   const course = appStore.get().course;
   if (course.status !== "loaded" || index === course.track || !course.file.tracks[index]) return;
-  showTrack({ ...course, track: index, elevation: { status: "loading" } });
+  showTrack({ ...course, track: index, elevation: { status: "loading" } }, true);
 }
 
 /** Build the elevation profile again after it failed (for example while offline). */
@@ -112,11 +112,11 @@ export function retryElevation(): void {
 type Loaded = Extract<CourseState, { status: "loaded" }>;
 
 /** Show a track right away (route and distance), then fill in its elevation profile. */
-function showTrack(course: Loaded): void {
+function showTrack(course: Loaded, fresh = false): void {
   elevation?.abort();
   const controller = new AbortController();
   elevation = controller;
-  setCourse(course);
+  setCourse(course, fresh);
   const track = course.file.tracks[course.track];
   if (!track) return;
   let current: CourseState = course;

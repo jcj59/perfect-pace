@@ -15,7 +15,7 @@ const baseURL = process.env["PP_BASE_URL"] || `http://localhost:${LOCAL_PORT}`;
 const quarantine = process.env["PP_QUARANTINE"] === "1";
 
 // Timing budgets that must not share the CPU with other tests run in their own project, last.
-const ISOLATED = /load-perf\.spec\.ts/;
+const ISOLATED = /(load|plan)-perf\.spec\.ts/;
 
 // Per-PR projects: Chromium only, at desktop and two phone sizes.
 const projects: Project[] = [
@@ -25,8 +25,15 @@ const projects: Project[] = [
   {
     name: "load-perf",
     use: { ...devices["Desktop Chrome"] },
-    testMatch: ISOLATED,
+    testMatch: /load-perf\.spec\.ts/,
     dependencies: ["desktop", "iphone", "pixel"],
+  },
+  // After the load budget, not beside it, so the two never share the CPU either.
+  {
+    name: "plan-perf",
+    use: { ...devices["Desktop Chrome"] },
+    testMatch: /plan-perf\.spec\.ts/,
+    dependencies: ["load-perf"],
   },
 ];
 

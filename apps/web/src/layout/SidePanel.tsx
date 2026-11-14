@@ -32,6 +32,7 @@ export function SidePanel({ label, header, children, footer }: SidePanelProps) {
       <div
         className="min-h-0 flex-1 overflow-y-auto focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
         tabIndex={0}
+        data-testid="side-panel-content"
       >
         {children}
       </div>

@@ -3,6 +3,7 @@ import { BottomSheet } from "./layout/BottomSheet.tsx";
 import { SIDE_PANEL_GAP_PX, SIDE_PANEL_WIDTH_PX, SidePanel } from "./layout/SidePanel.tsx";
 import { SHEET_PEEK_PX, snapHeights } from "./layout/sheet.ts";
 import { DESKTOP_QUERY, useMediaQuery } from "./layout/useMediaQuery.ts";
+import type { MapSegment } from "./map/course-layer.ts";
 import type { Insets, MapViewProps } from "./map/MapView.tsx";
 import { CourseSummary } from "./panel/CourseSummary.tsx";
 import { DropOverlay } from "./panel/DropOverlay.tsx";
@@ -14,6 +15,8 @@ import { ThemeSwitch } from "./panel/ThemeSwitch.tsx";
 import { type CourseState, type SheetSnap, setSheet, useAppState } from "./state/app.ts";
 import { LOAD_MEASURE, LOAD_START_MARK, ROUTE_DRAWN_MARK } from "./state/course.ts";
 import { focusNearest, focusPosition, readyProfile } from "./state/focus.ts";
+import { startPlanner, usePlanView } from "./state/plan.ts";
+import { segmentTone } from "./plan/tones.ts";
 import { useApplyTheme, useTheme } from "./theme.ts";
 import { warmUpCoreWorker } from "./worker/client.ts";
 
@@ -46,12 +49,34 @@ function markRouteDrawn(): void {
  * The map with the course marker at the focused point. Its own component, so pointing along the
  * course re-renders only the map, not the panel around it.
  */
-function CourseMap(props: Omit<MapViewProps, "marker" | "onRouteHover">) {
+function CourseMap(props: Omit<MapViewProps, "marker" | "onRouteHover" | "segments" | "selectedSegment">) {
   const course = useAppState((s) => s.course);
   const focusDistM = useAppState((s) => s.focusDistM);
+  const selectedSegment = useAppState((s) => s.selectedSegment);
+  const planProfile = usePlanView((v) => v.profile);
+  const plan = usePlanView((v) => v.plan);
   const profile = readyProfile(course);
   const marker = useMemo(() => focusPosition(profile, focusDistM), [profile, focusDistM]);
-  return <MapView {...props} marker={marker} onRouteHover={focusNearest} />;
+  // Each segment's stretch of the profile's points (which lie on the route), in its tone.
+  const segments = useMemo<MapSegment[] | null>(
+    () =>
+      plan && profile && planProfile === profile
+        ? plan.segments.map((s) => ({
+            points: profile.course.points.slice(s.startIndex, s.endIndex + 1),
+            tone: segmentTone(s.paceSPerM, plan.flatPaceSPerM),
+          }))
+        : null,
+    [plan, planProfile, profile],
+  );
+  return (
+    <MapView
+      {...props}
+      marker={marker}
+      onRouteHover={focusNearest}
+      segments={segments}
+      selectedSegment={selectedSegment}
+    />
+  );
 }
 
 /** What the panel shows for the course state, in the side panel or (`sheet`) the phone's bottom sheet. */
@@ -85,6 +110,8 @@ export function App() {
   // At peek only the header shows, so on a phone it carries the way in until there is a course.
   // (An error raises the sheet, and its card has its own button.)
   const headerAction = course.status === "empty" ? <FileButton variant="compact">Load GPX</FileButton> : null;
+
+  useEffect(() => startPlanner(), []);
 
   useEffect(() => {
     performance.mark("pp:ready");

@@ -1,4 +1,5 @@
 import type { DistanceUnit, ElevationProfile, GpxFile } from "@pp/core";
+import { defaultMinSegmentM, snapMinSegmentM } from "../plan/inputs.ts";
 import { createStore, useStore } from "./store.ts";
 
 /** The user's theme choice. `system` follows `prefers-color-scheme`. */
@@ -23,9 +24,12 @@ export type CourseState =
   | { status: "error"; fileName: string; code?: string; message: string }
   | { status: "loaded"; fileName: string; file: GpxFile; track: number; elevation: ElevationState };
 
+/** The pace changes a plan starts with, before the user moves the slider. */
+export const DEFAULT_PACE_CHANGES = 4;
+
 /**
- * App-wide UI state. Later units add the plan here; derived values (the resolved theme, the plan
- * for the current inputs) stay out of it.
+ * App-wide UI state, including the plan inputs. Derived values (the resolved theme, the plan for
+ * the current inputs, which `plan.ts` computes in the worker) stay out of it.
  */
 export interface AppState {
   theme: ThemePreference;
@@ -40,6 +44,17 @@ export interface AppState {
    * map draws its marker there and the chart its cursor. Null when nothing is pointed at.
    */
   focusDistM: number | null;
+  /**
+   * The goal finish time the user entered, in seconds, or null before they enter one (the plan
+   * then uses `suggestedGoalS` for the course). A new course clears it.
+   */
+  goalTimeS: number | null;
+  /** The most pace changes the plan may use (the slider), 0 to `DEFAULT_CURVE_MAX_PACE_CHANGES`. */
+  paceChanges: number;
+  /** Every plan segment is at least this long, meters (one of `minSegmentOptions(units)`). */
+  minSegmentM: number;
+  /** The plan segment picked in the table, highlighted on the map and the chart, or null. */
+  selectedSegment: number | null;
 }
 
 export const THEME_STORAGE_KEY = "pp:theme";
@@ -85,12 +100,17 @@ export function readThemePreference(storage: Pick<Storage, "getItem"> | undefine
 }
 
 export function initialAppState(storage?: Pick<Storage, "getItem">, language?: string): AppState {
+  const units = readUnits(storage, language);
   return {
     theme: readThemePreference(storage),
     sheet: "peek",
-    units: readUnits(storage, language),
+    units,
     course: { status: "empty" },
     focusDistM: null,
+    goalTimeS: null,
+    paceChanges: DEFAULT_PACE_CHANGES,
+    minSegmentM: defaultMinSegmentM(units),
+    selectedSegment: null,
   };
 }
 
@@ -122,8 +142,9 @@ export function setSheet(sheet: SheetSnap): void {
   appStore.set({ sheet });
 }
 
+/** Switch units. The shortest segment moves to the nearest choice in the new units, so the menu always shows it. */
 export function setUnits(units: DistanceUnit): void {
-  appStore.set({ units });
+  appStore.set((s) => ({ units, minSegmentM: snapMinSegmentM(s.minSegmentM, units) }));
   try {
     browserStorage()?.setItem(UNITS_STORAGE_KEY, units);
   } catch {
@@ -131,9 +152,30 @@ export function setUnits(units: DistanceUnit): void {
   }
 }
 
-/** Replace the course state. The load flow in `course.ts` is the only caller. */
-export function setCourse(course: CourseState): void {
-  appStore.set({ course, focusDistM: null });
+/**
+ * Replace the course state. The load flow in `course.ts` is the only caller. `fresh` marks a
+ * different course (a new file or another track), which also drops the goal entered for the last.
+ */
+export function setCourse(course: CourseState, fresh = false): void {
+  appStore.set({ course, focusDistM: null, selectedSegment: null, ...(fresh ? { goalTimeS: null } : {}) });
+}
+
+/** Set the goal finish time in seconds (a checked one: see `checkGoal`). */
+export function setGoalTimeS(goalTimeS: number): void {
+  appStore.set({ goalTimeS });
+}
+
+export function setPaceChanges(paceChanges: number): void {
+  appStore.set({ paceChanges });
+}
+
+export function setMinSegmentM(minSegmentM: number): void {
+  appStore.set({ minSegmentM });
+}
+
+/** Pick a plan segment to highlight on the map and chart, or clear the pick with null. */
+export function setSelectedSegment(selectedSegment: number | null): void {
+  appStore.set({ selectedSegment });
 }
 
 /** Point at a distance along the course (meters), or clear the pointer with null. */

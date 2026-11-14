@@ -18,6 +18,14 @@
   --pp-danger: #b42318;
   --pp-danger-soft: #fdeeec;
   --pp-shadow: 0 1px 2px rgb(28 25 23 / 0.06), 0 8px 28px rgb(28 25 23 / 0.1);
+  /* Plan segment tones (plan/tones.ts): m3 much faster than flat pace through p3 much slower. */
+  --pp-tone-m3: #1d5fae;
+  --pp-tone-m2: #3b82d9;
+  --pp-tone-m1: #7aaee9;
+  --pp-tone-p0: #7c756f;
+  --pp-tone-p1: #ec9a6c;
+  --pp-tone-p2: #e0652f;
+  --pp-tone-p3: #b9381c;
 }
 
 .dark {
@@ -34,6 +42,13 @@
   --pp-danger: #fb8a7e;
   --pp-danger-soft: #3a2220;
   --pp-shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 10px 32px rgb(0 0 0 / 0.45);
+  --pp-tone-m3: #9cc6f7;
+  --pp-tone-m2: #4f93e6;
+  --pp-tone-m1: #2f69ad;
+  --pp-tone-p0: #8a837d;
+  --pp-tone-p1: #ad5a33;
+  --pp-tone-p2: #e7703c;
+  --pp-tone-p3: #f6a37c;
 }
 
 @theme inline {
@@ -120,4 +135,91 @@ body {
     0 0 0 2px var(--pp-surface),
     0 2px 6px 2px rgb(0 0 0 / 0.3);
   pointer-events: none;
+}
+
+/*
+ * The pace-change slider. Styled by hand so the thumb is the same size in every browser: the
+ * error curve above it puts each point at the thumb's center (see `RANGE_THUMB_PX` in
+ * PacingPlan.tsx). `--pp-range-fill` is the filled share of the track, set inline.
+ */
+.pp-range {
+  -webkit-appearance: none;
+  appearance: none;
+  display: block;
+  width: 100%;
+  height: 22px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+  touch-action: pan-y;
+}
+.pp-range::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 9999px;
+  background: linear-gradient(
+    to right,
+    var(--pp-accent) 0 var(--pp-range-fill, 0%),
+    var(--pp-line) var(--pp-range-fill, 0%) 100%
+  );
+}
+.pp-range::-moz-range-track {
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--pp-line);
+}
+.pp-range::-moz-range-progress {
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--pp-accent);
+}
+.pp-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  margin-top: -8px;
+  border-radius: 9999px;
+  background: var(--pp-surface);
+  border: 5px solid var(--pp-accent);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.25);
+}
+.pp-range::-moz-range-thumb {
+  box-sizing: border-box;
+  width: 22px;
+  height: 22px;
+  border-radius: 9999px;
+  background: var(--pp-surface);
+  border: 5px solid var(--pp-accent);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.25);
+}
+.pp-range:focus-visible {
+  outline: none;
+}
+.pp-range:focus-visible::-webkit-slider-thumb {
+  box-shadow:
+    0 0 0 4px var(--pp-accent-soft),
+    0 0 0 6px var(--pp-accent);
+}
+.pp-range:focus-visible::-moz-range-thumb {
+  box-shadow:
+    0 0 0 4px var(--pp-accent-soft),
+    0 0 0 6px var(--pp-accent);
+}
+
+/* The plan's "updating" note fades in only when a recompute takes a moment, so quick ones never flash it. */
+.pp-pending {
+  opacity: 0;
+  transition: opacity 120ms ease-out;
+}
+.pp-pending[data-pending] {
+  opacity: 1;
+  transition-delay: 180ms;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pp-pending {
+    transition: none;
+  }
+  .pp-pending[data-pending] {
+    transition: opacity 0s linear 180ms;
+  }
 }
