@@ -1,7 +1,15 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { openApp, type ColorScheme } from "../support/app.ts";
 import { corpusPath, expectRouteDrawn, invalidPath, isPhone, uploadGpx } from "../support/course.ts";
 import { expectPlanSettled, planBoston } from "../support/plan.ts";
+
+/** Scroll the panel (`scroller`) so `target` sits at its top, moving nothing else (unlike `scrollIntoView`). */
+async function scrollPanelTo(page: Page, scroller: string, target: string): Promise<void> {
+  await page.getByTestId(scroller).evaluate((element, id) => {
+    const top = document.querySelector(`[data-testid="${id}"]`)!.getBoundingClientRect().top;
+    element.scrollTop += top - element.getBoundingClientRect().top - 8;
+  }, target);
+}
 
 // Baselines live in tests/__screenshots__/<project>/ and are generated in the Linux
 // Playwright container (`pnpm visual:update`). Update them only with a reason in the PR.
@@ -67,11 +75,8 @@ for (const scheme of ["light", "dark"] satisfies ColorScheme[]) {
     await page.getByTestId("segment-row").nth(4).getByRole("button").click();
     await expect(page.getByTestId("map")).toHaveAttribute("data-selected-segment", "4");
     await page.mouse.move(page.viewportSize()!.width - 2, page.viewportSize()!.height / 2);
-    if (isPhone(page)) {
-      await page.getByTestId("sheet-content").evaluate((e) => e.scrollTo(0, 0));
-    } else {
-      await page.getByTestId("pacing-plan").evaluate((e) => e.scrollIntoView({ block: "start" }));
-    }
+    if (isPhone(page)) await scrollPanelTo(page, "sheet-content", "elevation-chart");
+    else await scrollPanelTo(page, "side-panel-content", "pacing-plan");
     await expect(page).toHaveScreenshot(`plan-view-${scheme}.png`);
   });
 
@@ -82,7 +87,7 @@ for (const scheme of ["light", "dark"] satisfies ColorScheme[]) {
     await page.getByTestId("sheet-handle").click();
     await expect(page.getByTestId("sheet")).toHaveAttribute("data-snap", "full");
     await page.getByTestId("segment-row").nth(4).getByRole("button").click();
-    await page.getByTestId("segment-table").evaluate((e) => e.scrollIntoView({ block: "start" }));
+    await scrollPanelTo(page, "sheet-content", "segment-table");
     await expect(page).toHaveScreenshot(`plan-sheet-full-${scheme}.png`);
   });
 
