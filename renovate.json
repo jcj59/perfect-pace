@@ -1,0 +1,31 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "schedule": ["before 6am on monday"],
+  "minimumReleaseAge": "3 days",
+  "rangeStrategy": "pin",
+  "packageRules": [
+    {
+      "description": "One weekly PR for all minor and patch updates; it auto-merges when the full suite is green.",
+      "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
+      "groupName": "weekly minor and patch updates",
+      "automerge": true
+    },
+    {
+      "description": "Major updates need review.",
+      "matchUpdateTypes": ["major"],
+      "automerge": false
+    },
+    {
+      "description": "Keep the Playwright package and its container image in lockstep (visual baselines depend on both).",
+      "matchPackageNames": ["@playwright/test", "mcr.microsoft.com/playwright"],
+      "groupName": "playwright",
+      "automerge": false
+    },
+    {
+      "description": "Keep wrangler and the Workers Vitest plugin on matching versions.",
+      "matchPackageNames": ["wrangler", "@cloudflare/vitest-plugin"],
+      "groupName": "cloudflare tooling"
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // No DOM and no Node globals: core must run in browsers, Web Workers, Node and React Native.
+    "lib": ["ES2022"],
+    "types": []
+  },
+  "include": ["src"]
+}

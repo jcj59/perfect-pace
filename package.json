@@ -1,0 +1,33 @@
+{
+  "name": "perfect-pace",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.17.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "perf": "turbo run perf",
+    "lint": "eslint . --max-warnings 0 && node scripts/check-repo.mjs",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "golden:update": "pnpm --filter @pp/core golden:update",
+    "e2e": "pnpm --filter @pp/e2e e2e",
+    "visual:update": "bash scripts/visual-update.sh",
+    "rollback": "bash scripts/rollback.sh"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "eslint": "10.14.0",
+    "eslint-config-prettier": "10.1.8",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "prettier": "3.9.10",
+    "turbo": "2.11.10",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.72.1"
+  }
+}
