@@ -1,12 +1,18 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import {
+  type DistanceUnit,
   type ElevationProfile,
   METERS_PER_MILE,
   buildElevationProfile,
+  computePlan,
   courseLengthM,
+  formatDuration,
+  formatPace,
+  paceToUnit,
   parseGpx,
   prefixSums,
+  unitToMeters,
 } from "../src/index.ts";
 import { fixtureDemProvider } from "./support/dem.ts";
 import { PRECISION, roundTo } from "./support/precision.ts";
@@ -15,7 +21,7 @@ import { randomValues } from "./support/rng.ts";
 /**
  * One golden case: a frozen, JSON-serializable output plus a few headline numbers for
  * `golden-summary.md`. There is one case per fixture course (point count, distance, and the default
- * track's elevation profile so far; later PRs add plans). Round every number with `roundTo` and
+ * track's elevation profile and its plans for a fixed set of inputs). Round every number with `roundTo` and
  * `PRECISION`.
  */
 export interface GoldenResult {
@@ -50,12 +56,67 @@ function gradeProfile(profile: ElevationProfile): number[] {
   return Array.from(run, (r, bin) => roundTo((r ?? 0) > 0 ? (rise[bin] ?? 0) / (r ?? 1) : 0, PRECISION.ratio));
 }
 
-/** The default track's elevation profile, every number rounded. */
+/**
+ * The fixed plan inputs every course is snapshotted with. The goal is a fixed average pace of
+ * 8:00/mi (so it suits a 5K and a marathon alike), rounded to the whole second; `K` (the most
+ * segments) is 1, 3, 6 and 10; each unit system has its own minimum segment length, 0.2 mi or
+ * 0.3 km, as a user would type it.
+ */
+const PLAN_GOAL_S_PER_MI = 480;
+const PLAN_MAX_SEGMENTS = [1, 3, 6, 10];
+const PLAN_MIN_SEGMENT: Record<DistanceUnit, number> = { mi: 0.2, km: 0.3 };
+
+/** The default track's plans for the fixed inputs, every number rounded, or null without a course to pace. */
+function planGolden(profile: ElevationProfile) {
+  const lengthM = courseLengthM(profile.course);
+  if (profile.course.points.length < 2 || lengthM === 0) return null;
+  const goalTimeS = Math.round((lengthM / METERS_PER_MILE) * PLAN_GOAL_S_PER_MI);
+  const units = (["mi", "km"] as const).map((unit) => {
+    const minSegmentM = unitToMeters(PLAN_MIN_SEGMENT[unit], unit);
+    const pace = (sPerM: number) => roundTo(paceToUnit(sPerM, unit), PRECISION.paceS);
+    const plans = PLAN_MAX_SEGMENTS.map((k) => {
+      const plan = computePlan(profile.course, { goalTimeS, paceChanges: k - 1, unit, minSegmentM });
+      return {
+        maxSegments: k,
+        totalTimeS: roundTo(plan.totalTimeS, PRECISION.paceS),
+        segments: plan.segments.map((s) => ({
+          startM: roundTo(s.startM, PRECISION.distanceM),
+          endM: roundTo(s.endM, PRECISION.distanceM),
+          pace: pace(s.paceSPerM),
+          avgGrade: roundTo(s.avgGrade, PRECISION.ratio),
+          reason: s.reason,
+        })),
+      };
+    });
+    // The curve is the same for every K (it always spans 0 to 10 changes), so it is stored once.
+    const { errorCurve, flatPaceSPerM } = computePlan(profile.course, { goalTimeS, paceChanges: 0, unit, minSegmentM });
+    return {
+      unit,
+      minSegment: PLAN_MIN_SEGMENT[unit],
+      flatPace: pace(flatPaceSPerM),
+      rmsPaceGapByChanges: errorCurve.map((p) => pace(p.rmsPaceGapSPerM)),
+      plans,
+    };
+  });
+  // For golden-summary.md: the paces of the plan with up to 6 segments, as the app shows them.
+  const summary: Record<string, string> = { "plan goal (8:00/mi)": formatDuration(goalTimeS) };
+  for (const unit of ["mi", "km"] as const) {
+    const minSegmentM = unitToMeters(PLAN_MIN_SEGMENT[unit], unit);
+    const plan = computePlan(profile.course, { goalTimeS, paceChanges: 5, unit, minSegmentM });
+    summary[`plan paces, up to 6 segments (per ${unit})`] = plan.segments
+      .map((s) => formatPace(s.paceSPerM, unit))
+      .join(", ");
+  }
+  return { output: { goalTimeS, units }, summary };
+}
+
+/** The default track's elevation profile and plans, every number rounded. */
 async function elevationGolden(gpx: ReturnType<typeof parseGpx>) {
   const track = gpx.tracks[gpx.defaultTrack]!;
   const profile = await buildElevationProfile(track.course, { provider: fixtureDemProvider() });
   const ele = (m: number) => roundTo(m, PRECISION.elevationM);
   return {
+    plan: planGolden(profile),
     source: profile.source,
     gpsIssue: profile.gpsIssue ?? null,
     points: profile.course.points.length,
@@ -92,7 +153,7 @@ function gpxCase(file: string): GoldenCase {
         distanceM: roundTo(courseLengthM(t.course), PRECISION.distanceM),
       }));
       const main = tracks[gpx.defaultTrack];
-      const elevation = await elevationGolden(gpx);
+      const { plan, ...elevation } = await elevationGolden(gpx);
       return {
         output: {
           name: gpx.name ?? null,
@@ -100,6 +161,7 @@ function gpxCase(file: string): GoldenCase {
           defaultTrack: gpx.defaultTrack,
           tracks,
           elevation,
+          plan: plan?.output ?? null,
         },
         summary: {
           tracks: tracks.length,
@@ -109,6 +171,7 @@ function gpxCase(file: string): GoldenCase {
           "elevation source": elevation.source,
           "gain / loss (m)": `${elevation.gainM} / ${elevation.lossM}`,
           "min / max (m)": `${elevation.minM} / ${elevation.maxM}`,
+          ...plan?.summary,
         },
       };
     },

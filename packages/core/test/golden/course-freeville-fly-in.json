@@ -68,5 +68,378 @@
       -0.003,
       0.005
     ]
+  },
+  "plan": {
+    "goalTimeS": 6289,
+    "units": [
+      {
+        "unit": "mi",
+        "minSegment": 0.2,
+        "flatPace": 477.2,
+        "rmsPaceGapByChanges": [
+          16.3,
+          15.5,
+          15.1,
+          14.7,
+          14.3,
+          14,
+          13.7,
+          13.4,
+          13.2,
+          12.9,
+          12.7
+        ],
+        "plans": [
+          {
+            "maxSegments": 1,
+            "totalTimeS": 6289,
+            "segments": [
+              {
+                "startM": 0,
+                "endM": 21085,
+                "pace": 480,
+                "avgGrade": 0,
+                "reason": "flat: 0.0% over 13.1 mi"
+              }
+            ]
+          },
+          {
+            "maxSegments": 3,
+            "totalTimeS": 6289,
+            "segments": [
+              {
+                "startM": 0,
+                "endM": 3430,
+                "pace": 486.9,
+                "avgGrade": 0.007,
+                "reason": "gentle climb: +0.7% over 2.1 mi"
+              },
+              {
+                "startM": 3430,
+                "endM": 4160,
+                "pace": 507.6,
+                "avgGrade": 0.025,
+                "reason": "climb: +2.5% over 0.5 mi"
+              },
+              {
+                "startM": 4160,
+                "endM": 21085,
+                "pace": 477.4,
+                "avgGrade": -0.002,
+                "reason": "flat: -0.2% over 10.5 mi"
+              }
+            ]
+          },
+          {
+            "maxSegments": 6,
+            "totalTimeS": 6289,
+            "segments": [
+              {
+                "startM": 0,
+                "endM": 1260,
+                "pace": 482.3,
+                "avgGrade": 0.001,
+                "reason": "flat: +0.1% over 0.8 mi"
+              },
+              {
+                "startM": 1260,
+                "endM": 1590,
+                "pace": 521.8,
+                "avgGrade": 0.037,
+                "reason": "climb: +3.7% over 0.2 mi"
+              },
+              {
+                "startM": 1590,
+                "endM": 3430,
+                "pace": 483.8,
+                "avgGrade": 0.005,
+                "reason": "gentle climb: +0.5% over 1.1 mi"
+              },
+              {
+                "startM": 3430,
+                "endM": 4160,
+                "pace": 507.6,
+                "avgGrade": 0.025,
+                "reason": "climb: +2.5% over 0.5 mi"
+              },
+              {
+                "startM": 4160,
+                "endM": 16930,
+                "pace": 479.4,
+                "avgGrade": 0,
+                "reason": "flat: 0.0% over 7.9 mi"
+              },
+              {
+                "startM": 16930,
+                "endM": 21085,
+                "pace": 471.2,
+                "avgGrade": -0.01,
+                "reason": "descent: -1.0% over 2.6 mi"
+              }
+            ]
+          },
+          {
+            "maxSegments": 10,
+            "totalTimeS": 6289,
+            "segments": [
+              {
+                "startM": 0,
+                "endM": 1260,
+                "pace": 482.3,
+                "avgGrade": 0.001,
+                "reason": "flat: +0.1% over 0.8 mi"
+              },
+              {
+                "startM": 1260,
+                "endM": 1590,
+                "pace": 521.8,
+                "avgGrade": 0.037,
+                "reason": "climb: +3.7% over 0.2 mi"
+              },
+              {
+                "startM": 1590,
+                "endM": 3430,
+                "pace": 483.8,
+                "avgGrade": 0.005,
+                "reason": "gentle climb: +0.5% over 1.1 mi"
+              },
+              {
+                "startM": 3430,
+                "endM": 4160,
+                "pace": 507.6,
+                "avgGrade": 0.025,
+                "reason": "climb: +2.5% over 0.5 mi"
+              },
+              {
+                "startM": 4160,
+                "endM": 12550,
+                "pace": 478.2,
+                "avgGrade": -0.001,
+                "reason": "flat: -0.1% over 5.2 mi"
+              },
+              {
+                "startM": 12550,
+                "endM": 12880,
+                "pace": 506.1,
+                "avgGrade": 0.024,
+                "reason": "climb: +2.4% over 0.2 mi"
+              },
+              {
+                "startM": 12880,
+                "endM": 16600,
+                "pace": 477.9,
+                "avgGrade": -0.001,
+                "reason": "flat: -0.1% over 2.3 mi"
+              },
+              {
+                "startM": 16600,
+                "endM": 16930,
+                "pace": 502.1,
+                "avgGrade": 0.021,
+                "reason": "climb: +2.1% over 0.2 mi"
+              },
+              {
+                "startM": 16930,
+                "endM": 20250,
+                "pace": 467.9,
+                "avgGrade": -0.014,
+                "reason": "descent: -1.4% over 2.1 mi"
+              },
+              {
+                "startM": 20250,
+                "endM": 21085,
+                "pace": 484.6,
+                "avgGrade": 0.003,
+                "reason": "rolling: +27 ft / -18 ft over 0.5 mi"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "unit": "km",
+        "minSegment": 0.3,
+        "flatPace": 296.5,
+        "rmsPaceGapByChanges": [
+          10.1,
+          9.6,
+          9.4,
+          9.2,
+          8.9,
+          8.7,
+          8.5,
+          8.3,
+          8.2,
+          8,
+          7.9
+        ],
+        "plans": [
+          {
+            "maxSegments": 1,
+            "totalTimeS": 6289,
+            "segments": [
+              {
+                "startM": 0,
+                "endM": 21085,
+                "pace": 298.3,
+                "avgGrade": 0,
+                "reason": "flat: 0.0% over 21.1 km"
+              }
+            ]
+          },
+          {
+            "maxSegments": 3,
+            "totalTimeS": 6289,
+            "segments": [
+              {
+                "startM": 0,
+                "endM": 3430,
+                "pace": 302.6,
+                "avgGrade": 0.007,
+                "reason": "gentle climb: +0.7% over 3.4 km"
+              },
+              {
+                "startM": 3430,
+                "endM": 4160,
+                "pace": 315.4,
+                "avgGrade": 0.025,
+                "reason": "climb: +2.5% over 0.7 km"
+              },
+              {
+                "startM": 4160,
+                "endM": 21085,
+                "pace": 296.7,
+                "avgGrade": -0.002,
+                "reason": "flat: -0.2% over 16.9 km"
+              }
+            ]
+          },
+          {
+            "maxSegments": 6,
+            "totalTimeS": 6289,
+            "segments": [
+              {
+                "startM": 0,
+                "endM": 1270,
+                "pace": 299.8,
+                "avgGrade": 0.001,
+                "reason": "flat: +0.1% over 1.3 km"
+              },
+              {
+                "startM": 1270,
+                "endM": 1570,
+                "pace": 325.8,
+                "avgGrade": 0.039,
+                "reason": "climb: +3.9% over 0.3 km"
+              },
+              {
+                "startM": 1570,
+                "endM": 3430,
+                "pace": 300.7,
+                "avgGrade": 0.005,
+                "reason": "gentle climb: +0.5% over 1.9 km"
+              },
+              {
+                "startM": 3430,
+                "endM": 4160,
+                "pace": 315.4,
+                "avgGrade": 0.025,
+                "reason": "climb: +2.5% over 0.7 km"
+              },
+              {
+                "startM": 4160,
+                "endM": 16930,
+                "pace": 297.9,
+                "avgGrade": 0,
+                "reason": "flat: 0.0% over 12.8 km"
+              },
+              {
+                "startM": 16930,
+                "endM": 21085,
+                "pace": 292.8,
+                "avgGrade": -0.01,
+                "reason": "descent: -1.0% over 4.2 km"
+              }
+            ]
+          },
+          {
+            "maxSegments": 10,
+            "totalTimeS": 6289,
+            "segments": [
+              {
+                "startM": 0,
+                "endM": 1270,
+                "pace": 299.8,
+                "avgGrade": 0.001,
+                "reason": "flat: +0.1% over 1.3 km"
+              },
+              {
+                "startM": 1270,
+                "endM": 1570,
+                "pace": 325.8,
+                "avgGrade": 0.039,
+                "reason": "climb: +3.9% over 0.3 km"
+              },
+              {
+                "startM": 1570,
+                "endM": 3430,
+                "pace": 300.7,
+                "avgGrade": 0.005,
+                "reason": "gentle climb: +0.5% over 1.9 km"
+              },
+              {
+                "startM": 3430,
+                "endM": 4160,
+                "pace": 315.4,
+                "avgGrade": 0.025,
+                "reason": "climb: +2.5% over 0.7 km"
+              },
+              {
+                "startM": 4160,
+                "endM": 12550,
+                "pace": 297.1,
+                "avgGrade": -0.001,
+                "reason": "flat: -0.1% over 8.4 km"
+              },
+              {
+                "startM": 12550,
+                "endM": 12850,
+                "pace": 315.9,
+                "avgGrade": 0.026,
+                "reason": "climb: +2.6% over 0.3 km"
+              },
+              {
+                "startM": 12850,
+                "endM": 16620,
+                "pace": 297,
+                "avgGrade": -0.001,
+                "reason": "flat: -0.1% over 3.8 km"
+              },
+              {
+                "startM": 16620,
+                "endM": 16920,
+                "pace": 313.3,
+                "avgGrade": 0.022,
+                "reason": "climb: +2.2% over 0.3 km"
+              },
+              {
+                "startM": 16920,
+                "endM": 20250,
+                "pace": 290.7,
+                "avgGrade": -0.014,
+                "reason": "descent: -1.4% over 3.3 km"
+              },
+              {
+                "startM": 20250,
+                "endM": 21085,
+                "pace": 301.1,
+                "avgGrade": 0.003,
+                "reason": "rolling: +8 m / -5 m over 0.8 km"
+              }
+            ]
+          }
+        ]
+      }
+    ]
   }
 }

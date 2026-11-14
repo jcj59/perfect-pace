@@ -1,0 +1,179 @@
+[
+  {
+    "gpx": "boston.gpx",
+    "source": "results/boston/SEG/180min_6p_segments.json",
+    "goalMinutes": 180,
+    "segments": [
+      {
+        "startMi": 0.0,
+        "distanceMi": 4.09,
+        "pace": "6:43"
+      },
+      {
+        "startMi": 4.09,
+        "distanceMi": 12.88,
+        "pace": "6:52"
+      },
+      {
+        "startMi": 16.98,
+        "distanceMi": 0.76,
+        "pace": "6:34"
+      },
+      {
+        "startMi": 17.74,
+        "distanceMi": 0.86,
+        "pace": "7:04"
+      },
+      {
+        "startMi": 18.6,
+        "distanceMi": 0.53,
+        "pace": "7:19"
+      },
+      {
+        "startMi": 19.12,
+        "distanceMi": 0.38,
+        "pace": "6:33"
+      },
+      {
+        "startMi": 19.51,
+        "distanceMi": 1.08,
+        "pace": "7:20"
+      },
+      {
+        "startMi": 20.58,
+        "distanceMi": 1.53,
+        "pace": "6:34"
+      },
+      {
+        "startMi": 22.11,
+        "distanceMi": 4.16,
+        "pace": "6:50"
+      }
+    ]
+  },
+  {
+    "gpx": "wineglass.gpx",
+    "source": "results/wineglass/SEG/180min_6p_segments.json",
+    "goalMinutes": 180,
+    "segments": [
+      {
+        "startMi": 0.0,
+        "distanceMi": 4.72,
+        "pace": "6:45"
+      },
+      {
+        "startMi": 4.72,
+        "distanceMi": 1.01,
+        "pace": "6:58"
+      },
+      {
+        "startMi": 5.73,
+        "distanceMi": 8.51,
+        "pace": "6:44"
+      },
+      {
+        "startMi": 14.24,
+        "distanceMi": 0.41,
+        "pace": "7:09"
+      },
+      {
+        "startMi": 14.65,
+        "distanceMi": 11.94,
+        "pace": "6:45"
+      }
+    ]
+  },
+  {
+    "gpx": "dodge.gpx",
+    "source": "results/dodge/SEG/48min_6p_segments.json",
+    "goalMinutes": 48,
+    "segments": [
+      {
+        "startMi": 0.0,
+        "distanceMi": 1.29,
+        "pace": "7:12"
+      },
+      {
+        "startMi": 1.29,
+        "distanceMi": 2.51,
+        "pace": "7:21"
+      },
+      {
+        "startMi": 3.8,
+        "distanceMi": 1.35,
+        "pace": "6:47"
+      },
+      {
+        "startMi": 5.15,
+        "distanceMi": 0.5,
+        "pace": "6:35"
+      },
+      {
+        "startMi": 5.66,
+        "distanceMi": 1.08,
+        "pace": "7:07"
+      }
+    ]
+  },
+  {
+    "gpx": "forest_home.gpx",
+    "source": "results/forest_home/SEG/48min_6p_segments.json",
+    "goalMinutes": 48,
+    "segments": [
+      {
+        "startMi": 0.0,
+        "distanceMi": 2.97,
+        "pace": "8:33"
+      },
+      {
+        "startMi": 2.97,
+        "distanceMi": 1.04,
+        "pace": "8:05"
+      },
+      {
+        "startMi": 4.02,
+        "distanceMi": 1.68,
+        "pace": "8:25"
+      }
+    ]
+  },
+  {
+    "gpx": "scurve.gpx",
+    "source": "results/SCurve/SEG/20min_6p_segments.json",
+    "goalMinutes": 20,
+    "segments": [
+      {
+        "startMi": 0.0,
+        "distanceMi": 0.79,
+        "pace": "8:23"
+      },
+      {
+        "startMi": 0.79,
+        "distanceMi": 0.5,
+        "pace": "7:39"
+      },
+      {
+        "startMi": 1.29,
+        "distanceMi": 0.98,
+        "pace": "7:33"
+      },
+      {
+        "startMi": 2.27,
+        "distanceMi": 0.27,
+        "pace": "7:55"
+      }
+    ]
+  },
+  {
+    "gpx": "Lakefront-Loops-5K.gpx",
+    "source": "results/Lakefront-Loops-5K/SEG/20min_6p_segments.json",
+    "goalMinutes": 20,
+    "segments": [
+      {
+        "startMi": 0.0,
+        "distanceMi": 3.09,
+        "pace": "6:28"
+      }
+    ]
+  }
+]

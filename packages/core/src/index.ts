@@ -72,3 +72,27 @@ export {
   assessGpsElevation,
   buildElevationProfile,
 } from "./elevation-profile.ts";
+export {
+  DANIELS_DOWNHILL_S_PER_MI_PER_PERCENT,
+  DANIELS_UPHILL_S_PER_MI_PER_PERCENT,
+  type IdealPaces,
+  type PaceModel,
+  additivePaceModel,
+  danielsAdjustment,
+  danielsPaceModel,
+} from "./pace-model.ts";
+export { type Segmentation, type SegmentationOptions, segmentLeastSquares } from "./segmenter.ts";
+export {
+  CLIMB_GRADE,
+  DEFAULT_CURVE_MAX_PACE_CHANGES,
+  type ErrorCurvePoint,
+  GENTLE_GRADE,
+  type Plan,
+  type PlanInputs,
+  type PlanSegment,
+  ROLLING_RELIEF,
+  type Terrain,
+  classifyTerrain,
+  computePlan,
+  segmentReason,
+} from "./plan.ts";
