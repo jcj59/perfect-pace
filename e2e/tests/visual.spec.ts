@@ -8,4 +8,14 @@ for (const scheme of ["light", "dark"] satisfies ColorScheme[]) {
     await openApp(page, scheme);
     await expect(page).toHaveScreenshot(`empty-state-${scheme}.png`);
   });
+
+  test(`empty state in the full sheet, ${scheme} @visual`, async ({ page }) => {
+    test.skip((page.viewportSize()?.width ?? 0) >= 768, "phones only: desktop shows it in the side panel");
+    await openApp(page, scheme);
+    const handle = page.getByTestId("sheet-handle");
+    await handle.click();
+    await handle.click();
+    await expect(page.getByTestId("sheet")).toHaveAttribute("data-snap", "full");
+    await expect(page).toHaveScreenshot(`empty-state-sheet-full-${scheme}.png`);
+  });
 }
