@@ -20,6 +20,9 @@ Parsed course from `test/fixtures/gpx/FH-Fox.gpx`.
 - elevation source: gps
 - gain / loss (m): 73 / 74.4
 - min / max (m): 270 / 312.8
+- plan goal (8:00/mi): 40:15
+- plan paces, up to 6 segments (per mi): 8:04, 6:59, 7:55, 8:18, 8:43, 7:54
+- plan paces, up to 6 segments (per km): 5:01, 4:17, 4:55, 5:13, 5:31, 4:55
 
 ## course-freeville-fly-in
 
@@ -32,6 +35,9 @@ Parsed course from `test/fixtures/gpx/Freeville-Fly-In.gpx`.
 - elevation source: gps
 - gain / loss (m): 108.1 / 108.1
 - min / max (m): 303.2 / 349.5
+- plan goal (8:00/mi): 1:44:49
+- plan paces, up to 6 segments (per mi): 8:02, 8:42, 8:04, 8:28, 7:59, 7:51
+- plan paces, up to 6 segments (per km): 5:00, 5:26, 5:01, 5:15, 4:58, 4:53
 
 ## course-lakefront-loops-5k
 
@@ -44,6 +50,9 @@ Parsed course from `test/fixtures/gpx/Lakefront-Loops-5K.gpx`.
 - elevation source: gps
 - gain / loss (m): 4 / 7
 - min / max (m): 112.8 / 119.8
+- plan goal (8:00/mi): 24:44
+- plan paces, up to 6 segments (per mi): 8:04, 8:00, 7:56, 8:08, 7:49, 8:00
+- plan paces, up to 6 segments (per km): 4:59, 4:56, 5:02, 5:05, 4:51, 4:58
 
 ## course-apple-health-route
 
@@ -56,6 +65,9 @@ Parsed course from `test/fixtures/gpx/apple-health-route.gpx`.
 - elevation source: gps
 - gain / loss (m): 16.1 / 0
 - min / max (m): 251.4 / 267.5
+- plan goal (8:00/mi): 13:46
+- plan paces, up to 6 segments (per mi): 8:05, 7:55, 8:01, 7:53, 8:07, 7:51
+- plan paces, up to 6 segments (per km): 5:01, 4:55, 4:59, 4:54, 5:03, 4:53
 
 ## course-bom-crlf-cdata
 
@@ -68,6 +80,9 @@ Parsed course from `test/fixtures/gpx/bom-crlf-cdata.gpx`.
 - elevation source: gps
 - gain / loss (m): 0 / 0
 - min / max (m): 120.2 / 121.8
+- plan goal (8:00/mi): 1:06
+- plan paces, up to 6 segments (per mi): 7:58
+- plan paces, up to 6 segments (per km): 4:57
 
 ## course-boston
 
@@ -80,6 +95,9 @@ Parsed course from `test/fixtures/gpx/boston.gpx`.
 - elevation source: gps
 - gain / loss (m): 191.4 / 327.6
 - min / max (m): 2.7 / 139.2
+- plan goal (8:00/mi): 3:30:12
+- plan paces, up to 6 segments (per mi): 7:03, 8:00, 6:59, 8:12, 9:34, 7:55
+- plan paces, up to 6 segments (per km): 4:22, 4:58, 4:20, 5:06, 6:01, 4:55
 
 ## course-dodge
 
@@ -92,6 +110,9 @@ Parsed course from `test/fixtures/gpx/dodge.gpx`.
 - elevation source: gps
 - gain / loss (m): 96.5 / 96.5
 - min / max (m): 245.3 / 329.9
+- plan goal (8:00/mi): 53:55
+- plan paces, up to 6 segments (per mi): 7:50, 8:14, 7:57, 8:34, 7:39, 8:02
+- plan paces, up to 6 segments (per km): 4:52, 5:07, 4:56, 5:19, 4:45, 4:59
 
 ## course-duplicates-and-noise
 
@@ -104,6 +125,9 @@ Parsed course from `test/fixtures/gpx/duplicates-and-noise.gpx`.
 - elevation source: gps
 - gain / loss (m): 4.6 / 0
 - min / max (m): 120.2 / 124.8
+- plan goal (8:00/mi): 2:46
+- plan paces, up to 6 segments (per mi): 8:01
+- plan paces, up to 6 segments (per km): 4:59
 
 ## course-forest-home
 
@@ -116,6 +140,9 @@ Parsed course from `test/fixtures/gpx/forest_home.gpx`.
 - elevation source: gps
 - gain / loss (m): 77.2 / 77.1
 - min / max (m): 244.1 / 294.9
+- plan goal (8:00/mi): 45:32
+- plan paces, up to 6 segments (per mi): 7:51, 8:14, 7:54, 7:15, 7:51, 8:09
+- plan paces, up to 6 segments (per km): 4:53, 5:07, 4:54, 4:29, 4:52, 5:04
 
 ## course-garmin-connect-activity
 
@@ -128,6 +155,9 @@ Parsed course from `test/fixtures/gpx/garmin-connect-activity.gpx`.
 - elevation source: gps
 - gain / loss (m): 8.7 / 12.1
 - min / max (m): 238.4 / 250.5
+- plan goal (8:00/mi): 17:34
+- plan paces, up to 6 segments (per mi): 8:09, 7:59, 7:51, 8:05, 7:50, 8:04
+- plan paces, up to 6 segments (per km): 5:00, 5:08, 4:55, 5:01, 4:52, 5:01
 
 ## course-gpx-1-0
 
@@ -140,6 +170,9 @@ Parsed course from `test/fixtures/gpx/gpx-1.0.gpx`.
 - elevation source: gps
 - gain / loss (m): 0 / 0
 - min / max (m): 120.2 / 121.8
+- plan goal (8:00/mi): 1:06
+- plan paces, up to 6 segments (per mi): 7:58
+- plan paces, up to 6 segments (per km): 4:57
 
 ## course-multi-segment
 
@@ -152,6 +185,9 @@ Parsed course from `test/fixtures/gpx/multi-segment.gpx`.
 - elevation source: gps
 - gain / loss (m): 5.6 / 0
 - min / max (m): 120.2 / 125.8
+- plan goal (8:00/mi): 3:19
+- plan paces, up to 6 segments (per mi): 8:00, 8:00
+- plan paces, up to 6 segments (per km): 4:58, 4:58
 
 ## course-multi-track
 
@@ -164,6 +200,9 @@ Parsed course from `test/fixtures/gpx/multi-track.gpx`.
 - elevation source: gps
 - gain / loss (m): 10.5 / 4.6
 - min / max (m): 120.2 / 130.7
+- plan goal (8:00/mi): 7:58
+- plan paces, up to 6 segments (per mi): 8:04, 8:08, 7:48
+- plan paces, up to 6 segments (per km): 5:01, 5:03, 4:51
 
 ## course-newyork
 
@@ -176,6 +215,9 @@ Parsed course from `test/fixtures/gpx/newyork.gpx`.
 - elevation source: gps
 - gain / loss (m): 107.7 / 130
 - min / max (m): 2.5 / 55
+- plan goal (8:00/mi): 3:31:48
+- plan paces, up to 6 segments (per mi): 8:05, 7:34, 8:00, 8:13, 7:50, 8:04
+- plan paces, up to 6 segments (per km): 5:02, 4:42, 4:58, 5:07, 4:52, 5:01
 
 ## course-no-elevation
 
@@ -188,6 +230,9 @@ Parsed course from `test/fixtures/gpx/no-elevation.gpx`.
 - elevation source: dem
 - gain / loss (m): 0 / 0
 - min / max (m): 123.2 / 124.1
+- plan goal (8:00/mi): 1:39
+- plan paces, up to 6 segments (per mi): 7:58
+- plan paces, up to 6 segments (per km): 4:57
 
 ## course-partial-elevation
 
@@ -200,6 +245,9 @@ Parsed course from `test/fixtures/gpx/partial-elevation.gpx`.
 - elevation source: dem
 - gain / loss (m): 0 / 0
 - min / max (m): 122.2 / 124.1
+- plan goal (8:00/mi): 2:46
+- plan paces, up to 6 segments (per mi): 8:01
+- plan paces, up to 6 segments (per km): 4:59
 
 ## course-prefixed-namespace
 
@@ -212,6 +260,9 @@ Parsed course from `test/fixtures/gpx/prefixed-namespace.gpx`.
 - elevation source: gps
 - gain / loss (m): 0 / 0
 - min / max (m): 120.7 / 122.3
+- plan goal (8:00/mi): 1:06
+- plan paces, up to 6 segments (per mi): 7:58
+- plan paces, up to 6 segments (per km): 4:57
 
 ## course-ridewithgps-route
 
@@ -224,6 +275,9 @@ Parsed course from `test/fixtures/gpx/ridewithgps-route.gpx`.
 - elevation source: gps
 - gain / loss (m): 29.5 / 21.4
 - min / max (m): 240.3 / 260.4
+- plan goal (8:00/mi): 27:31
+- plan paces, up to 6 segments (per mi): 7:49, 8:12, 7:58, 8:21, 7:54, 8:22
+- plan paces, up to 6 segments (per km): 4:51, 5:06, 4:56, 5:11, 4:54, 5:12
 
 ## course-ridewithgps-track
 
@@ -236,6 +290,9 @@ Parsed course from `test/fixtures/gpx/ridewithgps-track.gpx`.
 - elevation source: gps
 - gain / loss (m): 29.5 / 21.4
 - min / max (m): 240.3 / 260.4
+- plan goal (8:00/mi): 27:31
+- plan paces, up to 6 segments (per mi): 7:49, 8:12, 7:58, 8:21, 7:54, 8:22
+- plan paces, up to 6 segments (per km): 4:51, 5:06, 4:56, 5:11, 4:54, 5:12
 
 ## course-scurve
 
@@ -248,6 +305,9 @@ Parsed course from `test/fixtures/gpx/scurve.gpx`.
 - elevation source: gps
 - gain / loss (m): 42 / 44.3
 - min / max (m): 130 / 170.6
+- plan goal (8:00/mi): 20:19
+- plan paces, up to 6 segments (per mi): 8:19, 9:09, 8:16, 7:35, 8:07, 7:46
+- plan paces, up to 6 segments (per km): 5:09, 5:44, 5:10, 4:43, 5:04, 4:50
 
 ## course-strava-activity
 
@@ -260,6 +320,9 @@ Parsed course from `test/fixtures/gpx/strava-activity.gpx`.
 - elevation source: gps
 - gain / loss (m): 8.3 / 7.2
 - min / max (m): 245.6 / 252.7
+- plan goal (8:00/mi): 12:55
+- plan paces, up to 6 segments (per mi): 8:08, 7:59, 7:48, 7:55, 8:01, 8:10
+- plan paces, up to 6 segments (per km): 5:03, 4:54, 5:02, 4:50, 4:57, 5:05
 
 ## course-wineglass
 
@@ -272,6 +335,9 @@ Parsed course from `test/fixtures/gpx/wineglass.gpx`.
 - elevation source: gps
 - gain / loss (m): 69.4 / 128.6
 - min / max (m): 283.5 / 351.2
+- plan goal (8:00/mi): 3:32:42
+- plan paces, up to 6 segments (per mi): 8:00, 8:32, 7:59, 8:39, 7:42, 8:00
+- plan paces, up to 6 segments (per km): 4:58, 5:18, 4:57, 5:23, 4:47, 4:58
 
 ## course-zero-elevation
 
@@ -284,3 +350,6 @@ Parsed course from `test/fixtures/gpx/zero-elevation.gpx`.
 - elevation source: dem
 - gain / loss (m): 0 / 0
 - min / max (m): 123.2 / 124.1
+- plan goal (8:00/mi): 1:39
+- plan paces, up to 6 segments (per mi): 7:58
+- plan paces, up to 6 segments (per km): 4:57
