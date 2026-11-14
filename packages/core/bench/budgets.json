@@ -1,0 +1,3 @@
+{
+  "bench/prefix-sums.bench.ts > core > prefixSums over 50k values": { "maxMedianMs": 1 }
+}

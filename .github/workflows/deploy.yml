@@ -1,0 +1,91 @@
+name: Deploy
+
+# Merge to main: deploy production, run the @smoke suite against it, and roll back
+# automatically (and open an issue) if it fails. Run it by hand with "force smoke failure"
+# and "dry run" to exercise the rollback path without touching production traffic.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      force_smoke_failure:
+        description: Make the smoke suite fail on purpose
+        type: boolean
+        default: false
+      dry_run:
+        description: Print the rollback and issue instead of acting
+        type: boolean
+        default: true
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write
+
+env:
+  WRANGLER_SEND_METRICS: "false"
+  TURBO_TELEMETRY_DISABLED: "1"
+  PRODUCTION_URL: https://perfect-pace.hf-worker.workers.dev
+
+jobs:
+  production:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Cloudflare credentials present
+        id: creds
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "::warning::CLOUDFLARE_API_TOKEN or CLOUDFLARE_ACCOUNT_ID is not set: skipping the production deploy."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v7
+        if: steps.creds.outputs.ok == 'true'
+      - uses: ./.github/actions/setup
+        if: steps.creds.outputs.ok == 'true'
+      - run: pnpm build
+        if: steps.creds.outputs.ok == 'true'
+      - name: Record the version serving now
+        id: previous
+        if: steps.creds.outputs.ok == 'true'
+        run: |
+          version=$(curl -fsS "$PRODUCTION_URL/api/health" | node -e 'try { console.log(JSON.parse(require("fs").readFileSync(0, "utf8")).version ?? "") } catch { console.log("") }' || true)
+          echo "Serving before deploy: ${version:-unknown}"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Deploy
+        id: deploy
+        if: steps.creds.outputs.ok == 'true'
+        working-directory: apps/worker
+        run: |
+          pnpm exec wrangler deploy --message "main ${GITHUB_SHA::7}" | tee deploy.log
+          version=$(sed -n 's/^Current Version ID: *//p' deploy.log)
+          if [ -z "$version" ]; then echo "::error::Could not parse the deployed version"; exit 1; fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "### Deployed \`$version\` to $PRODUCTION_URL" >> "$GITHUB_STEP_SUMMARY"
+      - name: Install Chromium
+        if: steps.creds.outputs.ok == 'true'
+        run: pnpm --dir e2e exec playwright install --with-deps chromium
+      - name: Smoke test production (rolls back on failure)
+        if: steps.creds.outputs.ok == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DRY_RUN: ${{ inputs.dry_run && '1' || '0' }}
+          PP_FORCE_SMOKE_FAIL: ${{ inputs.force_smoke_failure && '1' || '0' }}
+        run: bash scripts/post-deploy-smoke.sh "$PRODUCTION_URL" "${{ steps.deploy.outputs.version }}" "${{ steps.previous.outputs.version }}"
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: playwright-production
+          path: |
+            e2e/test-results
+            e2e/playwright-report
+          retention-days: 14

@@ -1,0 +1,77 @@
+name: Nightly
+
+# The live smoke suite against production (real network services), plus the full E2E suite
+# on Firefox and WebKit in addition to Chromium. Opens an issue when anything fails.
+
+on:
+  schedule:
+    - cron: "17 7 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+env:
+  WRANGLER_SEND_METRICS: "false"
+  TURBO_TELEMETRY_DISABLED: "1"
+  PRODUCTION_URL: https://perfect-pace.hf-worker.workers.dev
+
+jobs:
+  live-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      - run: pnpm --dir e2e exec playwright install --with-deps chromium
+      - name: "@smoke and @live against production"
+        env:
+          PP_BASE_URL: ${{ env.PRODUCTION_URL }}
+        run: pnpm e2e --grep "@smoke|@live"
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: playwright-live-smoke
+          path: |
+            e2e/test-results
+            e2e/playwright-report
+          retention-days: 14
+
+  cross-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    container:
+      image: mcr.microsoft.com/playwright:v1.65.0-noble
+      options: --ipc=host
+    env:
+      # Firefox refuses to run as root with a HOME owned by another user.
+      HOME: /root
+      PP_BROWSERS: all
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      - run: pnpm build
+      - name: Full E2E on Chromium, Firefox and WebKit (local wrangler dev)
+        run: pnpm e2e
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: playwright-cross-browser
+          path: |
+            e2e/test-results
+            e2e/playwright-report
+          retention-days: 14
+
+  report:
+    needs: [live-smoke, cross-browser]
+    if: failure()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Open an issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh issue create --title "Nightly run failed ($(date -u +%F))" --body "Live smoke or cross-browser E2E failed. Run: $RUN_URL"

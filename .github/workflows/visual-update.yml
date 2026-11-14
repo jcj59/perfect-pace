@@ -1,0 +1,44 @@
+name: Visual baselines
+
+# Regenerates Playwright screenshot baselines in the Linux Playwright container and uploads
+# them as the `visual-baselines` artifact. Triggered by adding the `visual-update` label to a PR
+# (works before the workflow is on main) or by hand. `pnpm visual:update --ci` does the
+# labeling, waits, and downloads the result; commit it with a reason in the PR description.
+
+on:
+  pull_request:
+    types: [labeled]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  WRANGLER_SEND_METRICS: "false"
+  TURBO_TELEMETRY_DISABLED: "1"
+
+jobs:
+  update:
+    if: github.event_name == 'workflow_dispatch' || github.event.label.name == 'visual-update'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    container:
+      image: mcr.microsoft.com/playwright:v1.65.0-noble
+      options: --ipc=host
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The PR head, not the merge commit, so the baselines match the branch being committed to.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: ./.github/actions/setup
+      - run: pnpm build
+      - name: Regenerate every baseline
+        run: |
+          rm -rf e2e/tests/__screenshots__
+          pnpm e2e --grep @visual --update-snapshots=all
+      - uses: actions/upload-artifact@v7
+        with:
+          name: visual-baselines
+          path: e2e/tests/__screenshots__
+          if-no-files-found: error
+          retention-days: 7
