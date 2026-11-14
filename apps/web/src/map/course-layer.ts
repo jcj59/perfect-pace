@@ -14,6 +14,8 @@ import { TONES, TONE_COLORS, type Tone } from "../plan/tones.ts";
 import type { Theme } from "../state/app.ts";
 
 export const COURSE_SOURCE = "course";
+/** The plan's segments and the dots between them. */
+export const PLAN_SOURCE = "plan";
 export const COURSE_LINE_LAYER = "course-line";
 /** An invisible, wide copy of the route line that catches the pointer for hovering the route. */
 export const COURSE_HIT_LAYER = "course-hit";
@@ -31,8 +33,7 @@ type Coordinates = [number, number][];
 export type CourseFeature =
   | {
       type: "Feature";
-      /** `planned`: the plan's segments cover the route, so its own line is not painted. */
-      properties: { role: "route"; planned?: boolean };
+      properties: { role: "route" };
       geometry: { type: "LineString"; coordinates: Coordinates };
     }
   | {
@@ -83,12 +84,12 @@ export function courseFeatures(points: readonly CoursePoint[]): CourseFeatures {
 }
 
 /**
- * `course` with the plan's segments added over its route line, plus a break dot where each
- * segment after the first begins. Segment lines come from the plan's own (resampled) points,
- * which lie on the route.
+ * The plan's segment lines plus a break dot where each segment after the first begins, for the
+ * plan source. Segment lines come from the plan's own (resampled) points, which lie on the route.
+ * The plan has a source of its own, so redrawing it never makes the route's source reload.
  */
-export function withSegments(course: CourseFeatures, segments: readonly MapSegment[] | null): CourseFeatures {
-  if (!segments || segments.length === 0 || course.features.length === 0) return course;
+export function planFeatures(segments: readonly MapSegment[] | null): CourseFeatures {
+  if (!segments || segments.length === 0) return NO_COURSE;
   const lines: CourseFeature[] = [];
   const breaks: CourseFeature[] = [];
   segments.forEach(({ points, tone }, index) => {
@@ -107,11 +108,7 @@ export function withSegments(course: CourseFeatures, segments: readonly MapSegme
       });
     }
   });
-  // Route first (under the segments), then segments, breaks, and the start and finish on top.
-  const [route, ...ends] = course.features;
-  const planned: CourseFeature = { ...(route as Extract<CourseFeature, { properties: { role: "route" } }>) };
-  planned.properties = { role: "route", planned: true };
-  return { type: "FeatureCollection", features: [planned, ...lines, ...breaks, ...ends] };
+  return { type: "FeatureCollection", features: [...lines, ...breaks] };
 }
 
 /** `[west, south, east, north]` of a course, or undefined for an empty one. */
@@ -176,7 +173,10 @@ export function planPaint(selected: number | null): {
   };
 }
 
-function lineLayers(theme: Theme, selected: number | null): LayerSpecification[] {
+/** The route's own line fades out under a plan, whose segments cover it. */
+export const routeLineOpacity = (planned: boolean): number => (planned ? 0 : 1);
+
+function lineLayers(theme: Theme, selected: number | null, planned: boolean): LayerSpecification[] {
   const c = COLORS[theme];
   const plan = planPaint(selected);
   return [
@@ -205,13 +205,13 @@ function lineLayers(theme: Theme, selected: number | null): LayerSpecification[]
       paint: {
         "line-width": lineWidth(4.5),
         "line-color": c.line,
-        "line-opacity": ["case", ["==", ["get", "planned"], true], 0, 1],
+        "line-opacity": routeLineOpacity(planned),
       },
     },
     {
       id: PLAN_HALO_LAYER,
       type: "line",
-      source: COURSE_SOURCE,
+      source: PLAN_SOURCE,
       filter: plan.halo,
       layout: { "line-join": "round", "line-cap": "round" },
       paint: { "line-width": lineWidth(22), "line-color": toneColor(theme), "line-opacity": 0.45, "line-blur": 3 },
@@ -219,7 +219,7 @@ function lineLayers(theme: Theme, selected: number | null): LayerSpecification[]
     {
       id: PLAN_LINE_LAYER,
       type: "line",
-      source: COURSE_SOURCE,
+      source: PLAN_SOURCE,
       filter: SEGMENT,
       layout: { "line-join": "round", "line-cap": "butt" },
       paint: { "line-width": plan.width, "line-color": toneColor(theme), "line-opacity": plan.opacity },
@@ -233,7 +233,7 @@ function pointLayers(theme: Theme): LayerSpecification[] {
     {
       id: PLAN_BREAK_LAYER,
       type: "circle",
-      source: COURSE_SOURCE,
+      source: PLAN_SOURCE,
       filter: ["==", ["get", "role"], "break"],
       paint: {
         "circle-radius": ["interpolate", ["linear"], ["zoom"], 8, 2.5, 14, 3.5, 18, 5],
@@ -257,22 +257,27 @@ function pointLayers(theme: Theme): LayerSpecification[] {
   ];
 }
 
-/** `style` with the course source and layers added, holding `data`, with plan segment `selected` picked. */
+/**
+ * `style` with the course and plan sources and layers added, holding `data` and `plan`, with plan
+ * segment `selected` picked.
+ */
 export function withCourse(
   style: StyleSpecification,
   theme: Theme,
   data: CourseFeatures,
+  plan: CourseFeatures = NO_COURSE,
   selected: number | null = null,
 ): StyleSpecification {
   const source: GeoJSONSourceSpecification = { type: "geojson", data, tolerance: 0.5 };
+  const planSource: GeoJSONSourceSpecification = { type: "geojson", data: plan, tolerance: 0.5 };
   const firstLabel = style.layers.findIndex((l) => l.type === "symbol");
   const at = firstLabel === -1 ? style.layers.length : firstLabel;
   return {
     ...style,
-    sources: { ...style.sources, [COURSE_SOURCE]: source },
+    sources: { ...style.sources, [COURSE_SOURCE]: source, [PLAN_SOURCE]: planSource },
     layers: [
       ...style.layers.slice(0, at),
-      ...lineLayers(theme, selected),
+      ...lineLayers(theme, selected, plan.features.length > 0),
       ...style.layers.slice(at),
       ...pointLayers(theme),
     ],

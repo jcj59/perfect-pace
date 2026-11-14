@@ -18,7 +18,7 @@ import {
   suggestedGoalS,
 } from "../src/plan/inputs.ts";
 import { TONES, TONE_COLORS, TONE_STEPS_S_PER_MI, segmentTone, toneVar } from "../src/plan/tones.ts";
-import { courseFeatures, withSegments } from "../src/map/course-layer.ts";
+import { planFeatures } from "../src/map/course-layer.ts";
 import { type AppState, type CourseState, initialAppState } from "../src/state/app.ts";
 import { type PlanView, planErrorMessage, startPlanner } from "../src/state/plan.ts";
 import { createStore } from "../src/state/store.ts";
@@ -162,28 +162,19 @@ describe("error curve", () => {
 });
 
 describe("map segments", () => {
-  it("draws each segment over the route, with a break dot where each later one starts", () => {
+  it("draws each segment, with a break dot where each later one starts", () => {
     const points = buildCourse(
       Array.from({ length: 30 }, (_, i) => ({ lat: 42 + i * 0.001, lon: -71 + (i % 2) * 0.0005, ele: 10 })),
     ).points;
-    const base = courseFeatures(points);
-    const data = withSegments(base, [
+    const data = planFeatures([
       { points: points.slice(0, 11), tone: -1 },
       { points: points.slice(10, 21), tone: 2 },
       { points: points.slice(20), tone: 0 },
     ]);
-    expect(data.features.map((f) => f.properties.role)).toEqual([
-      "route",
-      "segment",
-      "segment",
-      "segment",
-      "break",
-      "break",
-      "finish",
-      "start",
-    ]);
-    expect(withSegments(base, null)).toBe(base);
-    expect(withSegments(base, [])).toBe(base);
+    expect(data.features.map((f) => f.properties.role)).toEqual(["segment", "segment", "segment", "break", "break"]);
+    expect(data.features[1]!.properties).toEqual({ role: "segment", index: 1, tone: 2 });
+    expect(planFeatures(null).features).toEqual([]);
+    expect(planFeatures([]).features).toEqual([]);
   });
 });
 

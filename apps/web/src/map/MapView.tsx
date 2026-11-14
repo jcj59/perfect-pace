@@ -24,11 +24,13 @@ import {
   NO_COURSE,
   PLAN_HALO_LAYER,
   PLAN_LINE_LAYER,
+  PLAN_SOURCE,
   courseBounds,
   courseFeatures,
+  planFeatures,
   planPaint,
+  routeLineOpacity,
   withCourse,
-  withSegments,
 } from "./course-layer.ts";
 import { mapStyle } from "./style.ts";
 
@@ -130,8 +132,7 @@ export default function MapView({
   // The latest insets and route, read when framing a course and when rebuilding the style.
   const latestInsets = useRef(insets);
   const courseData = useRef<CourseFeatures>(NO_COURSE);
-  const routeData = useRef<CourseFeatures>(NO_COURSE);
-  const latestSegments = useRef(segments);
+  const planData = useRef<CourseFeatures>(NO_COURSE);
   const latestSelected = useRef(selectedSegment);
   /** Segments the map has rendered of which set, for the `data-segments` attribute (tests wait on it). */
   const [drawnSegments, setDrawnSegments] = useState<{ of: readonly MapSegment[] | null; count: number }>({
@@ -156,7 +157,7 @@ export default function MapView({
     try {
       instance = new MapLibreMap({
         container: element,
-        style: withCourse(mapStyle(theme), theme, courseData.current, latestSelected.current),
+        style: withCourse(mapStyle(theme), theme, courseData.current, planData.current, latestSelected.current),
         bounds: INITIAL_BOUNDS,
         fitBoundsOptions: { padding: padding(insets) },
         attributionControl: false,
@@ -212,13 +213,14 @@ export default function MapView({
     if (theme === styledTheme.current) return; // the map was created with this theme
     styledTheme.current = theme;
     // The course is part of the style, so it survives the switch with its current data.
-    map.current?.setStyle(withCourse(mapStyle(theme), theme, courseData.current, latestSelected.current));
+    map.current?.setStyle(
+      withCourse(mapStyle(theme), theme, courseData.current, planData.current, latestSelected.current),
+    );
   }, [theme]);
 
   // Draw a new route, frame it clear of the panel, and report once it is on screen.
   useEffect(() => {
-    routeData.current = route ? courseFeatures(route) : NO_COURSE;
-    const data = withSegments(routeData.current, latestSegments.current);
+    const data = route ? courseFeatures(route) : NO_COURSE;
     courseData.current = data;
     const instance = map.current;
     if (!instance) return;
@@ -260,15 +262,14 @@ export default function MapView({
 
   // Draw the plan's segments over the route, in place: the camera stays where it is.
   useEffect(() => {
-    latestSegments.current = segments;
-    const data = withSegments(routeData.current, segments);
-    courseData.current = data;
+    const data = planFeatures(segments);
+    planData.current = data;
     const instance = map.current;
     if (!instance) return;
     let cancelled = false;
     const expected = segments?.length ?? 0;
     const confirm = () => {
-      if (cancelled || !instance.isSourceLoaded(COURSE_SOURCE)) return;
+      if (cancelled || !instance.isSourceLoaded(PLAN_SOURCE)) return;
       const drawn = new Set(
         instance.queryRenderedFeatures({ layers: [PLAN_LINE_LAYER] }).map((f) => f.properties["index"] as number),
       );
@@ -278,12 +279,13 @@ export default function MapView({
     };
     const apply = () => {
       if (cancelled) return;
-      const source = instance.getSource<GeoJSONSource>(COURSE_SOURCE);
+      const source = instance.getSource<GeoJSONSource>(PLAN_SOURCE);
       if (!source) {
         instance.once("styledata", apply);
         return;
       }
       void source.setData(data);
+      instance.setPaintProperty(COURSE_LINE_LAYER, "line-opacity", routeLineOpacity(expected > 0));
       if (expected > 0) instance.on("render", confirm);
     };
     apply();
