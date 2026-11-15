@@ -5,6 +5,7 @@ import {
   type DrawnRoute,
   type LatLon,
   LEG_MODES,
+  type LegMode,
   MAX_SHARE_LENGTH_ERROR,
   MAX_SHARE_URL_LENGTH,
   type SharedPlan,
@@ -85,11 +86,12 @@ describe("share links: drawn routes", () => {
 
   it("keeps runs of leg modes, from one leg to many", () => {
     const waypoints = Array.from({ length: 31 }, (_, i) => ({ lat: 42 + i * 0.001, lon: -76 }));
+    const run = (n: number, mode: LegMode): LegMode[] => Array.from({ length: n }, () => mode);
     const cases: DrawnRoute["modes"][] = [
-      Array(30).fill("snap"),
-      Array(30).fill("straight"),
+      run(30, "snap"),
+      run(30, "straight"),
       Array.from({ length: 30 }, (_, i) => (i % 2 ? "snap" : "straight")),
-      [...Array(12).fill("snap"), "straight", ...Array(17).fill("snap")],
+      [...run(12, "snap"), "straight", ...run(17, "snap")],
     ];
     for (const modes of cases) {
       const route = { waypoints, modes };

@@ -149,8 +149,9 @@ test("the units switch shows kilometers and meters, and is remembered", async ({
   await expect(page.getByTestId("stat-max")).toContainText("m");
   expect(Math.abs((await statNumber(page, "stat-max")) - expected.elevation.maxM)).toBeLessThanOrEqual(1);
 
+  // The reload brings the course back (the saved session), still in kilometers.
   await page.reload();
-  await uploadGpx(page, corpusPath("boston.gpx"));
+  await expectRouteDrawn(page);
   await expect(page.getByTestId("stat-distance")).toContainText("km");
 });
 
@@ -185,7 +186,7 @@ test.describe("phone", () => {
     // The sheet leads with the profile, right under the map it scrubs; the stats follow below.
     await expect(page.getByRole("slider", { name: "Elevation profile" })).toBeInViewport({ ratio: 1 });
     await expect(page.getByTestId("course-title")).toBeAttached();
-    await expect(page.getByRole("button", { name: "Load GPX" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Load GPX", exact: true })).toHaveCount(0);
     expect(await hasHorizontalScroll(page)).toBe(false);
   });
 });

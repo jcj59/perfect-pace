@@ -92,6 +92,41 @@ for (const scheme of ["light", "dark"] satisfies ColorScheme[]) {
     await expect(page).toHaveScreenshot(`plan-sheet-full-${scheme}.png`);
   });
 
+  // B6: the Share and export card under the Boston plan, scrolled into view (the full sheet on phones).
+  test(`share and export, ${scheme} @visual`, async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await planBoston(page, scheme);
+    if (isPhone(page)) {
+      await page.getByTestId("sheet-handle").click();
+      await expect(page.getByTestId("sheet")).toHaveAttribute("data-snap", "full");
+      await scrollPanelTo(page, "sheet-content", "share-export");
+    } else await scrollPanelTo(page, "side-panel-content", "share-export");
+    await page.mouse.move(page.viewportSize()!.width - 2, page.viewportSize()!.height / 2);
+    await expect(page).toHaveScreenshot(`share-export-${scheme}.png`);
+  });
+
+  // The printed pace band, on a page the width of Letter paper inside its margins. Paper is white,
+  // so the band is the same in either theme; the dark run checks that.
+  test(`printed pace band, ${scheme} @visual`, async ({ page }) => {
+    test.skip(isPhone(page), "the printed page is paper sized on every device");
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await planBoston(page, scheme);
+    await page.setViewportSize({ width: 725, height: 940 });
+    await page.emulateMedia({ media: "print" });
+    await expect(page.getByTestId("pace-band")).toBeVisible();
+    await expect(page).toHaveScreenshot(`pace-band-${scheme}.png`, { fullPage: true });
+  });
+
+  test(`a link that cannot be opened, ${scheme} @visual`, async ({ page }) => {
+    await page.emulateMedia({ colorScheme: scheme });
+    await openApp(page, scheme);
+    await page.evaluate(() => {
+      location.hash = "v=1&c=d.3p.AAAA&k=4&s=0&u=mi";
+    });
+    await expect(page.getByTestId("link-error")).toBeInViewport();
+    await expect(page).toHaveScreenshot(`link-error-${scheme}.png`);
+  });
+
   test(`error state, ${scheme} @visual`, async ({ page }) => {
     await openApp(page, scheme);
     await uploadGpx(page, invalidPath("kml.gpx"));

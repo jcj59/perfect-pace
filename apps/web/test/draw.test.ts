@@ -252,4 +252,33 @@ describe("the drawing controller", () => {
     controller.retryElevation();
     expect(store.get().course).toMatchObject({ elevation: { status: "loading" }, updating: true });
   });
+
+  it("loads a finished route: routes its legs and builds the course, outside drawing mode", async () => {
+    store.set({ goalTimeS: 3600, linkError: "old" });
+    const route = { waypoints: [A, B, C], modes: ["snap", "straight"] as const };
+    controller.load({ waypoints: route.waypoints, modes: [...route.modes] });
+    expect(draws.get().editing).toBe(false);
+    expect(draws.get().history).toEqual({
+      past: [],
+      present: { waypoints: [A, B, C], modes: ["snap", "straight"] },
+      future: [],
+    });
+    expect(store.get()).toMatchObject({ goalTimeS: null, linkError: null });
+    // Only the snapped leg asks the router.
+    expect(calls.map((c) => [c.request.from, c.request.to])).toEqual([[A, B]]);
+    await routeAll();
+    expect(profiles).toHaveLength(1);
+    expect(draws.get().editing).toBe(false);
+    profiles[0]!.resolve({ course: profiles[0]!.course } as ElevationProfile);
+    await flush();
+    expect(store.get().course).toMatchObject({ status: "drawn", elevation: { status: "ready" }, updating: false });
+  });
+
+  it("opens drawing mode when a loaded route has a leg that cannot be routed", async () => {
+    controller.load({ waypoints: [A, B, C], modes: ["snap", "snap"] });
+    calls[1]!.reject(new RoutingError("not_configured", "no key"));
+    await flush();
+    expect(draws.get().editing).toBe(true);
+    expect(draws.get().legs[1]).toMatchObject({ status: "error", error: { code: "not_configured" } });
+  });
 });

@@ -10,6 +10,7 @@ import { retryElevation, selectTrack, trackTitle } from "../state/course.ts";
 import { usePlanView } from "../state/plan.ts";
 import { FileButton } from "./FileButton.tsx";
 import { PacingPlan } from "./PacingPlan.tsx";
+import { ShareExport } from "./ShareExport.tsx";
 import { UnitsSwitch } from "./UnitsSwitch.tsx";
 import { type Quantity, formatDistance, formatElevation, quantityText } from "./format.ts";
 
@@ -33,6 +34,8 @@ export function CourseSummary({ course, profileFirst = false }: { course: Loaded
       lengthM={courseLengthM(track.course)}
       elevation={elevation}
       onRetry={retryElevation}
+      copy={!!course.copy}
+      share={<ShareFor course={course} />}
       header={
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
@@ -43,8 +46,12 @@ export function CourseSummary({ course, profileFirst = false }: { course: Loaded
             >
               {title}
             </h2>
-            <p className="mt-1 truncate text-sm text-ink-muted" title={fileName}>
-              {fileName}
+            <p className="mt-1 truncate text-sm text-ink-muted" title={fileName} data-testid="course-source">
+              {course.copy === "link"
+                ? "From a shared link"
+                : course.copy === "saved"
+                  ? "A simplified copy, saved on this device"
+                  : fileName}
             </p>
           </div>
           <div className="mt-1 flex shrink-0 flex-col items-end gap-2">
@@ -114,6 +121,7 @@ export function DrawnCourseSummary({
       updating={course.updating}
       drawn
       onRetry={drawing.retryElevation}
+      {...(editing ? {} : { share: <ShareFor course={course} /> })}
       header={header}
     />
   );
@@ -131,6 +139,8 @@ function CourseDetails({
   elevation,
   updating = false,
   drawn = false,
+  copy = false,
+  share,
   onRetry,
   profileFirst,
 }: {
@@ -142,6 +152,10 @@ function CourseDetails({
   updating?: boolean;
   /** Drawn on the map (its elevation always comes from terrain data), not loaded from a file. */
   drawn?: boolean;
+  /** A simplified copy of a course (from a link, or saved), whose elevation comes from terrain data. */
+  copy?: boolean;
+  /** The share and export controls, under the plan. */
+  share?: ReactNode;
   onRetry: () => void;
   profileFirst: boolean;
 }) {
@@ -154,7 +168,7 @@ function CourseDetails({
         </SectionHeading>
         <UnitsSwitch />
       </div>
-      <Profile elevation={elevation} units={units} updating={updating} drawn={drawn} onRetry={onRetry} />
+      <Profile elevation={elevation} units={units} updating={updating} drawn={drawn} copy={copy} onRetry={onRetry} />
     </section>
   );
   const plan = elevation.status !== "error" && (
@@ -173,12 +187,14 @@ function CourseDetails({
     <div className="px-6 pt-2 pb-6" data-testid="course-summary">
       {profileFirst && profile}
       {profileFirst && plan}
+      {profileFirst && elevation.status === "ready" && share}
       <div className={profileFirst ? "mt-8 border-t border-line pt-6" : ""}>{header}</div>
 
       {extra}
 
       {!profileFirst && profile}
       {!profileFirst && plan}
+      {!profileFirst && elevation.status === "ready" && share}
 
       <SectionHeading level={3} className="mt-8">
         Course stats
@@ -213,12 +229,14 @@ function Profile({
   units,
   updating,
   drawn,
+  copy,
   onRetry,
 }: {
   elevation: ElevationState;
   units: DistanceUnit;
   updating: boolean;
   drawn: boolean;
+  copy: boolean;
   onRetry: () => void;
 }) {
   return (
@@ -234,7 +252,7 @@ function Profile({
           />
         )
       )}
-      <ElevationNote elevation={elevation} updating={updating} drawn={drawn} onRetry={onRetry} />
+      <ElevationNote elevation={elevation} updating={updating} drawn={drawn} copy={copy} onRetry={onRetry} />
     </div>
   );
 }
@@ -388,11 +406,13 @@ function ElevationNote({
   elevation,
   updating,
   drawn,
+  copy,
   onRetry,
 }: {
   elevation: ElevationState;
   updating: boolean;
   drawn: boolean;
+  copy: boolean;
   onRetry: () => void;
 }) {
   if (elevation.status === "loading" || (updating && elevation.status === "ready")) {
@@ -425,11 +445,13 @@ function ElevationNote({
   const { source, gpsIssue } = elevation.profile;
   const text = drawn
     ? "Elevation from terrain data for the area, since a drawn route has none of its own."
-    : source === "gps"
-      ? "Elevation from the file's GPS data, smoothed to remove noise."
-      : source === "gps+dem"
-        ? "Elevation from the file's GPS data, with its gaps filled from terrain data."
-        : (DEM_REASONS[gpsIssue ?? "missing"] ?? DEM_REASONS["missing"]);
+    : copy
+      ? "Elevation from terrain data for the area: this is a simplified copy of the course, without the file's own elevation."
+      : source === "gps"
+        ? "Elevation from the file's GPS data, smoothed to remove noise."
+        : source === "gps+dem"
+          ? "Elevation from the file's GPS data, with its gaps filled from terrain data."
+          : (DEM_REASONS[gpsIssue ?? "missing"] ?? DEM_REASONS["missing"]);
   return (
     <p className="mt-3 flex gap-2 text-[13px] leading-snug text-ink-muted" data-testid="elevation-source">
       <svg
@@ -465,4 +487,11 @@ function PlannedChart({ profile, units }: { profile: ElevationProfile; units: Di
     [plan, planProfile, profile],
   );
   return <ElevationChart profile={profile} units={units} segments={segments} />;
+}
+
+/** The share and export controls, once the course's elevation profile is ready. */
+function ShareFor({ course }: { course: Loaded | Drawn }) {
+  const { elevation } = course;
+  if (elevation?.status !== "ready") return null;
+  return <ShareExport course={course} profile={elevation.profile} />;
 }

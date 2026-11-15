@@ -305,3 +305,34 @@ body {
     transition: none;
   }
 }
+
+/*
+ * Printing shows only the pace band (`print/PaceBand.tsx`): the app hides, and the page is plain
+ * white paper that can grow past one sheet. Colors print as they are (the band's stripes).
+ */
+@media print {
+  @page {
+    margin: 12mm;
+  }
+  html,
+  body,
+  #root {
+    height: auto;
+    overflow: visible;
+    background: #ffffff;
+  }
+  body {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  .pp-app {
+    display: none !important;
+  }
+  .pp-print {
+    display: block !important;
+  }
+  .pp-band-strip,
+  .pp-band-segment {
+    break-inside: avoid;
+  }
+}

@@ -3,7 +3,8 @@
  * track's elevation profile there too. Each step writes `course` in the app store; a newer file (or
  * track) aborts whatever the previous one still had in flight, so only the latest result lands.
  */
-import type { GpxFile } from "@pp/core";
+import type { GpxFile, LatLon } from "@pp/core";
+import { buildCourse } from "@pp/core";
 import { coreClient } from "../worker/client.ts";
 import { RpcError } from "../worker/rpc.ts";
 import { type CourseState, appStore, setCourse, setSheet } from "./app.ts";
@@ -52,13 +53,26 @@ function raiseSheet(): void {
   if (appStore.get().sheet === "peek") setSheet("half");
 }
 
-/** Load a GPX file the user picked or dropped. Resolves once it has loaded or failed (never rejects). */
-export async function loadGpxFile(file: File): Promise<void> {
+/**
+ * Told the text of each GPX file that loads, with what it parsed to, so the session can keep it
+ * for the next visit (see `session.ts`).
+ */
+let fileSink: ((text: string, file: GpxFile, fileName: string) => void) | undefined;
+export function onGpxText(sink: typeof fileSink): void {
+  fileSink = sink;
+}
+
+function startLoad(): AbortSignal {
   load?.abort();
   elevation?.abort();
   const controller = new AbortController();
   load = controller;
-  const { signal } = controller;
+  return controller.signal;
+}
+
+/** Load a GPX file the user picked or dropped. Resolves once it has loaded or failed (never rejects). */
+export async function loadGpxFile(file: File): Promise<void> {
+  const signal = startLoad();
   const fileName = file.name || "This file";
 
   performance.clearMarks(LOAD_START_MARK);
@@ -83,6 +97,7 @@ export async function loadGpxFile(file: File): Promise<void> {
     if (signal.aborted) return;
     const gpx = await coreClient().call("parse", { text }, { signal });
     performance.mark(PARSED_MARK);
+    fileSink?.(text, gpx, fileName);
     showTrack({ status: "loaded", fileName, file: gpx, track: gpx.defaultTrack, elevation: { status: "loading" } });
     raiseSheet();
   } catch (error) {
@@ -93,6 +108,48 @@ export async function loadGpxFile(file: File): Promise<void> {
     setCourse({ status: "error", fileName, ...(code ? { code } : {}), message: loadErrorMessage(error) });
     raiseSheet();
   }
+}
+
+/**
+ * Load GPX text kept from an earlier visit, showing track `track` (the default when out of range).
+ * Resolves true once the course is in the store (before its elevation), false when it did not
+ * parse or a newer load took over.
+ */
+export async function loadGpxText(text: string, fileName: string, track: number): Promise<boolean> {
+  const signal = startLoad();
+  setCourse({ status: "reading", fileName }, true);
+  try {
+    const gpx = await coreClient().call("parse", { text }, { signal });
+    // Anything the person did meanwhile (drawing, say) wins over the restore.
+    const current = appStore.get().course;
+    if (signal.aborted || current.status !== "reading" || current.fileName !== fileName) return false;
+    fileSink?.(text, gpx, fileName);
+    const index = Number.isInteger(track) && gpx.tracks[track] ? track : gpx.defaultTrack;
+    showTrack({ status: "loaded", fileName, file: gpx, track: index, elevation: { status: "loading" } }, true);
+    return true;
+  } catch (error) {
+    if (isAbort(error) || signal.aborted || appStore.get().course.status !== "reading") return false;
+    console.error("Could not restore", fileName, error);
+    setCourse({ status: "empty" }, true);
+    return false;
+  }
+}
+
+/**
+ * Show a simplified course: one from a share link (`copy: "link"`), or a saved copy of a file too
+ * large to keep whole (`copy: "saved"`). Its elevation always comes from terrain data, since the
+ * copy carries none. Synchronous: the course is in the store when it returns.
+ */
+export function loadCourseCopy(points: readonly LatLon[], name: string, copy: "link" | "saved"): void {
+  startLoad();
+  const course = buildCourse(points);
+  const file: GpxFile = {
+    name,
+    tracks: [{ kind: "track", name, segmentCount: 1, course, droppedPoints: 0 }],
+    defaultTrack: 0,
+  };
+  showTrack({ status: "loaded", fileName: name, file, track: 0, copy, elevation: { status: "loading" } }, true);
+  raiseSheet();
 }
 
 /** Switch to another track or route in a multi-track file. */
@@ -122,7 +179,8 @@ function showTrack(course: Loaded, fresh = false): void {
   let current: CourseState = course;
   const stillCurrent = () => !controller.signal.aborted && appStore.get().course === current;
   coreClient()
-    .call("elevation", { course: track.course, origin: "file" }, { signal: controller.signal })
+    // A simplified copy has no elevation of its own: it always comes from terrain data, as for a drawn route.
+    .call("elevation", { course: track.course, origin: course.copy ? "drawn" : "file" }, { signal: controller.signal })
     .then(
       (profile) => {
         if (!stillCurrent()) return;

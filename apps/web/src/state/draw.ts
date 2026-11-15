@@ -31,6 +31,7 @@ import {
   createDrawHistory,
   drawReducer,
   type DrawHistory,
+  type DrawnRoute,
   legKey,
   polylineLengthM,
   routeLegs,
@@ -152,6 +153,12 @@ export interface DrawController {
   finish: () => void;
   /** Back into drawing mode for the drawn course. */
   edit: () => void;
+  /**
+   * Show a finished route (from a share link or the saved session) as the course, replacing any
+   * other, and route its legs. Its history starts there, with nothing to undo. If a leg cannot be
+   * routed, drawing mode opens so its error and the straight-line offer show.
+   */
+  load: (route: DrawnRoute) => void;
   /** Ask the router again for a leg that failed. */
   retryLeg: (index: number) => void;
   /** Build the elevation profile again after it failed. */
@@ -176,7 +183,12 @@ export function createDrawController(options: DrawControllerOptions = {}): DrawC
 
   // As `setCourse` and `setSheet` in app.ts, on this controller's store.
   const setCourse = (course: CourseState, fresh = false) =>
-    store.set({ course, focusDistM: null, selectedSegment: null, ...(fresh ? { goalTimeS: null } : {}) });
+    store.set({
+      course,
+      focusDistM: null,
+      selectedSegment: null,
+      ...(fresh ? { goalTimeS: null, linkError: null } : {}),
+    });
   const setSheet = (sheet: SheetSnap) => store.set({ sheet });
 
   const drawn = (): Drawn | undefined => {
@@ -260,6 +272,8 @@ export function createDrawController(options: DrawControllerOptions = {}): DrawC
     });
     trimCache(new Set(specs.map((s) => s.key)));
     draws.set({ legs, distanceM: legs.reduce((sum, leg) => sum + leg.distanceM, 0) });
+    // A finished route with a leg that failed would never become a course; show the editor, which offers the fixes.
+    if (!draws.get().editing && drawn() && legs.some((leg) => leg.status === "error")) draws.set({ editing: true });
     updateCourse(present.waypoints.length, legs);
   }
 
@@ -375,6 +389,13 @@ export function createDrawController(options: DrawControllerOptions = {}): DrawC
       if (!drawn()) return;
       draws.set({ editing: true });
       setSheet("peek");
+    },
+    load(route) {
+      abortAll();
+      locating++;
+      setCourse({ status: "drawn", course: null, elevation: null, updating: false }, true);
+      draws.set({ editing: false, history: createDrawHistory(route), legs: [], distanceM: 0 });
+      sync();
     },
     retryLeg(index) {
       const leg = draws.get().legs[index];
