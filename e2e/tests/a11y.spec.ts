@@ -33,6 +33,13 @@ for (const scheme of ["light", "dark"] satisfies ColorScheme[]) {
     expect((await new AxeBuilder({ page }).analyze()).violations.map((v) => `${v.id}: ${v.help}`)).toEqual([]);
   });
 
+  test(`the plan explanation, open, has no axe violations, ${scheme}`, async ({ page }) => {
+    await planBoston(page, scheme);
+    await page.getByRole("button", { name: "How the plan works" }).click();
+    await expect(page.getByRole("dialog", { name: "How the plan works" })).toBeFocused();
+    expect((await new AxeBuilder({ page }).analyze()).violations.map((v) => `${v.id}: ${v.help}`)).toEqual([]);
+  });
+
   test(`a link that cannot be opened has no axe violations, ${scheme}`, async ({ page }) => {
     await openApp(page, scheme);
     await page.evaluate(() => {
