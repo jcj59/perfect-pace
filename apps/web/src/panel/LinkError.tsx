@@ -4,8 +4,11 @@ import { setLinkError } from "../state/app.ts";
 /** Why the share link the page was opened with could not be used, with a way to dismiss it. */
 export function LinkError({ message }: { message: string }) {
   const root = useRef<HTMLElement>(null);
-  // A link pasted while the panel is scrolled down: bring the message into view.
-  useEffect(() => root.current?.scrollIntoView({ block: "nearest" }), [message]);
+  // A link pasted while the panel is scrolled down: scroll the panel (only the panel; never the
+  // page around it) back to the top, where the message is.
+  useEffect(() => {
+    root.current?.closest('[data-testid="side-panel-content"], [data-testid="sheet-content"]')?.scrollTo({ top: 0 });
+  }, [message]);
   return (
     <section
       ref={root}
