@@ -1,0 +1,30 @@
+name: Full CI
+
+# Adding the `full-ci` label to a PR starts a full CI run on its head commit (every E2E project,
+# the timing budgets and Lighthouse), which is what reports the required `e2e` and `lighthouse`
+# checks. A label event cannot re-run CI by itself, so this dispatches the CI workflow on the PR
+# branch. Later pushes to a labeled PR run in full on their own (ci.yml reads the label).
+
+on:
+  pull_request:
+    types: [labeled]
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  dispatch:
+    if: github.event.label.name == 'full-ci'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Start a full CI run on the PR head
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          gh workflow run ci.yml --ref "$BRANCH" -f pr="$PR"
+          echo "### Full CI dispatched for #$PR on \`$BRANCH\`" >> "$GITHUB_STEP_SUMMARY"

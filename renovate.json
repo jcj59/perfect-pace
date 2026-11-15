@@ -4,9 +4,10 @@
   "schedule": ["before 6am on monday"],
   "minimumReleaseAge": "3 days",
   "rangeStrategy": "pin",
+  "labels": ["full-ci"],
   "packageRules": [
     {
-      "description": "One weekly PR for all minor and patch updates; it auto-merges when the full suite is green.",
+      "description": "One weekly PR for all minor and patch updates; it gets the full-ci label (so CI runs the full suite) and auto-merges when that is green.",
       "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
       "groupName": "weekly minor and patch updates",
       "automerge": true

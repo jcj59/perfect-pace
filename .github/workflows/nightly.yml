@@ -1,12 +1,20 @@
 name: Nightly
 
-# The live smoke suite against production (real network services), plus the full E2E suite
-# on Firefox and WebKit in addition to Chromium. Opens an issue when anything fails.
+# Daily: the live smoke suite against production (real network services). Weekly (Mondays) and
+# on a manual run: the full E2E suite on Firefox and WebKit too, on 4 shards (every PR already
+# runs it on Chromium). Opens an issue when anything fails.
 
 on:
   schedule:
     - cron: "17 7 * * *"
+    # Keep in sync with the cross-browser job's `if`.
+    - cron: "17 8 * * 1"
   workflow_dispatch:
+    inputs:
+      cross_browser:
+        description: Run the Firefox and WebKit suite too
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -19,6 +27,7 @@ env:
 
 jobs:
   live-smoke:
+    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '17 7 * * *'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -48,9 +57,16 @@ jobs:
             e2e/playwright-report
           retention-days: 14
 
+  # Firefox and WebKit only: the Chromium projects are what every PR's full run covers.
   cross-browser:
+    name: cross-browser ${{ matrix.shard }}/${{ strategy.job-total }}
+    if: (github.event_name == 'workflow_dispatch' && inputs.cross_browser) || github.event.schedule == '17 8 * * 1'
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     container:
       image: mcr.microsoft.com/playwright:v1.65.0-noble
       options: --ipc=host
@@ -58,16 +74,17 @@ jobs:
       # Firefox refuses to run as root with a HOME owned by another user.
       HOME: /root
       PP_BROWSERS: all
+      SHARD: ${{ matrix.shard }}/${{ strategy.job-total }}
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
       - run: pnpm build
-      - name: Full E2E on Chromium, Firefox and WebKit (local wrangler dev)
-        run: pnpm e2e
+      - name: Full E2E on Firefox and WebKit (local wrangler dev)
+        run: pnpm e2e --project desktop-firefox --project desktop-webkit --project iphone-webkit --shard "$SHARD"
       - uses: actions/upload-artifact@v7
         if: failure()
         with:
-          name: playwright-cross-browser
+          name: playwright-cross-browser-${{ matrix.shard }}
           path: |
             e2e/test-results
             e2e/playwright-report
@@ -75,7 +92,9 @@ jobs:
 
   report:
     needs: [live-smoke, cross-browser]
-    if: failure()
+    # A job that hits its timeout ends cancelled, not failed, and needs an issue too.
+    if: always() && (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled'))
+    timeout-minutes: 5
     runs-on: ubuntu-latest
     steps:
       - name: Open an issue
