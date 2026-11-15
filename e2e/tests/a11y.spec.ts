@@ -4,6 +4,7 @@ import { openApp, type ColorScheme } from "../support/app.ts";
 import { corpusPath, expectRouteDrawn, invalidPath, uploadGpx } from "../support/course.ts";
 import { ITHACA, addPoints, expectLegsSettled, startDrawing } from "../support/draw.ts";
 import { enterGoal, planBoston } from "../support/plan.ts";
+import { openReportDialog, stubReport } from "../support/report.ts";
 
 for (const scheme of ["light", "dark"] satisfies ColorScheme[]) {
   test(`empty state has no axe violations, ${scheme}`, async ({ page }) => {
@@ -57,6 +58,34 @@ for (const scheme of ["light", "dark"] satisfies ColorScheme[]) {
     await expect(page.getByTestId("load-error")).toBeVisible();
     const { violations } = await new AxeBuilder({ page }).analyze();
     expect(violations.map((v) => `${v.id}: ${v.help}`)).toEqual([]);
+  });
+}
+
+// B12: the header menu and the report dialog, filled in, sent, and unavailable.
+for (const scheme of ["light", "dark"] satisfies ColorScheme[]) {
+  test(`the header menu and the report dialog have no axe violations, ${scheme}`, async ({ page }) => {
+    await stubReport(page);
+    await openApp(page, scheme);
+    await page.getByRole("button", { name: "More" }).click();
+    await expect(page.getByRole("menuitem", { name: "Report a problem" })).toBeFocused();
+    expect((await new AxeBuilder({ page }).analyze()).violations.map((v) => `${v.id}: ${v.help}`)).toEqual([]);
+    await page.getByRole("menuitem", { name: "Report a problem" }).click();
+    await page.getByLabel("Description").fill("The chart is blank.");
+    await page.getByLabel(/^Email/).fill("runner@example.com");
+    await page.getByRole("dialog").getByText("Preview").click();
+    await expect(page.getByTestId("report-diagnostics-preview")).toBeVisible();
+    expect((await new AxeBuilder({ page }).analyze()).violations.map((v) => `${v.id}: ${v.help}`)).toEqual([]);
+    await page.getByRole("button", { name: "Send report" }).click();
+    await expect(page.getByText("Thanks, report sent")).toBeVisible();
+    expect((await new AxeBuilder({ page }).analyze()).violations.map((v) => `${v.id}: ${v.help}`)).toEqual([]);
+  });
+
+  test(`the report dialog while reporting is unavailable has no axe violations, ${scheme}`, async ({ page }) => {
+    await stubReport(page, { config: { configured: false, siteKey: null } });
+    await openApp(page, scheme);
+    await openReportDialog(page);
+    await expect(page.getByText("Reporting is unavailable right now.")).toBeVisible();
+    expect((await new AxeBuilder({ page }).analyze()).violations.map((v) => `${v.id}: ${v.help}`)).toEqual([]);
   });
 }
 

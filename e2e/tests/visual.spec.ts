@@ -3,6 +3,7 @@ import { openApp, type ColorScheme } from "../support/app.ts";
 import { corpusPath, expectRouteDrawn, invalidPath, isPhone, uploadGpx } from "../support/course.ts";
 import { ITHACA, addPoints, expectLegsSettled, startDrawing } from "../support/draw.ts";
 import { expectPlanSettled, planBoston } from "../support/plan.ts";
+import { openReportDialog, stubReport } from "../support/report.ts";
 
 /** Scroll the panel (`scroller`) so `target` sits at its top, moving nothing else (unlike `scrollIntoView`). */
 async function scrollPanelTo(page: Page, scroller: string, target: string): Promise<void> {
@@ -230,5 +231,30 @@ for (const scheme of ["light", "dark"] satisfies ColorScheme[]) {
     await cdp.send("Emulation.setSafeAreaInsetsOverride", { insets: { top: 59, bottom: 34, left: 0, right: 0 } });
     await openApp(page, scheme);
     await expect(page).toHaveScreenshot(`safe-area-peek-${scheme}.png`);
+  });
+
+  // B12: the header menu open, then the report dialog with a description typed, and once sent.
+  test(`report a problem, ${scheme} @visual`, async ({ page }) => {
+    await stubReport(page);
+    await openApp(page, scheme);
+    await page.getByRole("button", { name: "More" }).click();
+    await expect(page.getByRole("menuitem", { name: "Report a problem" })).toBeFocused();
+    await expect(page).toHaveScreenshot(`header-menu-${scheme}.png`);
+    await page.getByRole("menuitem", { name: "Report a problem" }).click();
+    await expect(page.getByRole("dialog", { name: "Report a problem" })).toBeVisible();
+    await page.getByLabel("Description").fill("The elevation chart goes blank after I draw a loop.");
+    await page.getByLabel("Description").blur();
+    await expect(page).toHaveScreenshot(`report-dialog-${scheme}.png`);
+    await page.getByRole("button", { name: "Send report" }).click();
+    await expect(page.getByText("Thanks, report sent")).toBeVisible();
+    await expect(page).toHaveScreenshot(`report-sent-${scheme}.png`);
+  });
+
+  test(`report a problem while unavailable, ${scheme} @visual`, async ({ page }) => {
+    await stubReport(page, { config: { configured: false, siteKey: null } });
+    await openApp(page, scheme);
+    await openReportDialog(page);
+    await expect(page.getByText("Reporting is unavailable right now.")).toBeVisible();
+    await expect(page).toHaveScreenshot(`report-unavailable-${scheme}.png`);
   });
 }

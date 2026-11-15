@@ -1,3 +1,4 @@
+import { handleReport } from "./report.ts";
 import { handleRoute } from "./route.ts";
 
 function json(body: unknown, status = 200, headers: Record<string, string> = {}): Response {
@@ -20,6 +21,10 @@ export default {
 
     if (url.pathname === "/api/route") {
       return handleRoute(request, env, ctx);
+    }
+
+    if (url.pathname === "/api/report") {
+      return handleReport(request, env);
     }
 
     if (url.pathname.startsWith("/api/")) {
