@@ -6,28 +6,25 @@ name: CI
 #   branch protection keeps the PR unmergeable until a full run passes on the head commit.
 # - full: verify, perf, preview, every E2E project (desktop, iPhone, Pixel) on 8 shards, the
 #   timing budgets (`e2e-perf`) and Lighthouse; the `e2e` and `lighthouse` jobs gather them into
-#   the required checks. Runs when the PR has the `full-ci` label (adding it dispatches a run, see ci-full.yml),
-#   when it is marked ready for review, and on a manual run.
-# - docs: only documentation changed. verify runs; the rest is skipped and `e2e` passes.
+#   the required checks. Runs when the PR has the `full-ci` label (adding it re-runs the head
+#   commit's run, see ci-full.yml), when it is marked ready for review, and on a manual run.
+# - docs: only documentation changed. verify runs; the rest is skipped, `e2e` and `lighthouse` pass.
 # Required checks on main: verify, perf, preview, e2e, lighthouse. See CONTRIBUTING.md.
 
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
   workflow_dispatch:
-    inputs:
-      pr:
-        description: PR number (for the preview alias and to supersede that PR's runs)
-        type: string
-        default: ""
 
 concurrency:
-  # One run per PR at a time: a new push (or a full run dispatched for it) cancels the older one.
-  group: ci-${{ github.event.pull_request.number || inputs.pr || github.ref }}
+  # One run per PR at a time: a new push cancels the run it supersedes.
+  group: ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 permissions:
   contents: read
+  # `changes` reads the PR's current labels (a re-run keeps the original event's).
+  pull-requests: read
 
 env:
   WRANGLER_SEND_METRICS: "false"
@@ -78,18 +75,20 @@ jobs:
       - id: mode
         env:
           ACTION: ${{ github.event.action }}
-          FULL_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'full-ci') }}
-          PR: ${{ github.event.pull_request.number || inputs.pr }}
+          PR: ${{ github.event.pull_request.number }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           mode=quick
           why="a push without the full-ci label"
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
-            mode=full why="a manual (or full-ci label) run"
+            mode=full why="a manual run"
           else
             git diff --name-only HEAD^1 HEAD | tee changed.txt
+            # The labels now, not the event's: adding full-ci re-runs this run (ci-full.yml).
+            labels=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR" --jq '.labels[].name')
             if [ -s changed.txt ] && ! grep -qvE '^(docs/.+|[^/]+\.md)$' changed.txt; then
               mode=docs why="only documentation changed"
-            elif [ "$FULL_LABEL" = true ]; then
+            elif grep -qx full-ci <<<"$labels"; then
               mode=full why="the PR has the full-ci label"
             elif [ "$ACTION" = ready_for_review ]; then
               mode=full why="the PR was marked ready for review"
@@ -148,7 +147,7 @@ jobs:
         id: deploy
         if: steps.creds.outputs.ok == 'true'
         env:
-          ALIAS: pr-${{ github.event.pull_request.number || inputs.pr || 'manual' }}
+          ALIAS: pr-${{ github.event.pull_request.number || 'manual' }}
         run: |
           cd apps/worker
           pnpm exec wrangler versions upload --preview-alias "$ALIAS" --message "$ALIAS ${GITHUB_SHA::7}" | tee upload.log
@@ -278,7 +277,7 @@ jobs:
           PREVIEW: ${{ needs.preview.result }}
           SHARDS: ${{ needs.e2e-shard.result }}
           PERF: ${{ needs.e2e-perf.result }}
-          PR: ${{ github.event.pull_request.number || inputs.pr }}
+          PR: ${{ github.event.pull_request.number }}
         run: |
           echo "mode=$MODE changes=$CHANGES preview=$PREVIEW e2e-shard=$SHARDS e2e-perf=$PERF"
           [ "$CHANGES" = success ] || exit 1

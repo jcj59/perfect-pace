@@ -57,6 +57,9 @@ rerun it after changing `wrangler.jsonc` (CI checks it is current).
 | PWA                 | Playwright, service worker on          | `e2e/tests/pwa.spec.ts`                         | Every PR                        |
 | Live smoke          | Playwright `@smoke` and `@live`        | `e2e/tests`                                     | Nightly and after each deploy   |
 
+"Every PR" means before merge, in the PR's full CI run; pushes in between get a quicker subset
+(see [Quick and full runs](#quick-and-full-runs)). Firefox and WebKit run weekly.
+
 Rules of thumb:
 
 - `@pp/core` has a 90% line and branch coverage floor. The UI relies on E2E tests instead.
@@ -134,34 +137,72 @@ issue. Quarantined tests still run in CI in a separate, non-blocking step.
 
 ## CI and deploys
 
-| Workflow           | Trigger                          | What it does                                                                                                          |
-| ------------------ | -------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `CI`               | every PR                         | `verify`, `perf`, `preview` (Worker version with alias `pr-<n>`), `e2e`, `lighthouse`                                 |
-| `Deploy`           | push to `main`                   | deploy production, smoke test it, roll back and open an issue on failure                                              |
-| `Nightly`          | 07:17 UTC daily                  | live smoke against production, full E2E on Chromium, Firefox and WebKit                                               |
-| `Visual baselines` | `visual-update` PR label, manual | regenerate screenshot baselines, one runner per project, merged into one artifact (used by `pnpm visual:update --ci`) |
+| Workflow           | Trigger                                    | What it does                                                                                                          |
+| ------------------ | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
+| `CI`               | every PR push, `full-ci` label, manual     | a quick, full or docs run (below): `verify`, `perf`, `preview` (alias `pr-<n>`), `e2e`, `lighthouse`                  |
+| `Full CI`          | `full-ci` PR label added                   | re-runs the head commit's `CI` run, which then runs in full (a label event cannot start one by itself)                |
+| `Deploy`           | push to `main`                             | deploy production, smoke test it, roll back and open an issue on failure                                              |
+| `Nightly`          | daily 07:17 UTC; Mondays 08:17 UTC; manual | daily: live smoke against production. Mondays and manual: full E2E on Firefox and WebKit, 4 shards                    |
+| `Visual baselines` | `visual-update` PR label, manual           | regenerate screenshot baselines, one runner per project, merged into one artifact (used by `pnpm visual:update --ci`) |
 
-The required checks on `main` are `verify`, `perf`, `preview`, `e2e` and `lighthouse`, with an
-up-to-date branch. `e2e` includes the axe checks (`a11y.spec.ts`, every key screen in both themes,
-including offline and keyboard drawing) and the PWA suite; `lighthouse` fails below an
-accessibility score of 95. Branch protection needs GitHub Pro on a private repository, so until
-then these are required by convention: every job hard-fails, and nothing merges red. Playwright traces, videos and screenshot diffs are uploaded as artifacts when a test fails.
+The required checks on `main` are `verify`, `perf`, `preview`, `e2e` and `lighthouse` (branch
+protection; the branch need not be up to date). `e2e` includes the axe checks (`a11y.spec.ts`,
+every key screen in both themes, including offline and keyboard drawing), the visual and PWA
+suites and the timing budgets; `lighthouse` fails below an accessibility score of 95. Playwright
+traces, videos and screenshot diffs are uploaded as artifacts when a test fails.
+
+### Quick and full runs
+
+Pushes to a PR get a **quick run**, and the **full run** is what merging needs:
+
+| Run   | When                                                                        | What runs                                                                                        |
+| ----- | --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| quick | every push (opened, synchronize, reopened) without the `full-ci` label      | `verify`, `perf`, `preview`, the `desktop` E2E project (visual and axe included) on 3 shards     |
+| full  | the PR has the `full-ci` label, is marked ready for review, or a manual run | `verify`, `perf`, `preview`, `desktop`, `iphone` and `pixel` on 8 shards, `e2e-perf`, Lighthouse |
+| docs  | every changed file is `docs/**` or a root `.md`                             | `verify`; the rest is skipped and `e2e` and `lighthouse` pass                                    |
+
+A quick run reports `e2e (quick)` and `lighthouse (full run only)` instead of `e2e` and
+`lighthouse`, so on its commit those two required checks stay "Expected" and the PR cannot be
+merged. Only a full run that passes on the PR's head commit turns them green, and any new push
+needs its own full run. A quick run's `e2e (quick)` still fails when a desktop test fails, and its
+summary says how to start the full run.
+
+To start the full run when the PR is ready (agents too, after their last planned push):
+
+```sh
+gh pr edit <n> --add-label full-ci   # full run now, and on every later push
+```
+
+Adding the label re-runs the head commit's CI run (the `Full CI` workflow cancels it first if it is
+still going), and that run's `changes` job reads the PR's labels again, so it runs in full. Any
+later re-run of that commit's run (for example "Re-run all jobs" in the Actions tab) also runs in
+full while the label is on. Marking a draft PR ready for review starts a full run too. Remove the
+label to go back to quick runs. Renovate's PRs get the label automatically (`renovate.json`), so
+they auto-merge only after a full run. A manual run (`gh workflow run ci.yml --ref <branch>`) is
+always full, but its checks do not show on a PR (GitHub lists a PR's checks from its
+`pull_request` runs), so use the label for PRs.
+
+Every run of a PR shares one concurrency group, so a new push (or a full run dispatched for the
+PR) cancels the run it supersedes. `CI` runs only for PRs and by hand, never on pushes to
+branches, so a commit is not tested twice; pushes to `main` only deploy.
 
 ### How a CI run is laid out
 
-Every job starts at once except E2E and `lighthouse`, which wait only for `preview` (seconds) and `changes`:
+Every job starts once `changes` (a few seconds) has picked the kind of run; E2E and Lighthouse also
+wait for `preview` (seconds):
 
-| Job             | What it does                                                                                      |
-| --------------- | ------------------------------------------------------------------------------------------------- |
-| `verify`        | lint, format, Worker types, typecheck, unit/golden/Worker tests, build                            |
-| `perf`          | Vitest benchmarks against their budgets                                                           |
-| `changes`       | decides whether E2E runs: it is skipped only when every changed file is `docs/**` or a root `.md` |
-| `preview`       | builds and uploads the `pr-<n>` preview version (does nothing without Cloudflare secrets)         |
-| `e2e shard i/8` | the desktop, iPhone and Pixel projects, split by test count over 8 runners (`--shard i/8`)        |
-| `e2e-perf`      | the `load-perf` and `plan-perf` budgets, one at a time on a runner of their own                   |
-| `e2e`           | the required check: passes only if every shard and `e2e-perf` passed (or E2E was skipped)         |
-| `e2e-report`    | merges the shards' blob reports into one HTML report (artifact `playwright-report-<attempt>`)     |
-| `lighthouse`    | Lighthouse accessibility (at least 95, phone and desktop) on the preview; reports as an artifact  |
+| Job              | What it does                                                                                                         |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `changes`        | picks quick, full or docs, and the E2E projects and shards for it                                                    |
+| `verify`         | lint, format, Worker types, typecheck, unit/golden/Worker tests, build                                               |
+| `perf`           | Vitest benchmarks against their budgets (skipped on docs)                                                            |
+| `preview`        | builds and uploads the `pr-<n>` preview version (skipped on docs; does nothing without Cloudflare secrets)           |
+| `e2e shard i/n`  | full: desktop, iPhone and Pixel over 8 runners (`--shard i/8`); quick: desktop over 3                                |
+| `e2e-perf`       | full only: the `load-perf` and `plan-perf` budgets, one at a time on a runner of their own                           |
+| `e2e`            | the required check: every shard and `e2e-perf` passed (full) or only docs changed; `e2e (quick)` in a quick run      |
+| `e2e-report`     | merges the shards' blob reports into one HTML report (full runs, and quick runs that failed)                         |
+| `lighthouse-run` | full only: Lighthouse accessibility (at least 95, phone and desktop) on the preview                                  |
+| `lighthouse`     | the required check: `lighthouse-run` passed (full) or only docs changed; `lighthouse (full run only)` in a quick run |
 
 Each shard is a full Playwright run in the Playwright container, with one worker (the 2-vCPU
 runner's default; two workers were only 1.4x faster and stretched each test by 40%) and the same
@@ -169,7 +210,7 @@ single retry, so a test behaves as it did unsharded. On failure a shard uploads 
 videos as `playwright-shard-<i>-<attempt>`. The budget projects cannot share a shard: they depend
 on the three device projects, so Playwright would pull all of those into the same shard.
 
-To add capacity as the suite grows, raise the shard count in the `e2e-shard` matrix. Measured on
+To add capacity as the suite grows, raise the shard counts in the `changes` job. Measured on
 real runs on 2-vCPU `ubuntu-latest` with 398 tests (before: the last green PR 12 run; after: the
 sharding PR on two runs once PR 12 was merged into it):
 
@@ -184,6 +225,19 @@ sharding PR on two runs once PR 12 was merged into it):
 | Whole run, wall clock | 22.5 min              | 5.2 to 6.7 min                     |
 
 On the 335-test suite before PR 12, the same change took a run from 19.2 to 5.3 minutes.
+
+### What CI costs
+
+Billed minutes are the sum over a run's jobs of each job's minutes, rounded up per job (how GitHub
+bills, though Actions are free on this public repository); skipped jobs cost nothing. Measured on
+real runs (before: PRs 17 and 19 on 2026-11-15; after: this change's PR and its probes):
+
+BILLING_TABLE
+
+Where a full run's minutes go: each shard spends about a minute on overhead (30 to 45 s pulling the
+Playwright container, 20 s installing dependencies from the pnpm cache, a few seconds building and
+saving caches) and 3 to 5 minutes testing, so a desktop-only quick run on 3 shards does a third of
+the testing with 3 rather than 8 shards' overhead.
 
 Deploys need two repository secrets: `CLOUDFLARE_API_TOKEN` (a token from the "Edit Cloudflare
 Workers" template) and `CLOUDFLARE_ACCOUNT_ID`. Without them the `preview` job skips the deploy and
