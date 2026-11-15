@@ -23,7 +23,7 @@ import { PanelHeader } from "./panel/PanelHeader.tsx";
 import { ThemeSwitch } from "./panel/ThemeSwitch.tsx";
 import { type CourseState, type SheetSnap, setSheet, useAppState } from "./state/app.ts";
 import { drawStore, drawing, useDrawState } from "./state/draw.ts";
-import { LOAD_MEASURE, LOAD_START_MARK, ROUTE_DRAWN_MARK } from "./state/course.ts";
+import { LOAD_MEASURE, LOAD_START_MARK, ROUTE_DRAWN_MARK, routeSettled } from "./state/course.ts";
 import { focusNearest, focusPosition, readyProfile } from "./state/focus.ts";
 import { startPlanner, usePlanView } from "./state/plan.ts";
 import { segmentTone } from "./plan/tones.ts";
@@ -48,8 +48,12 @@ function usePhoneInsets(sheet: SheetSnap): Insets {
   return useMemo(() => ({ top: 0, right: 0, bottom, left: 0 }), [bottom]);
 }
 
-/** Once a new route is on screen: close the load measure that the perf budget reads. */
+/**
+ * Once a new route is on screen: let the work that waited for it run, and close the load measure
+ * that the perf budget reads.
+ */
 function markRouteDrawn(): void {
+  routeSettled();
   if (performance.getEntriesByName(LOAD_START_MARK, "mark").length === 0) return;
   performance.mark(ROUTE_DRAWN_MARK);
   performance.measure(LOAD_MEASURE, LOAD_START_MARK, ROUTE_DRAWN_MARK);

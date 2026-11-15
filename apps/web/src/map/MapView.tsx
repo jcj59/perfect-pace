@@ -15,6 +15,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 // MapLibre finds its worker next to its own module, which a bundle moves; point it at the built file.
 import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url";
 import type { Theme } from "../state/app.ts";
+import { ROUTE_SET_MARK, mapCannotDraw } from "../state/course.ts";
 import {
   COURSE_HIT_LAYER,
   COURSE_LINE_LAYER,
@@ -192,6 +193,7 @@ export default function MapView({
 
   useEffect(() => {
     const element = container.current;
+    if (!webgl) mapCannotDraw();
     if (!element || !webgl) return;
     const { theme, insets } = initial.current;
     let instance: MapLibreMap;
@@ -213,6 +215,7 @@ export default function MapView({
       });
     } catch (error) {
       console.error("The map could not start", error);
+      mapCannotDraw();
       return;
     }
     instance.touchZoomRotate.disableRotation();
@@ -301,6 +304,7 @@ export default function MapView({
         return;
       }
       void source.setData(data);
+      if (route) performance.mark(ROUTE_SET_MARK);
       const bounds = route && courseBounds(route);
       if (!bounds) return;
       instance.fitBounds(bounds, {
