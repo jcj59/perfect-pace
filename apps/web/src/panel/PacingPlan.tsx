@@ -14,6 +14,7 @@ import { type CSSProperties, type KeyboardEvent, useId, useLayoutEffect, useMemo
 import { useWidth } from "../layout/useWidth.ts";
 import { InfoPopover } from "./InfoPopover.tsx";
 import { curveKnee, curvePoints } from "../plan/curve.ts";
+import { paceBand } from "../plan/export.ts";
 import { SUGGESTED_PACE_S_PER_MI, checkGoal, minSegmentOptions, roundPreservingSum } from "../plan/inputs.ts";
 import { TONES, type Tone, segmentTone, toneLabel, toneVar } from "../plan/tones.ts";
 import {
@@ -477,14 +478,14 @@ function PlanTables({ plan, units, view }: { plan: Plan; units: DistanceUnit; vi
   }, [plan]);
 
   const segments = plan.segments.length;
-  const unitWord = units === "mi" ? "mile" : "kilometer";
+  const splits = view === "splits" ? paceBand(plan, units).length : 0;
   return (
     <>
       <div className="mb-3 flex items-center justify-between gap-3">
         <p className="text-[13px] text-ink-muted" data-testid="table-summary">
           {view === "segments"
             ? `${segments} ${segments === 1 ? "segment" : "segments"}`
-            : `Every ${unitWord}, then the finish`}
+            : `${splits} ${splits === 1 ? "split" : "splits"} by the ${units === "mi" ? "mile" : "kilometer"}`}
         </p>
         <Segmented
           legend="Show the plan"
