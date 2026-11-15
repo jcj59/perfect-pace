@@ -1,11 +1,11 @@
 import { type ElevationProfile, type SharedCourse } from "@pp/core";
-import { type ReactNode, useEffect, useId, useMemo, useRef, useState } from "react";
+import { type ReactNode, useEffect, useId, useRef, useState } from "react";
 import { Icon } from "../draw/icons.tsx";
 import { courseGpx, courseName, downloadText, fileSlug, planCsv } from "../plan/export.ts";
 import { type CourseState, useAppState } from "../state/app.ts";
 import { useDrawState } from "../state/draw.ts";
 import { usePlanView } from "../state/plan.ts";
-import { prepareShare, shareUrl } from "../state/session.ts";
+import { type PreparedShare, prepareShare, shareUrl, whenIdle } from "../state/session.ts";
 import { BUTTON_BASE, BUTTON_VARIANTS } from "./FileButton.tsx";
 
 type Shown = Extract<CourseState, { status: "loaded" } | { status: "drawn" }>;
@@ -23,24 +23,45 @@ const PRINT = (
   <path d="M7 9V4h10v5M7 17H5a1 1 0 0 1-1-1v-5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v5a1 1 0 0 1-1 1h-2M7 14h10v6H7z" />
 );
 
-/** The course a link carries, ready to share (an uploaded one simplified), computed once per course. */
-function usePreparedShare(course: Shown) {
+/**
+ * The course a link carries, ready to share (an uploaded one simplified in the worker): undefined
+ * while it is worked out, null when it is too large for a link. Once per course.
+ */
+function usePreparedShare(course: Shown): PreparedShare | null | undefined {
   const route = useDrawState((s) => s.history.present);
   const file = course.status === "loaded" ? course.file : null;
   const track = course.status === "loaded" ? course.track : 0;
-  const name = courseName(course);
-  return useMemo(() => {
+  const name = course.status === "loaded" ? courseName(course) : undefined;
+  const [prepared, setPrepared] = useState<{ key: unknown; value: PreparedShare | null } | null>(null);
+  const key = course.status === "drawn" ? route : file?.tracks[track];
+  useEffect(() => {
     let shared: SharedCourse | undefined;
     if (course.status === "drawn") shared = route.waypoints.length >= 2 ? { kind: "drawn", route } : undefined;
     else {
       const points = file?.tracks[track]?.course.points;
       shared = points ? { kind: "track", points } : undefined;
     }
-    if (!shared) return undefined;
-    // The inputs do not matter here: `prepareShare` leaves room for any.
-    const settings = { goalTimeS: null, paceChanges: 0, minSegmentM: 0, unit: "mi" as const };
-    return prepareShare({ course: shared, settings, ...(course.status === "loaded" ? { name } : {}) }) ?? null;
-  }, [course.status, route, file, track, name]);
+    if (!shared) return;
+    const controller = new AbortController();
+    // Once the main thread is idle: a new course's map and plan come first.
+    const cancel = whenIdle(() => {
+      prepareShare(shared, name, { signal: controller.signal }).then(
+        (value) => {
+          if (!controller.signal.aborted) setPrepared({ key, value: value ?? null });
+        },
+        (error: unknown) => {
+          if (controller.signal.aborted) return;
+          console.error("Could not prepare the share link", error);
+          setPrepared({ key, value: null });
+        },
+      );
+    });
+    return () => {
+      cancel();
+      controller.abort();
+    };
+  }, [course.status, route, file, track, name, key]);
+  return prepared && prepared.key === key ? prepared.value : undefined;
 }
 
 /**

@@ -180,5 +180,6 @@ export {
   encodeShare,
   encodeSharedCourse,
   isShareFragment,
+  shareTrackBudget,
   simplifyForShare,
 } from "./share.ts";

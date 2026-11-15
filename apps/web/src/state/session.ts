@@ -24,16 +24,17 @@ import {
   type SharedPlan,
   type SharedSettings,
   buildShareLink,
+  shareTrackBudget,
   encodeShare,
   decodeShare,
   decodeSharedCourse,
   encodeSharedCourse,
   isShareFragment,
-  simplifyForShare,
 } from "@pp/core";
 import { type AppState, type PlanSettings, appStore, applyPlanSettings, setLinkError, setSheet } from "./app.ts";
 import { loadCourseCopy, loadGpxText, onGpxText, trackTitle } from "./course.ts";
-import { type DrawState, drawStore, drawing } from "./draw.ts";
+import { coreClient } from "../worker/client.ts";
+import { drawStore, drawing } from "./draw.ts";
 
 export const SESSION_STORAGE_KEY = "pp:session";
 /** The loaded file's text, kept apart from the session so plan changes never rewrite it. */
@@ -91,29 +92,6 @@ function write(key: string, value: string | null): boolean {
   }
 }
 
-/** The plan as a share link carries it: the course on screen and the plan inputs. Undefined with no course. */
-export function sharedPlan(state: AppState, draws: DrawState): SharedPlan | undefined {
-  const settings = {
-    goalTimeS: state.goalTimeS,
-    paceChanges: state.paceChanges,
-    minSegmentM: state.minSegmentM,
-    unit: state.units,
-  };
-  const { course } = state;
-  if (course.status === "drawn") {
-    const route = draws.history.present;
-    return route.waypoints.length >= 2 ? { course: { kind: "drawn", route }, settings } : undefined;
-  }
-  if (course.status !== "loaded") return undefined;
-  const track = course.file.tracks[course.track];
-  if (!track) return undefined;
-  return {
-    course: { kind: "track", points: track.course.points },
-    settings,
-    name: trackTitle(course.file, course.track, course.fileName),
-  };
-}
-
 /** The longest plan inputs a link can carry, so a course that fits with these fits with any. */
 const LONGEST_SETTINGS: SharedSettings = {
   goalTimeS: MAX_SHARE_GOAL_S,
@@ -130,20 +108,49 @@ export interface PreparedShare {
   track?: ShareTrack;
 }
 
+/**
+ * Run `task` once the main thread is idle (so work that can wait never delays drawing a course),
+ * or after `timeoutMs` at the latest. Returns the function that cancels it.
+ */
+export function whenIdle(task: () => void, timeoutMs = 1000): () => void {
+  if (typeof requestIdleCallback === "function") {
+    const id = requestIdleCallback(task, { timeout: timeoutMs });
+    return () => cancelIdleCallback(id);
+  }
+  const id = setTimeout(task, 50);
+  return () => clearTimeout(id);
+}
+
 /** The page links point at: this one, without its query or fragment. */
 export const shareBase = (): string => `${location.origin}${location.pathname}`;
 
 /**
- * Get a course ready to share: simplified to fit a link with room for any plan inputs. This is
- * the slow part (for a long track), so it runs once per course, not on every input change.
- * Undefined when the course is too large for a link.
+ * Get a course ready to share: an uploaded one simplified (in the core worker, since a long track
+ * takes a while) to fit a link with room for any plan inputs. Runs once per course, not on every
+ * input change. Resolves undefined when the course is too large for a link.
  */
-export function prepareShare(plan: SharedPlan, base = shareBase()): PreparedShare | undefined {
-  const link = buildShareLink(base, { ...plan, settings: LONGEST_SETTINGS });
-  if (!link) return undefined;
-  const course: SharedCourse = link.track ? { kind: "track", points: link.track.points } : plan.course;
-  return { course, ...(plan.name ? { name: plan.name } : {}), ...(link.track ? { track: link.track } : {}) };
+export async function prepareShare(
+  course: SharedCourse,
+  name: string | undefined,
+  options: { base?: string; signal?: AbortSignal } = {},
+): Promise<PreparedShare | undefined> {
+  const base = options.base ?? shareBase();
+  const named = name ? { name } : {};
+  if (course.kind === "drawn") {
+    const link = buildShareLink(base, { course, settings: LONGEST_SETTINGS, ...named });
+    return link ? { course, ...named } : undefined;
+  }
+  const maxChars = shareTrackBudget(base, { settings: LONGEST_SETTINGS, ...named });
+  const track = await coreClient().call(
+    "shareTrack",
+    { points: plainPoints(course.points), maxChars },
+    options.signal ? { signal: options.signal } : {},
+  );
+  return track ? { course: { kind: "track", points: track.points }, ...named, track } : undefined;
 }
+
+/** Positions only, so a course's points cross to the worker without their other fields. */
+const plainPoints = (points: readonly LatLon[]): LatLon[] => points.map(({ lat, lon }) => ({ lat, lon }));
 
 /** The link for a prepared course with these plan inputs. */
 export function shareUrl(prepared: PreparedShare, settings: SharedSettings, base = shareBase()): string {
@@ -259,6 +266,29 @@ function trackPoints(file: GpxFile, index: number): readonly LatLon[] {
   return file.tracks[index]?.course.points ?? [];
 }
 
+/** The simplified copy kept for a file too large to store whole, worked out once per track. */
+let savedCopy: { file: GpxFile; track: number; c: string | null } | null = null;
+let copyRequest: { file: GpxFile; track: number } | null = null;
+
+/** Work out the saved copy of a track in the core worker, then save the session again. */
+function requestSavedCopy(file: GpxFile, track: number): void {
+  if (copyRequest?.file === file && copyRequest.track === track) return;
+  const request = { file, track };
+  copyRequest = request;
+  void coreClient()
+    .call("shareTrack", { points: plainPoints(trackPoints(file, track)), maxChars: SAVED_COPY_MAX_CHARS })
+    .then(
+      (copy) => ({ file, track, c: copy ? encodeSharedCourse({ kind: "track", points: copy.points }) : null }),
+      () => ({ file, track, c: null }),
+    )
+    .then((result) => {
+      if (copyRequest !== request) return;
+      copyRequest = null;
+      savedCopy = result;
+      saveSession();
+    });
+}
+
 function savedCourse(state: AppState, route: DrawnRoute): SavedCourse | null | "skip" {
   const { course } = state;
   switch (course.status) {
@@ -270,17 +300,24 @@ function savedCourse(state: AppState, route: DrawnRoute): SavedCourse | null | "
       if (!course.copy && course.file === storedFile) {
         return { kind: "file", fileName: course.fileName, track: course.track };
       }
-      const points = trackPoints(course.file, course.track);
-      // A link's copy is already simplified; a file too large to keep is simplified now.
-      const simplified = course.copy ? points : simplifyForShare(points, SAVED_COPY_MAX_CHARS)?.points;
-      if (!simplified) return null;
-      const name = course.copy ? course.fileName : trackTitle(course.file, course.track, course.fileName);
-      return {
-        kind: "copy",
-        copy: course.copy ?? "saved",
-        name,
-        c: encodeSharedCourse({ kind: "track", points: simplified.map(({ lat, lon }) => ({ lat, lon })) }),
-      };
+      if (course.copy) {
+        // A link's copy is already simplified.
+        const points = plainPoints(trackPoints(course.file, course.track));
+        return {
+          kind: "copy",
+          copy: course.copy,
+          name: course.fileName,
+          c: encodeSharedCourse({ kind: "track", points }),
+        };
+      }
+      // A file too large to keep whole is simplified (in the worker), then saved.
+      if (savedCopy?.file !== course.file || savedCopy.track !== course.track) {
+        requestSavedCopy(course.file, course.track);
+        return "skip";
+      }
+      if (savedCopy.c === null) return null;
+      const name = trackTitle(course.file, course.track, course.fileName);
+      return { kind: "copy", copy: "saved", name, c: savedCopy.c };
     }
     default:
       return null;
@@ -333,14 +370,19 @@ export function startSession(): () => void {
   }
 
   let timer: ReturnType<typeof setTimeout> | undefined;
+  let cancelIdle: (() => void) | undefined;
   const flush = () => {
     clearTimeout(timer);
+    cancelIdle?.();
     timer = undefined;
+    cancelIdle = undefined;
     saveSession();
   };
   const schedule = () => {
     clearTimeout(timer);
-    timer = setTimeout(flush, SAVE_DEBOUNCE_MS);
+    cancelIdle?.();
+    cancelIdle = undefined;
+    timer = setTimeout(() => (cancelIdle = whenIdle(flush)), SAVE_DEBOUNCE_MS);
   };
   const unsubscribeApp = appStore.subscribe((state, previous) => {
     if (
@@ -356,7 +398,7 @@ export function startSession(): () => void {
     if (state.history.present !== previous.history.present) schedule();
   });
   const onHide = () => {
-    if (timer !== undefined) flush();
+    if (timer !== undefined || cancelIdle !== undefined) flush();
   };
   const onVisibility = () => {
     if (document.visibilityState === "hidden") onHide();

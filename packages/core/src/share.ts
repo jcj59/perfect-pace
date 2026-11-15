@@ -290,14 +290,23 @@ export interface ShareLink {
  * here (see `simplifyForShare`) to fit what the rest of the link leaves. Undefined when the
  * course does not fit: too many waypoints, or a track too long or detailed to simplify enough.
  */
+/**
+ * How many characters a `t.` course field may take in the link for `plan` on the page at `base`:
+ * what `MAX_SHARE_URL_LENGTH` leaves after the page and the other fields. For `simplifyForShare`.
+ */
+export function shareTrackBudget(base: string, plan: Omit<SharedPlan, "course">): number {
+  const page = `${base.replace(/#.*$/, "")}#`;
+  const rest = page.length + encodeShare({ ...plan, course: { kind: "track", points: [] } }).length - "t.".length;
+  return MAX_SHARE_URL_LENGTH - rest;
+}
+
 export function buildShareLink(base: string, plan: SharedPlan): ShareLink | undefined {
   const page = `${base.replace(/#.*$/, "")}#`;
   if (plan.course.kind === "drawn") {
     const url = page + encodeShare(plan);
     return url.length <= MAX_SHARE_URL_LENGTH ? { url } : undefined;
   }
-  const rest = page.length + encodeShare({ ...plan, course: { kind: "track", points: [] } }).length - "t.".length;
-  const track = simplifyForShare(plan.course.points, MAX_SHARE_URL_LENGTH - rest);
+  const track = simplifyForShare(plan.course.points, shareTrackBudget(base, plan));
   if (!track) return undefined;
   return { url: page + encodeShare({ ...plan, course: { kind: "track", points: track.points } }), track };
 }
