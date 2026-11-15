@@ -1,8 +1,8 @@
 name: CI
 
 # Every PR: static checks, unit/golden/integration tests, performance budgets, a Cloudflare
-# preview deploy, then Playwright E2E, visual and axe checks against that preview.
-# Required checks on main: verify, perf, preview, e2e.
+# preview deploy, then Playwright E2E, visual and axe checks (and Lighthouse) against that preview.
+# Required checks on main: verify, perf, preview, e2e, lighthouse.
 
 on:
   pull_request:
@@ -122,4 +122,30 @@ jobs:
           path: |
             e2e/test-results
             e2e/playwright-report
+          retention-days: 14
+
+  # Lighthouse accessibility (at least 95, phone and desktop) against the preview. Installability
+  # and the service worker are asserted in the E2E suite (e2e/tests/pwa.spec.ts).
+  lighthouse:
+    needs: preview
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    container:
+      image: mcr.microsoft.com/playwright:v1.65.0-noble
+      options: --ipc=host
+    env:
+      PP_BASE_URL: ${{ needs.preview.outputs.url }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      - name: Build for local wrangler dev (no preview URL)
+        if: env.PP_BASE_URL == ''
+        run: pnpm build
+      - name: Accessibility score
+        run: pnpm lighthouse
+      - uses: actions/upload-artifact@v7
+        if: success() || failure()
+        with:
+          name: lighthouse-${{ github.run_attempt }}
+          path: e2e/lighthouse-report
           retention-days: 14

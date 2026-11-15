@@ -92,6 +92,16 @@ body {
   text-rendering: optimizeLegibility;
 }
 
+/* MapLibre's control corners, clear of notches and the home indicator (insets are zero elsewhere). */
+.maplibregl-map .maplibregl-ctrl-top-right {
+  top: env(safe-area-inset-top);
+  right: env(safe-area-inset-right);
+}
+.maplibregl-map .maplibregl-ctrl-bottom-right {
+  bottom: env(safe-area-inset-bottom);
+  right: env(safe-area-inset-right);
+}
+
 /* MapLibre controls, restyled to sit with the panel. Scoped under .maplibregl-map to win over its stylesheet. */
 .maplibregl-map .maplibregl-ctrl-group,
 .maplibregl-map .maplibregl-ctrl.maplibregl-ctrl-attrib {
@@ -299,6 +309,24 @@ body {
     0 0 0 3px var(--pp-surface),
     0 0 0 5px var(--pp-accent);
 }
+/* Where Enter adds a waypoint while the map has keyboard focus: its center (MapView sets `translate`). */
+.pp-crosshair {
+  position: absolute;
+  top: -14px;
+  left: -14px;
+  width: 28px;
+  height: 28px;
+  pointer-events: none;
+  border-radius: 9999px;
+  border: 2px solid var(--pp-accent);
+  box-shadow:
+    0 0 0 2px var(--pp-surface),
+    inset 0 0 0 2px var(--pp-surface);
+  background:
+    linear-gradient(var(--pp-accent), var(--pp-accent)) center / 2px 12px no-repeat,
+    linear-gradient(var(--pp-accent), var(--pp-accent)) center / 12px 2px no-repeat;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .pp-waypoint > span,
   .pp-midpoint > span {

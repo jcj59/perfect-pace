@@ -61,6 +61,9 @@ export default defineConfig({
   },
   use: {
     baseURL,
+    // The service worker would answer requests the tests stub, and precache the build in every
+    // test. Only the PWA suite (tests/pwa.spec.ts) turns it on.
+    serviceWorkers: "block",
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
     video: "retain-on-failure",

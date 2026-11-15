@@ -20,10 +20,11 @@ export function SidePanel({ label, header, children, footer }: SidePanelProps) {
       aria-label={label}
       data-testid="side-panel"
       className="absolute z-10 flex flex-col overflow-hidden rounded-3xl border border-line bg-surface shadow-panel"
+      // Clear of a landscape phone's notch and home indicator (zero elsewhere).
       style={{
-        top: SIDE_PANEL_GAP_PX,
-        bottom: SIDE_PANEL_GAP_PX,
-        left: SIDE_PANEL_GAP_PX,
+        top: `max(${SIDE_PANEL_GAP_PX}px, env(safe-area-inset-top))`,
+        bottom: `max(${SIDE_PANEL_GAP_PX}px, env(safe-area-inset-bottom))`,
+        left: `max(${SIDE_PANEL_GAP_PX}px, env(safe-area-inset-left))`,
         width: SIDE_PANEL_WIDTH_PX,
       }}
     >
