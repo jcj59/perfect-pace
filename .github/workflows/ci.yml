@@ -1,7 +1,9 @@
 name: CI
 
 # Every PR: static checks, unit/golden/integration tests, performance budgets, a Cloudflare
-# preview deploy, then Playwright E2E, visual and axe checks (and Lighthouse) against that preview.
+# preview deploy, and Playwright E2E, visual and axe checks (and Lighthouse) against that preview. The E2E suite
+# starts as soon as the preview is up (in parallel with verify and perf) and is split across
+# shards; the `e2e` job at the end gathers them into one result.
 # Required checks on main: verify, perf, preview, e2e, lighthouse.
 
 on:
@@ -34,11 +36,6 @@ jobs:
       - name: Unit, golden and Worker integration tests (with the core coverage floor)
         run: pnpm test
       - run: pnpm build
-      - uses: actions/upload-artifact@v7
-        with:
-          name: web-dist
-          path: apps/web/dist
-          retention-days: 7
 
   perf:
     runs-on: ubuntu-latest
@@ -49,32 +46,62 @@ jobs:
       - name: Benchmarks within budget
         run: pnpm perf
 
+  # Whether the E2E suite has anything to test: it is skipped (and `e2e` passes) only when every
+  # changed file is documentation the app and the tests never read. verify still runs on those.
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      e2e: ${{ steps.filter.outputs.e2e }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The PR merge commit and its first parent (the base branch), to diff the two.
+          fetch-depth: 2
+      - id: filter
+        run: |
+          e2e=true
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            git diff --name-only HEAD^1 HEAD | tee changed.txt
+            if [ -s changed.txt ] && ! grep -qvE '^(docs/.+|[^/]+\.md)$' changed.txt; then
+              e2e=false
+              echo "### E2E skipped: only documentation changed" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          fi
+          echo "e2e=$e2e" >> "$GITHUB_OUTPUT"
+
   preview:
-    needs: verify
     runs-on: ubuntu-latest
     timeout-minutes: 10
     outputs:
       url: ${{ steps.deploy.outputs.url }}
       version: ${{ steps.deploy.outputs.version }}
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
     steps:
-      - uses: actions/checkout@v7
-      - uses: ./.github/actions/setup
-      - uses: actions/download-artifact@v8
-        with:
-          name: web-dist
-          path: apps/web/dist
-      - name: Upload a preview version
-        id: deploy
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          ALIAS: pr-${{ github.event.pull_request.number || 'manual' }}
+      - name: Cloudflare credentials present
+        id: creds
         run: |
           if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
             echo "::warning::CLOUDFLARE_API_TOKEN or CLOUDFLARE_ACCOUNT_ID is not set: no preview deploy. E2E will run against local wrangler dev."
             echo "### Preview skipped (no Cloudflare credentials)" >> "$GITHUB_STEP_SUMMARY"
-            exit 0
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
           fi
+      - uses: actions/checkout@v7
+        if: steps.creds.outputs.ok == 'true'
+      - uses: ./.github/actions/setup
+        if: steps.creds.outputs.ok == 'true'
+      - run: pnpm build
+        if: steps.creds.outputs.ok == 'true'
+      - name: Upload a preview version
+        id: deploy
+        if: steps.creds.outputs.ok == 'true'
+        env:
+          ALIAS: pr-${{ github.event.pull_request.number || 'manual' }}
+        run: |
           cd apps/worker
           pnpm exec wrangler versions upload --preview-alias "$ALIAS" --message "$ALIAS ${GITHUB_SHA::7}" | tee upload.log
           version=$(sed -n 's/^Worker Version ID: *//p' upload.log)
@@ -90,12 +117,64 @@ jobs:
             echo "- Version: \`$version\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
-  e2e:
-    needs: preview
+  # The desktop, iPhone and Pixel projects, split evenly by test count. Each shard is a full
+  # Playwright run on its own runner, in the same image `pnpm visual:update` uses, so screenshots
+  # match the committed baselines.
+  e2e-shard:
+    name: e2e shard ${{ matrix.shard }}/${{ strategy.job-total }}
+    needs: [changes, preview]
+    if: needs.changes.outputs.e2e == 'true'
     runs-on: ubuntu-latest
-    # About 400 tests on three projects at two workers: the full run takes roughly 20 minutes.
-    timeout-minutes: 35
-    # The same image `pnpm visual:update` uses, so screenshots match the committed baselines.
+    # A shard takes 3 to 5 minutes; the headroom covers a slow runner and the suite growing until
+    # the shard count is raised (see CONTRIBUTING.md).
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
+    container:
+      image: mcr.microsoft.com/playwright:v1.65.0-noble
+      options: --ipc=host
+    env:
+      PP_BASE_URL: ${{ needs.preview.outputs.url }}
+      PP_EXPECT_VERSION: ${{ needs.preview.outputs.version }}
+      SHARD: ${{ matrix.shard }}/${{ strategy.job-total }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      - name: Build for local wrangler dev (no preview URL)
+        if: env.PP_BASE_URL == ''
+        run: pnpm build
+      - name: E2E, visual and axe
+        env:
+          PP_BLOB_REPORT: "1"
+        run: pnpm e2e --project desktop --project iphone --project pixel --shard "$SHARD"
+      - name: Quarantined tests (non-blocking)
+        continue-on-error: true
+        env:
+          PP_QUARANTINE: "1"
+        run: pnpm e2e --project desktop --project iphone --project pixel --shard "$SHARD" --pass-with-no-tests --reporter=list
+      - uses: actions/upload-artifact@v7
+        if: success() || failure()
+        with:
+          name: blob-report-${{ matrix.shard }}
+          # A rerun of failed jobs replaces their reports, so the merged report stays complete.
+          overwrite: true
+          path: e2e/blob-report
+          retention-days: 3
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: playwright-shard-${{ matrix.shard }}-${{ github.run_attempt }}
+          path: e2e/test-results
+          retention-days: 14
+
+  # The timing budgets that must not share the CPU, on a runner of their own, one at a time.
+  e2e-perf:
+    needs: [changes, preview]
+    if: needs.changes.outputs.e2e == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
     container:
       image: mcr.microsoft.com/playwright:v1.65.0-noble
       options: --ipc=host
@@ -108,20 +187,72 @@ jobs:
       - name: Build for local wrangler dev (no preview URL)
         if: env.PP_BASE_URL == ''
         run: pnpm build
-      - name: E2E, visual and axe
-        run: pnpm e2e
-      - name: Quarantined tests (non-blocking)
-        continue-on-error: true
+      # Hosted runners vary in CPU, and the budgets track it; the model explains a slow run.
+      - name: Runner CPU
+        run: grep -m1 'model name' /proc/cpuinfo; nproc
+      - name: Load and plan budgets, alone
         env:
-          PP_QUARANTINE: "1"
-        run: pnpm e2e --pass-with-no-tests
+          PP_BLOB_REPORT: "1"
+        run: pnpm e2e --project load-perf --project plan-perf --no-deps --workers 1
+      - uses: actions/upload-artifact@v7
+        if: success() || failure()
+        with:
+          name: blob-report-perf
+          # A rerun of failed jobs replaces their reports, so the merged report stays complete.
+          overwrite: true
+          path: e2e/blob-report
+          retention-days: 3
       - uses: actions/upload-artifact@v7
         if: failure()
         with:
-          name: playwright-${{ github.run_attempt }}
-          path: |
-            e2e/test-results
-            e2e/playwright-report
+          name: playwright-perf-${{ github.run_attempt }}
+          path: e2e/test-results
+          retention-days: 14
+
+  # The required check: passes only when every shard and the perf budgets passed (or E2E was
+  # skipped because only documentation changed).
+  e2e:
+    needs: [changes, preview, e2e-shard, e2e-perf]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Every E2E job passed
+        env:
+          RUN_E2E: ${{ needs.changes.outputs.e2e }}
+          CHANGES: ${{ needs.changes.result }}
+          PREVIEW: ${{ needs.preview.result }}
+          SHARDS: ${{ needs.e2e-shard.result }}
+          PERF: ${{ needs.e2e-perf.result }}
+        run: |
+          echo "changes=$CHANGES preview=$PREVIEW e2e-shard=$SHARDS e2e-perf=$PERF (run e2e: $RUN_E2E)"
+          if [ "$CHANGES" = success ] && [ "$PREVIEW" = success ] && [ "$RUN_E2E" = false ]; then
+            echo "Only documentation changed: E2E skipped."
+            exit 0
+          fi
+          [ "$CHANGES" = success ] && [ "$PREVIEW" = success ] && [ "$SHARDS" = success ] && [ "$PERF" = success ]
+
+  # One HTML report for the whole run, merged from every shard's blob report. Not a required
+  # check: it only packages what the shards already decided.
+  e2e-report:
+    needs: [changes, e2e-shard, e2e-perf]
+    if: always() && needs.changes.outputs.e2e == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: blob-report-*
+          path: e2e/all-blob-reports
+          merge-multiple: true
+      - name: Merge into one HTML report
+        run: pnpm --dir e2e exec playwright merge-reports --reporter html ./all-blob-reports
+      - uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report-${{ github.run_attempt }}
+          path: e2e/playwright-report
           retention-days: 14
 
   # Lighthouse accessibility (at least 95, phone and desktop) against the preview. Installability

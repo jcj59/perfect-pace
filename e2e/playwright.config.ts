@@ -6,6 +6,8 @@ import { defineConfig, devices, type Project } from "@playwright/test";
  *   real Worker locally with `wrangler dev` (build the web app first: `pnpm build`).
  * - PP_BROWSERS=all: add Firefox and WebKit projects (nightly). Visual baselines are Chromium only.
  * - PP_QUARANTINE=1: run only `@quarantine` tests (CI runs them in a non-blocking step).
+ * - PP_BLOB_REPORT=1: in CI, write a blob report (`blob-report/`) instead of the HTML one, for
+ *   `playwright merge-reports` to combine across shards.
  * - PP_VISUAL=1: compare screenshots outside CI. Baselines come from the Linux Playwright
  *   container, so local runs skip screenshot assertions unless you run `pnpm visual:update`.
  */
@@ -54,7 +56,10 @@ export default defineConfig({
   // One retry in CI; a test that passes only on retry is reported as flaky, not hidden.
   retries: CI ? 1 : 0,
   ...(quarantine ? { grep: /@quarantine/ } : { grepInvert: /@quarantine/ }),
-  reporter: CI ? [["github"], ["list"], ["html", { open: "never" }]] : [["list"]],
+  // CI shards write a blob report each, merged into one HTML report afterwards (see ci.yml).
+  reporter: CI
+    ? [["github"], ["list"], process.env["PP_BLOB_REPORT"] === "1" ? ["blob"] : ["html", { open: "never" }]]
+    : [["list"]],
   outputDir: "test-results",
   expect: {
     toHaveScreenshot: { animations: "disabled", caret: "hide", scale: "css" },
