@@ -145,3 +145,40 @@ export {
   routeLegs,
   stitchLegs,
 } from "./draw.ts";
+export {
+  DEFAULT_POLYLINE_PRECISION,
+  PolylineError,
+  decodePolyline,
+  encodePolyline,
+  fromUrlSafe,
+  toUrlSafe,
+} from "./polyline.ts";
+export {
+  GPX_COORDINATE_DECIMALS,
+  GPX_ELEVATION_DECIMALS,
+  type GpxWriteOptions,
+  escapeXml,
+  writeGpx,
+} from "./gpx-write.ts";
+export {
+  MAX_SHARE_GOAL_S,
+  MAX_SHARE_LENGTH_ERROR,
+  MAX_SHARE_NAME_LENGTH,
+  MAX_SHARE_URL_LENGTH,
+  SHARE_TOLERANCES_M,
+  SHARE_VERSION,
+  type ShareErrorCode,
+  type ShareLink,
+  type ShareTrack,
+  type SharedCourse,
+  type SharedPlan,
+  type SharedSettings,
+  ShareError,
+  buildShareLink,
+  decodeShare,
+  decodeSharedCourse,
+  encodeShare,
+  encodeSharedCourse,
+  isShareFragment,
+  simplifyForShare,
+} from "./share.ts";
