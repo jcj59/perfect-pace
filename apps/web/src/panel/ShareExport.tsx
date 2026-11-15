@@ -1,7 +1,7 @@
 import { type ElevationProfile, type SharedCourse } from "@pp/core";
 import { type ReactNode, useEffect, useId, useRef, useState } from "react";
 import { Icon } from "../draw/icons.tsx";
-import { courseGpx, courseName, downloadText, fileSlug, planCsv } from "../plan/export.ts";
+import { courseGpx, courseName, downloadText, exportCsv, fileSlug } from "../plan/export.ts";
 import { type CourseState, useAppState } from "../state/app.ts";
 import { useDrawState } from "../state/draw.ts";
 import { usePlanView } from "../state/plan.ts";
@@ -74,6 +74,10 @@ export function ShareExport({ course, profile }: { course: Shown; profile: Eleva
   const goalTimeS = useAppState((s) => s.goalTimeS);
   const paceChanges = useAppState((s) => s.paceChanges);
   const minSegmentM = useAppState((s) => s.minSegmentM);
+  const planType = useAppState((s) => s.planType);
+  const splitM = useAppState((s) => s.splitM);
+  const breakpointsM = useAppState((s) => s.breakpointsM);
+  const view = useAppState((s) => s.tableView);
   const planProfile = usePlanView((v) => v.profile);
   const viewPlan = usePlanView((v) => v.plan);
   const plan = planProfile === profile ? viewPlan : null;
@@ -92,7 +96,9 @@ export function ShareExport({ course, profile }: { course: Shown; profile: Eleva
     if (gpx) downloadText(gpx.fileName, gpx.text, "application/gpx+xml");
   };
   const downloadCsv = () => {
-    if (plan) downloadText(`${fileSlug(name)}-pacing-plan.csv`, planCsv(plan, units), "text/csv;charset=utf-8");
+    if (!plan) return;
+    const suffix = view === "splits" ? `${units === "mi" ? "mile" : "km"}-splits` : "pacing-plan";
+    downloadText(`${fileSlug(name)}-${suffix}.csv`, exportCsv(plan, units, view), "text/csv;charset=utf-8");
   };
 
   return (
@@ -108,7 +114,17 @@ export function ShareExport({ course, profile }: { course: Shown; profile: Eleva
           </p>
         ) : (
           <CopyLink
-            url={() => shareUrl(prepared, { goalTimeS, paceChanges, minSegmentM, unit: units })}
+            url={() =>
+              shareUrl(prepared, {
+                goalTimeS,
+                planType,
+                paceChanges,
+                minSegmentM,
+                splitM,
+                breakpointsM,
+                unit: units,
+              })
+            }
             note={
               prepared.track ? (
                 <>
@@ -130,14 +146,22 @@ export function ShareExport({ course, profile }: { course: Shown; profile: Eleva
               <ExportButton
                 icon={TABLE}
                 title="Download plan as CSV"
-                note="Every segment's pace and time, for a spreadsheet."
+                note={
+                  view === "splits"
+                    ? `Every ${units === "mi" ? "mile" : "kilometer"}'s pace, split and elapsed time, for a spreadsheet.`
+                    : "Every segment's pace and time, for a spreadsheet."
+                }
                 onClick={downloadCsv}
                 testId="export-csv"
               />
               <ExportButton
                 icon={PRINT}
                 title="Print pace band"
-                note={`Your time at every ${units === "mi" ? "mile" : "kilometer"}, to wear on race day.`}
+                note={
+                  view === "splits"
+                    ? `Your time at every ${units === "mi" ? "mile" : "kilometer"}, to wear on race day.`
+                    : "Each segment's pace and your time at its end, to wear on race day."
+                }
                 onClick={() => window.print()}
                 testId="print-band"
               />

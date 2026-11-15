@@ -81,20 +81,28 @@ export {
   danielsAdjustment,
   danielsPaceModel,
 } from "./pace-model.ts";
-export { type Segmentation, type SegmentationOptions, segmentLeastSquares } from "./segmenter.ts";
+export { type Segmentation, type SegmentationOptions, segmentLeastSquares, segmentPartition } from "./segmenter.ts";
 export {
   CLIMB_GRADE,
   DEFAULT_CURVE_MAX_PACE_CHANGES,
   type ErrorCurvePoint,
   GENTLE_GRADE,
+  MAX_CUSTOM_BREAKPOINTS,
+  MAX_PARTITION_SEGMENTS,
+  PLAN_TYPES,
   type Plan,
   type PlanInputs,
   type PlanSegment,
+  type PlanType,
   ROLLING_RELIEF,
   type Terrain,
   classifyTerrain,
   computePlan,
+  partitionBounds,
+  planForPartition,
   segmentReason,
+  snapToCourse,
+  splitBreakpointsM,
 } from "./plan.ts";
 export {
   type AbortSignalLike,
@@ -167,6 +175,8 @@ export {
   MAX_SHARE_URL_LENGTH,
   SHARE_TOLERANCES_M,
   SHARE_VERSION,
+  OLDEST_SHARE_VERSION,
+  MAX_SHARE_BREAKPOINT_M,
   type ShareErrorCode,
   type ShareLink,
   type ShareTrack,
