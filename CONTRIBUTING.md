@@ -107,6 +107,21 @@ with other tests run in their own projects, one after another once the others fi
 course load (`load-perf`, `e2e/tests/load-perf.spec.ts`), then the marathon plan recompute
 (`plan-perf`, `e2e/tests/plan-perf.spec.ts`). Raise a budget only with a reason in the PR.
 
+The course load budget (B1: a 50k-point file in under 1 s on a mid-range laptop) is scaled to the
+machine it runs on, because hosted runners differ: on the same code the older ones (AMD EPYC 7763)
+take about 1.3x as long as the common one (EPYC 9V74), and the newest (EPYC 9V45) about 0.75x.
+Before and after each load the test runs a calibration workload in the same page
+(`e2e/support/calibrate.ts`: GPX-like text written and scanned, numbers parsed, an object per
+point, haversine sums, typed arrays), and the budget is `1000 ms x calibration / 45 ms`, never
+below 1000 ms and at most 2x. 45 ms is what the EPYC 9V74 takes, about a mid-range laptop's single
+core (a recent high-end laptop takes about 25 ms), so a machine at least that fast is held to the
+plain 1000 ms, and that includes every local run on a laptop. A runner that is slower but not 2x
+slower gets proportional headroom, and one past 2x fails, since it cannot say anything about the
+budget. Like the benchmarks, the test holds the median of three loads, each in a fresh browser
+context; it logs every load with its phases (read and parse in the worker, the line handed to the
+map, drawn), the calibration and the budget it used. Recalibrate `REFERENCE_CALIBRATION_MS` only
+when the workload changes, from a run's logs on the common runner.
+
 ## Flaky tests
 
 No blanket retries. Playwright gets one retry in CI, and a test that passes only on retry shows up
