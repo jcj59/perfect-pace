@@ -31,7 +31,22 @@ import { randomTrack } from "./support/tracks.ts";
 const FIXTURES = join(import.meta.dirname, "fixtures", "gpx");
 const BASE = "https://perfect-pace.example.workers.dev/";
 
-const SETTINGS: SharedSettings = { goalTimeS: 10_800, paceChanges: 6, minSegmentM: 402.336, unit: "mi" };
+const SETTINGS: SharedSettings = {
+  goalTimeS: 10_800,
+  planType: "optimal",
+  paceChanges: 6,
+  minSegmentM: 402.336,
+  splitM: 1609.344,
+  breakpointsM: [],
+  unit: "mi",
+};
+
+/** Settings with the fields only some plan types carry at what a link gives back for the others. */
+const withSettings = (s: Partial<SharedSettings>): SharedSettings => ({
+  ...SETTINGS,
+  splitM: (s.unit ?? SETTINGS.unit) === "mi" ? 1609.344 : 1000,
+  ...s,
+});
 
 /** A random drawn route of `count` waypoints, built through the drawing reducer as the app does. */
 function randomRoute(seed: number, count: number): DrawnRoute {
@@ -124,9 +139,15 @@ describe("share links: drawn routes", () => {
     const route = randomRoute(3, 4);
     for (const settings of [
       SETTINGS,
-      { goalTimeS: null, paceChanges: 0, minSegmentM: 0, unit: "km" as const },
-      { goalTimeS: 1, paceChanges: 10, minSegmentM: 1609.344, unit: "mi" as const },
-      { goalTimeS: 7 * 24 * 3600, paceChanges: 4, minSegmentM: 2000, unit: "km" as const },
+      withSettings({ goalTimeS: null, paceChanges: 0, minSegmentM: 0, unit: "km" }),
+      withSettings({ goalTimeS: 1, paceChanges: 10, minSegmentM: 1609.344, unit: "mi" }),
+      withSettings({ goalTimeS: 7 * 24 * 3600, paceChanges: 4, minSegmentM: 2000, unit: "km" }),
+      withSettings({ planType: "even", unit: "km" }),
+      withSettings({ planType: "splits", splitM: 5000, unit: "km" }),
+      withSettings({ planType: "splits", splitM: 804.672 }),
+      withSettings({ planType: "splits", splitM: 1000 }),
+      withSettings({ planType: "custom", breakpointsM: [] }),
+      withSettings({ planType: "custom", breakpointsM: [400, 1610, 21_100, 9_999_999] }),
     ]) {
       expect(decodeShare(encodeShare({ course: { kind: "drawn", route }, settings })).settings).toEqual(settings);
     }
@@ -148,12 +169,42 @@ describe("share links: drawn routes", () => {
     expect(long.name).toHaveLength(80);
   });
 
+  it("carries only the fields of the plan type, with breakpoints as whole meters in order", () => {
+    const route = randomRoute(9, 3);
+    const fragment = (s: SharedSettings) => encodeShare({ course: { kind: "drawn", route }, settings: s });
+    expect(fragment(SETTINGS)).toMatch(/&p=o&k=6&s=402\.336&u=mi$/);
+    expect(fragment(withSettings({ planType: "even" }))).toMatch(/&p=e&k=6&s=402\.336&u=mi$/);
+    expect(fragment(withSettings({ planType: "splits", splitM: 5000 }))).toMatch(/&p=s&k=6&s=402\.336&l=5000&u=mi$/);
+    expect(fragment(withSettings({ planType: "custom", breakpointsM: [3000.4, 120.6, 3000] }))).toMatch(
+      /&p=c&k=6&s=402\.336&b=121\.3000&u=mi$/,
+    );
+    expect(fragment(withSettings({ planType: "custom" }))).toMatch(/&p=c&k=6&s=402\.336&u=mi$/);
+    // Breakpoints another type left behind are not carried.
+    expect(fragment(withSettings({ planType: "optimal", breakpointsM: [500] }))).not.toMatch(/b=/);
+    const many = Array.from({ length: 60 }, (_, i) => (i + 1) * 100);
+    const decoded = decodeShare(fragment(withSettings({ planType: "custom", breakpointsM: many })));
+    expect(decoded.settings.breakpointsM).toEqual(many.slice(0, 40));
+  });
+
+  it("opens a version 1 link as an optimal plan", () => {
+    const route = randomRoute(10, 4);
+    const v1 = encodeShare({ course: { kind: "drawn", route }, settings: SETTINGS })
+      .replace("v=2", "v=1")
+      .replace("&p=o", "");
+    expect(v1).toMatch(/^v=1&c=d\.[^&]+&g=10800&k=6&s=402\.336&u=mi$/);
+    expect(decodeShare(v1)).toEqual({ course: { kind: "drawn", route }, settings: SETTINGS });
+    // A version 1 link with kilometers gets kilometer splits, should it be switched to them.
+    expect(decodeShare(v1.replace("u=mi", "u=km")).settings).toEqual(withSettings({ unit: "km" }));
+    // Fields version 1 never had are ignored there, as they always were.
+    expect(decodeShare(`${v1}&p=c&b=100`).settings.planType).toBe("optimal");
+  });
+
   it("builds a link only while it fits, and says so when it does not", () => {
     const small = buildShareLink(`${BASE}#old`, {
       course: { kind: "drawn", route: randomRoute(5, 50) },
       settings: SETTINGS,
     });
-    expect(small?.url.startsWith(`${BASE}#v=1&c=d.`)).toBe(true);
+    expect(small?.url.startsWith(`${BASE}#v=2&c=d.`)).toBe(true);
     expect(small?.track).toBeUndefined();
     expect(decodeShare(new URL(small!.url).hash).course.kind).toBe("drawn");
     const huge = randomRoute(6, 3000);
@@ -232,7 +283,7 @@ describe("share links: links that cannot be opened", () => {
       .join("&");
 
   it("tells a newer version from one no longer supported", () => {
-    const newer = shareError(replace("v", "2"));
+    const newer = shareError(replace("v", "3"));
     expect(newer.code).toBe("newer");
     expect(newer.message).toMatch(/newer version of Perfect Pace\. Reload the page/);
     for (const v of ["0", "abc", "1.5", "-1", ""]) {
@@ -262,6 +313,19 @@ describe("share links: links that cannot be opened", () => {
       replace("s", null),
       replace("u", "ft"),
       replace("u", null),
+      replace("p", null),
+      replace("p", "x"),
+      replace("p", "s"),
+      replace("p", "s&l=5"),
+      replace("p", "s&l=abc"),
+      replace("p", `s&l=${100 * 1609.344 + 1}`),
+      replace("p", "c&b="),
+      replace("p", "c&b=0"),
+      replace("p", "c&b=10.10"),
+      replace("p", "c&b=20.10"),
+      replace("p", "c&b=1.x"),
+      replace("p", "c&b=10000000"),
+      replace("p", `c&b=${Array.from({ length: 41 }, (_, i) => i + 1).join(".")}`),
       `${good}&n=%E0%A4%A`,
     ]) {
       const error = shareError(fragment);

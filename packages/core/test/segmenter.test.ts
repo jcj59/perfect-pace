@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type Segmentation, segmentLeastSquares } from "../src/index.ts";
+import { type Segmentation, segmentLeastSquares, segmentPartition } from "../src/index.ts";
 import { mulberry32 } from "./support/rng.ts";
 
 /** The weighted squared error of `bounds` at each piece's weighted mean, summed term by term. */
@@ -245,5 +245,30 @@ describe("segmentLeastSquares", () => {
     [[1], [Infinity], { maxPieces: 1 }, /weight 0/],
   ])("rejects invalid input %#", (values, weights, options, message) => {
     expect(() => segmentLeastSquares(values, weights, options)).toThrow(message);
+  });
+});
+
+describe("segmentPartition", () => {
+  const values = [1, 1, 5, 5, 5, 2];
+  const weights = [1, 2, 1, 1, 2, 4];
+
+  it("gives each piece its weighted mean and the error the DP would give that partition", () => {
+    const fixed = segmentPartition(values, weights, [0, 2, 5, 6]);
+    expect(fixed.values).toEqual([1, 5, 2]);
+    expect(fixed.error).toBeCloseTo(0, 9);
+    expect(fixed.maxPieces).toBe(3);
+    const one = segmentPartition(values, weights, [0, 6]);
+    const dp = segmentLeastSquares(values, weights, { maxPieces: 1 })[0]!;
+    expect(one).toEqual(dp);
+    const two = segmentPartition(values, weights, [0, 3, 6]);
+    expect(two.values[0]).toBeCloseTo((1 + 2 + 5) / 4, 12);
+    expect(two.values[1]).toBeCloseTo((5 + 10 + 8) / 7, 12);
+    expect(two.error).toBeCloseTo(directError(values, weights, [0, 3, 6]), 9);
+  });
+
+  it("rejects bounds that do not cover the values in increasing order", () => {
+    for (const bounds of [[0, 5], [1, 6], [0], [0, 3, 3, 6], [0, 2.5, 6]]) {
+      expect(() => segmentPartition(values, weights, bounds), String(bounds)).toThrow(RangeError);
+    }
   });
 });
