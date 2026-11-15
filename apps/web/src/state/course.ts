@@ -8,6 +8,7 @@ import { buildCourse } from "@pp/core";
 import { coreClient } from "../worker/client.ts";
 import { RpcError } from "../worker/rpc.ts";
 import { type CourseState, appStore, setCourse, setSheet } from "./app.ts";
+import { releaseStartCamera } from "./camera.ts";
 
 /** Larger files are refused before reading. A 50k-point Garmin activity is about 19 MB. */
 export const MAX_FILE_BYTES = 100 * 1024 * 1024;
@@ -138,6 +139,8 @@ function startLoad(): AbortSignal {
 /** Load a GPX file the user picked or dropped. Resolves once it has loaded or failed (never rejects). */
 export async function loadGpxFile(file: File): Promise<void> {
   const signal = startLoad();
+  // The user's own file is framed, even while the restored course is still on its way.
+  releaseStartCamera();
   const fileName = file.name || "This file";
 
   performance.clearMarks(LOAD_START_MARK);

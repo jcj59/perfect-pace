@@ -11,6 +11,8 @@
  *   its own text, so it comes back exactly; one too large for storage keeps a simplified copy
  *   instead (whose elevation then comes from terrain data, and the panel says so). Storage can be
  *   missing, full or blocked: every access is guarded, and the app works the same without it.
+ * - **The first view.** `startView` applies the start-up framing precedence (`camera.ts`) to
+ *   the link the page was opened with, the saved camera and the saved session.
  */
 import {
   type DrawnRoute,
@@ -35,6 +37,7 @@ import { type AppState, type PlanSettings, appStore, applyPlanSettings, setLinkE
 import { afterRouteDrawn, loadCourseCopy, loadGpxText, onGpxText, trackTitle } from "./course.ts";
 import { coreClient } from "../worker/client.ts";
 import { drawStore, drawing } from "./draw.ts";
+import { type StartFraming, holdStartCamera, readSavedCamera, releaseStartCamera, startFraming } from "./camera.ts";
 
 export const SESSION_STORAGE_KEY = "pp:session";
 /** The loaded file's text, kept apart from the session so plan changes never rewrite it. */
@@ -224,30 +227,62 @@ function parseSession(text: string | null): SavedSession | undefined {
   }
 }
 
+/** Whether `fragment` is a share link that opens (one that cannot be read loads the session instead). */
+function opensShareLink(fragment: string): boolean {
+  if (!isShareFragment(fragment)) return false;
+  try {
+    decodeShare(fragment);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+let start: StartFraming | undefined;
+
+/**
+ * How the map frames its first view, worked out once per page from the address it was opened
+ * with (before the session takes the link off it), the saved camera and the saved session.
+ */
+export function startView(): StartFraming {
+  start ??= startFraming({
+    shareLink: opensShareLink(location.hash),
+    savedCamera: readSavedCamera(),
+    sessionCourse: Boolean(parseSession(read(SESSION_STORAGE_KEY))?.course),
+  });
+  return start;
+}
+
 /** Bring back the saved session, if there is one. */
 function restoreSaved(): void {
   const saved = parseSession(read(SESSION_STORAGE_KEY));
   if (!saved) return;
   const settings: PlanSettings = { ...saved, units: appStore.get().units };
   const course = saved.course;
+  // The saved camera wins over framing the restored course: the map stays where the user left it.
+  if (course && startView().kind === "saved") holdStartCamera();
   try {
     if (course?.kind === "file") {
       const text = read(SESSION_GPX_STORAGE_KEY);
-      if (!text || typeof course.fileName !== "string") return;
-      void loadGpxText(text, course.fileName, course.track).then((ok) => ok && applyPlanSettings(settings));
+      if (!text || typeof course.fileName !== "string") return releaseStartCamera();
+      void loadGpxText(text, course.fileName, course.track).then((ok) => {
+        if (ok) applyPlanSettings(settings);
+        else releaseStartCamera();
+      });
       return;
     }
     if (course?.kind === "drawn") {
       const shared = decodeSharedCourse(course.c);
-      if (shared.kind !== "drawn") return;
+      if (shared.kind !== "drawn") return releaseStartCamera();
       drawing.load(shared.route);
     } else if (course?.kind === "copy") {
       const shared = decodeSharedCourse(course.c);
-      if (shared.kind !== "track") return;
+      if (shared.kind !== "track") return releaseStartCamera();
       loadCourseCopy(shared.points, String(course.name), course.copy === "link" ? "link" : "saved");
     }
     applyPlanSettings(settings);
   } catch (error) {
+    releaseStartCamera();
     // A damaged session is dropped, never shown: the app starts as if there were none.
     if (!(error instanceof ShareError)) throw error;
     console.warn("Could not restore the last session:", error.detail);
@@ -369,9 +404,13 @@ export function startSession(): () => void {
     pendingText = { text, file };
   }, MAX_STORED_GPX_CHARS);
 
+  // Read before the link is taken off the address.
+  startView();
   const takeFragment = (): boolean => {
     const fragment = location.hash;
     if (!isShareFragment(fragment)) return false;
+    // A link's course is always framed, even one pasted while the restored course is on its way.
+    releaseStartCamera();
     history.replaceState(history.state, "", `${location.pathname}${location.search}`);
     openShareFragment(fragment);
     return appStore.get().linkError === null;
