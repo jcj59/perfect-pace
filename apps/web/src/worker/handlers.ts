@@ -1,4 +1,11 @@
-import { type ElevationProvider, buildElevationProfile, computePlan, parseGpx, terrariumProvider } from "@pp/core";
+import {
+  type ElevationProvider,
+  buildElevationProfile,
+  computePlan,
+  parseGpx,
+  simplifyForShare,
+  terrariumProvider,
+} from "@pp/core";
 import { CORE_PROTOCOL_VERSION, type CoreOps } from "./protocol.ts";
 import type { Handlers } from "./rpc.ts";
 
@@ -27,5 +34,6 @@ export function createCoreHandlers(options: CoreHandlerOptions = {}): Handlers<C
       performance.measure(PLAN_COMPUTE_MEASURE, { start, end: performance.now() });
       return plan;
     },
+    shareTrack: ({ points, maxChars }) => simplifyForShare(points, maxChars) ?? null,
   };
 }

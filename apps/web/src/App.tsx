@@ -14,7 +14,11 @@ import { formatDistance } from "./panel/format.ts";
 import { DropOverlay } from "./panel/DropOverlay.tsx";
 import { EmptyState } from "./panel/EmptyState.tsx";
 import { FileButton } from "./panel/FileButton.tsx";
+import { LinkError } from "./panel/LinkError.tsx";
 import { LoadError } from "./panel/LoadError.tsx";
+import { courseName } from "./plan/export.ts";
+import { PaceBand } from "./print/PaceBand.tsx";
+import { startSession } from "./state/session.ts";
 import { PanelHeader } from "./panel/PanelHeader.tsx";
 import { ThemeSwitch } from "./panel/ThemeSwitch.tsx";
 import { type CourseState, type SheetSnap, setSheet, useAppState } from "./state/app.ts";
@@ -118,6 +122,20 @@ function CourseMap(
 
 /** What the panel shows for the course state, in the side panel or (`sheet`) the phone's bottom sheet. */
 function PanelContent({ course, sheet = false }: { course: CourseState; sheet?: boolean }) {
+  const linkError = useAppState((s) => s.linkError);
+  return (
+    <>
+      {linkError && (
+        <div className="px-6 pt-2 pb-4">
+          <LinkError message={linkError} />
+        </div>
+      )}
+      <CourseContent course={course} sheet={sheet} />
+    </>
+  );
+}
+
+function CourseContent({ course, sheet }: { course: CourseState; sheet: boolean }) {
   const editing = useDrawState((s) => s.editing);
   switch (course.status) {
     case "loaded":
@@ -204,6 +222,7 @@ export function App() {
   const toolbarStyle = useToolbarStyle(desktop, phoneInsets, sheet);
 
   useEffect(() => startPlanner(), []);
+  useEffect(() => startSession(), []);
 
   useEffect(() => {
     performance.mark("pp:ready");
@@ -211,41 +230,54 @@ export function App() {
   }, []);
 
   return (
-    <main className="relative h-dvh w-full overflow-hidden bg-map text-ink">
-      <Suspense fallback={<div className="absolute inset-0 bg-map" data-testid="map" data-map-state="loading" />}>
-        <CourseMap
-          theme={theme}
-          insets={desktop ? DESKTOP_INSETS : phoneInsets}
-          compact={!desktop}
-          onRouteDrawn={markRouteDrawn}
-        />
-      </Suspense>
-      {editing && course.status === "drawn" && toolbarStyle && (
-        <div
-          className={`pointer-events-none absolute z-10 flex ${desktop ? "justify-start" : "justify-center"}`}
-          style={toolbarStyle}
-        >
-          <DrawToolbar placement={desktop ? "top" : "bottom"} />
-        </div>
-      )}
-      {desktop ? (
-        <SidePanel label={PANEL_LABEL} header={<PanelHeader />} footer={<ThemeSwitch />}>
-          <PanelContent course={course} />
-        </SidePanel>
-      ) : (
-        <BottomSheet
-          label={PANEL_LABEL}
-          snap={sheet}
-          onSnapChange={setSheet}
-          header={<PanelHeader action={<PhoneHeaderAction course={course} />} />}
-        >
-          <PanelContent course={course} sheet />
-          <div className="border-t border-line px-6 pt-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
-            <ThemeSwitch />
+    <>
+      <main className="pp-app relative h-dvh w-full overflow-hidden bg-map text-ink">
+        <Suspense fallback={<div className="absolute inset-0 bg-map" data-testid="map" data-map-state="loading" />}>
+          <CourseMap
+            theme={theme}
+            insets={desktop ? DESKTOP_INSETS : phoneInsets}
+            compact={!desktop}
+            onRouteDrawn={markRouteDrawn}
+          />
+        </Suspense>
+        {editing && course.status === "drawn" && toolbarStyle && (
+          <div
+            className={`pointer-events-none absolute z-10 flex ${desktop ? "justify-start" : "justify-center"}`}
+            style={toolbarStyle}
+          >
+            <DrawToolbar placement={desktop ? "top" : "bottom"} />
           </div>
-        </BottomSheet>
-      )}
-      <DropOverlay />
-    </main>
+        )}
+        {desktop ? (
+          <SidePanel label={PANEL_LABEL} header={<PanelHeader />} footer={<ThemeSwitch />}>
+            <PanelContent course={course} />
+          </SidePanel>
+        ) : (
+          <BottomSheet
+            label={PANEL_LABEL}
+            snap={sheet}
+            onSnapChange={setSheet}
+            header={<PanelHeader action={<PhoneHeaderAction course={course} />} />}
+          >
+            <PanelContent course={course} sheet />
+            <div className="border-t border-line px-6 pt-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+              <ThemeSwitch />
+            </div>
+          </BottomSheet>
+        )}
+        <DropOverlay />
+      </main>
+      <PrintedBand course={course} />
+    </>
   );
+}
+
+/** The pace band for printing, while there is a plan for the course on screen. */
+function PrintedBand({ course }: { course: CourseState }) {
+  const units = useAppState((s) => s.units);
+  const planProfile = usePlanView((v) => v.profile);
+  const plan = usePlanView((v) => v.plan);
+  const profile = readyProfile(course);
+  if (!plan || !profile || planProfile !== profile) return null;
+  return <PaceBand plan={plan} units={units} title={courseName(course)} />;
 }

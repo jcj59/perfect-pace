@@ -32,6 +32,25 @@ for (const scheme of ["light", "dark"] satisfies ColorScheme[]) {
     expect((await new AxeBuilder({ page }).analyze()).violations.map((v) => `${v.id}: ${v.help}`)).toEqual([]);
   });
 
+  test(`a link that cannot be opened has no axe violations, ${scheme}`, async ({ page }) => {
+    await openApp(page, scheme);
+    await page.evaluate(() => {
+      location.hash = "v=2&c=t.AAAA";
+    });
+    await expect(page.getByTestId("link-error")).toBeVisible();
+    expect((await new AxeBuilder({ page }).analyze()).violations.map((v) => `${v.id}: ${v.help}`)).toEqual([]);
+  });
+
+  test(`share and export, after copying a link by hand, has no axe violations, ${scheme}`, async ({ page }) => {
+    await page.addInitScript(() => {
+      Object.defineProperty(navigator, "clipboard", { value: { writeText: () => Promise.reject(new Error("no")) } });
+    });
+    await planBoston(page, scheme);
+    await page.getByTestId("copy-link").click();
+    await expect(page.getByTestId("share-url")).toBeVisible();
+    expect((await new AxeBuilder({ page }).analyze()).violations.map((v) => `${v.id}: ${v.help}`)).toEqual([]);
+  });
+
   test(`the error state has no axe violations, ${scheme}`, async ({ page }) => {
     await openApp(page, scheme);
     await uploadGpx(page, invalidPath("tcx.gpx"));
