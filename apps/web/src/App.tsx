@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useMemo, useSyncExternalStore } from "react";
+import { Suspense, lazy, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { BottomSheet } from "./layout/BottomSheet.tsx";
 import { SIDE_PANEL_GAP_PX, SidePanel } from "./layout/SidePanel.tsx";
 import { usePanelWidth } from "./layout/usePanelWidth.ts";
@@ -19,7 +19,8 @@ import { LinkError } from "./panel/LinkError.tsx";
 import { LoadError } from "./panel/LoadError.tsx";
 import { courseName } from "./plan/export.ts";
 import { PaceBand } from "./print/PaceBand.tsx";
-import { startSession } from "./state/session.ts";
+import { startSession, startView } from "./state/session.ts";
+import { keepsStartCamera, releaseStartCamera, saveCamera, startCameraSaving } from "./state/camera.ts";
 import { PanelHeader } from "./panel/PanelHeader.tsx";
 import { ThemeSwitch } from "./panel/ThemeSwitch.tsx";
 import { type CourseState, type SheetSnap, setSheet, useAppState } from "./state/app.ts";
@@ -70,7 +71,17 @@ function useDrawingView(): DrawingView | null {
 function CourseMap(
   props: Omit<
     MapViewProps,
-    "marker" | "onRouteHover" | "segments" | "selectedSegment" | "route" | "drawing" | "onDrawEdit" | "camera"
+    | "marker"
+    | "onRouteHover"
+    | "segments"
+    | "selectedSegment"
+    | "route"
+    | "drawing"
+    | "onDrawEdit"
+    | "camera"
+    | "initialCamera"
+    | "keepCamera"
+    | "onCameraChange"
   >,
 ) {
   const course = useAppState((s) => s.course);
@@ -82,6 +93,13 @@ function CourseMap(
   const plan = usePlanView((v) => v.plan);
   const profile = readyProfile(course);
   const marker = useMemo(() => focusPosition(profile, focusDistM), [profile, focusDistM]);
+  // The first view (B10): the saved camera when it wins the start-up precedence, else the whole US.
+  const [start] = useState(startView);
+  const drawingOn = drawingView !== null;
+  // A route the user draws is framed when it is done, even while the restored course is on its way.
+  useEffect(() => {
+    if (drawingOn) releaseStartCamera();
+  }, [drawingOn]);
   // Each segment's stretch of the profile's points (which lie on the route), in its tone.
   // While drawing, the map shows the legs as they are routed; the plan's colors come back after.
   const segments = useMemo<MapSegment[] | null>(
@@ -107,6 +125,9 @@ function CourseMap(
       drawing={drawingView}
       onDrawEdit={drawOnMap}
       camera={camera}
+      initialCamera={start.kind === "saved" ? start.camera : null}
+      keepCamera={keepsStartCamera}
+      onCameraChange={saveCamera}
       marker={marker}
       onRouteHover={focusNearest}
       segments={segments}
@@ -225,6 +246,7 @@ export function App() {
 
   useEffect(() => startPlanner(), []);
   useEffect(() => startSession(), []);
+  useEffect(() => startCameraSaving(), []);
 
   useEffect(() => {
     performance.mark("pp:ready");
