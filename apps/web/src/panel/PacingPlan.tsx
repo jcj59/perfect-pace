@@ -10,16 +10,9 @@ import {
   metersToUnit,
   paceToUnit,
 } from "@pp/core";
-import {
-  type CSSProperties,
-  type KeyboardEvent,
-  type ReactNode,
-  useId,
-  useLayoutEffect,
-  useMemo,
-  useState,
-} from "react";
+import { type CSSProperties, type KeyboardEvent, useId, useLayoutEffect, useMemo, useState } from "react";
 import { useWidth } from "../layout/useWidth.ts";
+import { InfoPopover } from "./InfoPopover.tsx";
 import { curveKnee, curvePoints } from "../plan/curve.ts";
 import { SUGGESTED_PACE_S_PER_MI, checkGoal, minSegmentOptions, roundPreservingSum } from "../plan/inputs.ts";
 import { TONES, type Tone, segmentTone, toneLabel, toneVar } from "../plan/tones.ts";
@@ -40,9 +33,10 @@ const CURVE_TOP_PX = 18;
 
 /**
  * The pacing plan for the loaded course: the inputs (goal time, pace changes with the error
- * curve, shortest segment), the predicted finish, the segment table, and the pace model it
- * assumes. Pace changes and the shortest segment recompute the plan in the worker as they
- * change (see `state/plan.ts`); the plan in view stays up, marked as updating, until the new one lands.
+ * curve, shortest segment), the predicted finish and the segment table, with how the plan works
+ * behind the (i) beside the heading. Pace changes and the shortest segment recompute the plan in
+ * the worker as they change (see `state/plan.ts`); the plan in view stays up, marked as updating,
+ * until the new one lands.
  */
 export function PacingPlan({ profile, headingLevel }: { profile: ElevationProfile; headingLevel: 2 | 3 }) {
   const units = useAppState((s) => s.units);
@@ -54,10 +48,17 @@ export function PacingPlan({ profile, headingLevel }: { profile: ElevationProfil
 
   return (
     <section aria-labelledby="plan-heading" data-testid="pacing-plan">
-      <div className="flex items-center justify-between gap-3">
-        <Heading id="plan-heading" className="text-xs font-semibold tracking-[0.08em] text-ink-subtle uppercase">
-          Pacing plan
-        </Heading>
+      <div className="relative flex items-center justify-between gap-3">
+        <div className="flex items-center gap-1">
+          <Heading id="plan-heading" className="text-xs font-semibold tracking-[0.08em] text-ink-subtle uppercase">
+            Pacing plan
+          </Heading>
+          {plan && (
+            <InfoPopover label="How the plan works" testId="plan-info">
+              <PlanExplanation plan={plan} units={units} />
+            </InfoPopover>
+          )}
+        </div>
         <span
           role="status"
           className="pp-pending flex items-center gap-1.5 text-xs font-medium text-ink-muted"
@@ -95,7 +96,6 @@ export function PacingPlan({ profile, headingLevel }: { profile: ElevationProfil
         >
           <SegmentTable plan={plan} units={units} />
           <ToneLegend plan={plan} units={units} />
-          <Assumption plan={plan} units={units} />
         </div>
       ) : (
         <div className="mt-5 space-y-2" aria-busy="true" data-testid="plan-placeholder">
@@ -578,33 +578,12 @@ function ToneLegend({ plan, units }: { plan: Plan; units: DistanceUnit }) {
   );
 }
 
-/** The pace model's stated assumption, which every number above rests on. */
-function Assumption({ plan, units }: { plan: Plan; units: DistanceUnit }) {
+/** How the plan is worked out: the pace model's stated assumption, which every number rests on. */
+function PlanExplanation({ plan, units }: { plan: Plan; units: DistanceUnit }) {
   return (
-    <InfoNote testId="plan-assumption">
-      <span className="font-medium text-ink">How the plan works. </span>
+    <p data-testid="plan-assumption">
       {plan.model.assumption} For your goal that makes flat ground {formatPace(plan.flatPaceSPerM, units)} /{units}. The
       plan holds each segment at the average of that ideal, hill-by-hill pace, so the segments add up to your goal.
-    </InfoNote>
-  );
-}
-
-function InfoNote({ children, testId }: { children: ReactNode; testId: string }) {
-  return (
-    <p className="mt-4 flex gap-2 text-[13px] leading-snug text-ink-muted" data-testid={testId}>
-      <svg
-        viewBox="0 0 24 24"
-        className="mt-px size-4 shrink-0 text-ink-subtle"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        aria-hidden="true"
-      >
-        <circle cx="12" cy="12" r="9" />
-        <path d="M12 11v5M12 8h.01" />
-      </svg>
-      <span>{children}</span>
     </p>
   );
 }

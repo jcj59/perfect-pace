@@ -81,6 +81,21 @@ for (const scheme of ["light", "dark"] satisfies ColorScheme[]) {
     await expect(page).toHaveScreenshot(`plan-view-${scheme}.png`);
   });
 
+  // B8: how the plan works, open under the (i) beside the "Pacing plan" heading (the full sheet on phones).
+  test(`plan explanation open, ${scheme} @visual`, async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await planBoston(page, scheme);
+    if (isPhone(page)) {
+      await page.getByTestId("sheet-handle").click();
+      await expect(page.getByTestId("sheet")).toHaveAttribute("data-snap", "full");
+    }
+    await scrollPanelTo(page, isPhone(page) ? "sheet-content" : "side-panel-content", "pacing-plan");
+    await page.getByRole("button", { name: "How the plan works" }).click();
+    await expect(page.getByRole("dialog", { name: "How the plan works" })).toBeFocused();
+    await page.mouse.move(page.viewportSize()!.width - 2, page.viewportSize()!.height / 2);
+    await expect(page).toHaveScreenshot(`plan-explanation-${scheme}.png`);
+  });
+
   test(`plan in the full sheet, ${scheme} @visual`, async ({ page }) => {
     test.skip((page.viewportSize()?.width ?? 0) >= 768, "phones only: desktop shows it in the side panel");
     await page.emulateMedia({ reducedMotion: "reduce" });
