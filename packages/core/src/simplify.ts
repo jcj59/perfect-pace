@@ -7,37 +7,30 @@ import { EARTH_RADIUS_M, type LatLon } from "./geo.ts";
 const RAD = Math.PI / 180;
 
 /**
- * Squared distance in square meters from `p` to the segment `a..b`, in a local equirectangular
- * projection (x east, y north, meters), which is accurate for the short spans of a track.
+ * Points projected to meters around the first one (x east, y north) in a local equirectangular
+ * projection, which is accurate for the short spans of a track, unwrapping longitude across the
+ * antimeridian. Typed arrays, so a 50k-point track projects without 50k small allocations.
  */
-function segmentDistanceSq(p: readonly [number, number], a: readonly [number, number], b: readonly [number, number]) {
-  const dx = b[0] - a[0];
-  const dy = b[1] - a[1];
-  const lengthSq = dx * dx + dy * dy;
-  let t = lengthSq > 0 ? ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / lengthSq : 0;
-  t = Math.min(1, Math.max(0, t));
-  const ex = a[0] + t * dx - p[0];
-  const ey = a[1] + t * dy - p[1];
-  return ex * ex + ey * ey;
-}
-
-/** Project points to meters around the first one, unwrapping longitude across the antimeridian. */
-function project(points: readonly LatLon[]): [number, number][] {
+function project(points: readonly LatLon[]): { xs: Float64Array; ys: Float64Array } {
   const origin = points[0] as LatLon;
   let meanLat = 0;
   for (const p of points) meanLat += p.lat;
   const kx = Math.cos((meanLat / points.length) * RAD) * EARTH_RADIUS_M * RAD;
   const ky = EARTH_RADIUS_M * RAD;
+  const xs = new Float64Array(points.length);
+  const ys = new Float64Array(points.length);
   let lon = origin.lon;
   let prevLon = origin.lon;
-  return points.map((p) => {
+  points.forEach((p, i) => {
     let d = p.lon - prevLon;
     if (d > 180) d -= 360;
     else if (d < -180) d += 360;
     lon += d;
     prevLon = p.lon;
-    return [(lon - origin.lon) * kx, (p.lat - origin.lat) * ky];
+    xs[i] = (lon - origin.lon) * kx;
+    ys[i] = (p.lat - origin.lat) * ky;
   });
+  return { xs, ys };
 }
 
 /**
@@ -52,20 +45,32 @@ export function simplify<T extends LatLon>(points: readonly T[], toleranceM: num
     throw new RangeError(`simplify: tolerance must be a non-negative number of meters, got ${toleranceM}`);
   }
   if (points.length <= 2) return points.slice();
-  const xy = project(points);
+  const { xs, ys } = project(points);
   const keep = new Uint8Array(points.length);
   keep[0] = 1;
   keep[points.length - 1] = 1;
   const toleranceSq = toleranceM * toleranceM;
-  const stack: [number, number][] = [[0, points.length - 1]];
-  for (let span = stack.pop(); span; span = stack.pop()) {
-    const [first, last] = span;
-    const a = xy[first] as [number, number];
-    const b = xy[last] as [number, number];
+  // Spans still to check, as `first, last` pairs.
+  const stack: number[] = [0, points.length - 1];
+  while (stack.length > 0) {
+    const last = stack.pop() as number;
+    const first = stack.pop() as number;
+    const ax = xs[first] as number;
+    const ay = ys[first] as number;
+    const dx = (xs[last] as number) - ax;
+    const dy = (ys[last] as number) - ay;
+    const lengthSq = dx * dx + dy * dy;
     let worst = -1;
     let worstSq = toleranceSq;
     for (let i = first + 1; i < last; i++) {
-      const d = segmentDistanceSq(xy[i] as [number, number], a, b);
+      // Squared distance from point i to the segment first..last.
+      const px = xs[i] as number;
+      const py = ys[i] as number;
+      let t = lengthSq > 0 ? ((px - ax) * dx + (py - ay) * dy) / lengthSq : 0;
+      t = Math.min(1, Math.max(0, t));
+      const ex = ax + t * dx - px;
+      const ey = ay + t * dy - py;
+      const d = ex * ex + ey * ey;
       if (d > worstSq) {
         worstSq = d;
         worst = i;
@@ -73,7 +78,7 @@ export function simplify<T extends LatLon>(points: readonly T[], toleranceM: num
     }
     if (worst < 0) continue;
     keep[worst] = 1;
-    stack.push([first, worst], [worst, last]);
+    stack.push(first, worst, worst, last);
   }
   return points.filter((_, i) => keep[i] === 1);
 }
