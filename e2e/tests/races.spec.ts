@@ -218,7 +218,7 @@ for (const scheme of ["light", "dark"] satisfies ColorScheme[]) {
     await withBostonCourse(page);
     await openRaces(page, scheme);
     await page.getByRole("button", { name: "US marathons", exact: true }).click();
-    await page.getByRole("searchbox", { name: "Search races" }).fill("o");
+    await page.getByRole("searchbox", { name: "Search races" }).fill("boston");
     await page.getByRole("searchbox", { name: "Search races" }).blur();
     await expect(page).toHaveScreenshot(`races-filtered-${scheme}.png`);
   });
