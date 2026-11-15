@@ -5,7 +5,7 @@ import { hasHorizontalScroll, markTime, openApp } from "../support/app.ts";
 test.describe("smoke @smoke", () => {
   test("the app shell renders the panel, the map and the empty state", async ({ page }) => {
     await openApp(page);
-    await expect(page).toHaveTitle("Perfect Pace");
+    await expect(page).toHaveTitle("Not Perfect Pace (fails on purpose)");
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Perfect Pace");
     await expect(page.getByRole("region", { name: "Course panel" })).toBeVisible();
     await expect(page.getByTestId("empty-state")).toBeAttached();
