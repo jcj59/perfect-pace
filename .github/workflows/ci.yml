@@ -93,7 +93,8 @@ jobs:
   e2e:
     needs: preview
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # About 400 tests on three projects at two workers: the full run takes roughly 20 minutes.
+    timeout-minutes: 35
     # The same image `pnpm visual:update` uses, so screenshots match the committed baselines.
     container:
       image: mcr.microsoft.com/playwright:v1.65.0-noble
