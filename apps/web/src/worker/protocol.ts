@@ -2,10 +2,19 @@
  * The operations the core Web Worker runs. Each maps to one `@pp/core` entry point; inputs and
  * outputs are plain data, so they cross `postMessage` as structured clones.
  */
-import type { Course, ElevationProfile, ElevationProfileOptions, GpxFile, Plan, PlanInputs } from "@pp/core";
+import type {
+  Course,
+  ElevationProfile,
+  ElevationProfileOptions,
+  GpxFile,
+  LatLon,
+  Plan,
+  PlanInputs,
+  ShareTrack,
+} from "@pp/core";
 
 /** Bumped when an op's input or output changes shape, so a stale cached worker is detectable. */
-export const CORE_PROTOCOL_VERSION = 1;
+export const CORE_PROTOCOL_VERSION = 2;
 
 /** `computePlan` inputs that can be cloned: the pace model is fixed to the default inside the worker. */
 export type PlanRequest = Omit<PlanInputs, "model">;
@@ -22,6 +31,8 @@ export type CoreOps = {
   };
   /** `computePlan` on a course with elevation (the `course` of an `ElevationProfile`). */
   plan: { input: { course: Course; inputs: PlanRequest }; output: Plan };
+  /** `simplifyForShare`, off the main thread (a long track takes a while): null when it cannot fit. */
+  shareTrack: { input: { points: readonly LatLon[]; maxChars: number }; output: ShareTrack | null };
 };
 
 export type CoreOp = keyof CoreOps;

@@ -97,6 +97,7 @@ describe("app state", () => {
       paceChanges: 4,
       minSegmentM: 0.25 * 1609.344,
       selectedSegment: null,
+      linkError: null,
     });
     expect(initialAppState(storage("light")).theme).toBe("light");
     // Kilometer users start at half a kilometer.

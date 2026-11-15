@@ -125,6 +125,8 @@ jobs:
     needs: [changes, preview]
     if: needs.changes.outputs.e2e == 'true'
     runs-on: ubuntu-latest
+    # A shard takes 3 to 5 minutes; the headroom covers a slow runner and the suite growing until
+    # the shard count is raised (see CONTRIBUTING.md).
     timeout-minutes: 15
     strategy:
       fail-fast: false

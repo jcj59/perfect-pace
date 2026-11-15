@@ -1,4 +1,10 @@
-import type { Course, DistanceUnit, ElevationProfile, GpxFile } from "@pp/core";
+import {
+  type Course,
+  DEFAULT_CURVE_MAX_PACE_CHANGES,
+  type DistanceUnit,
+  type ElevationProfile,
+  type GpxFile,
+} from "@pp/core";
 import { defaultMinSegmentM, snapMinSegmentM } from "../plan/inputs.ts";
 import { createStore, useStore } from "./store.ts";
 
@@ -27,7 +33,18 @@ export type CourseState =
   | { status: "empty" }
   | { status: "reading"; fileName: string }
   | { status: "error"; fileName: string; code?: string; message: string }
-  | { status: "loaded"; fileName: string; file: GpxFile; track: number; elevation: ElevationState }
+  | {
+      status: "loaded";
+      fileName: string;
+      file: GpxFile;
+      track: number;
+      elevation: ElevationState;
+      /**
+       * Set for a simplified copy rather than the file itself: from a share link, or `saved` on
+       * this device in place of a file too large to keep. Its elevation comes from terrain data.
+       */
+      copy?: "link" | "saved";
+    }
   | { status: "drawn"; course: Course | null; elevation: ElevationState | null; updating: boolean };
 
 /** The pace changes a plan starts with, before the user moves the slider. */
@@ -61,6 +78,8 @@ export interface AppState {
   minSegmentM: number;
   /** The plan segment picked in the table, highlighted on the map and the chart, or null. */
   selectedSegment: number | null;
+  /** Why the share link the page was opened with could not be used, until dismissed or a course loads. */
+  linkError: string | null;
 }
 
 export const THEME_STORAGE_KEY = "pp:theme";
@@ -117,6 +136,7 @@ export function initialAppState(storage?: Pick<Storage, "getItem">, language?: s
     paceChanges: DEFAULT_PACE_CHANGES,
     minSegmentM: defaultMinSegmentM(units),
     selectedSegment: null,
+    linkError: null,
   };
 }
 
@@ -164,7 +184,38 @@ export function setUnits(units: DistanceUnit): void {
  * which also drops the goal entered for the last; edits to a drawn route keep it.
  */
 export function setCourse(course: CourseState, fresh = false): void {
-  appStore.set({ course, focusDistM: null, selectedSegment: null, ...(fresh ? { goalTimeS: null } : {}) });
+  appStore.set({
+    course,
+    focusDistM: null,
+    selectedSegment: null,
+    ...(fresh ? { goalTimeS: null, ...(course.status !== "empty" ? { linkError: null } : {}) } : {}),
+  });
+}
+
+/** The plan inputs, as a share link or the saved session carries them. */
+export interface PlanSettings {
+  goalTimeS: number | null;
+  paceChanges: number;
+  minSegmentM: number;
+  units: DistanceUnit;
+}
+
+/**
+ * Apply plan inputs from a link or the saved session, after the course they are for. Values out
+ * of range are brought in (the shortest segment to the nearest choice in the units). Units from a
+ * link apply to this visit only: the stored preference is the person's own.
+ */
+export function applyPlanSettings(settings: PlanSettings): void {
+  appStore.set({
+    units: settings.units,
+    goalTimeS: settings.goalTimeS,
+    paceChanges: Math.max(0, Math.min(DEFAULT_CURVE_MAX_PACE_CHANGES, Math.round(settings.paceChanges))),
+    minSegmentM: snapMinSegmentM(settings.minSegmentM, settings.units),
+  });
+}
+
+export function setLinkError(linkError: string | null): void {
+  appStore.set({ linkError });
 }
 
 /** Set the goal finish time in seconds (a checked one: see `checkGoal`). */
