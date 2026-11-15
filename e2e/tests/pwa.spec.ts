@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 import { DEM_CACHE, DEM_CACHE_MAX_TILES, SHELL_CACHE_PREFIX } from "../../apps/web/src/sw/policy.ts";
 import { TERRARIUM, openApp } from "../support/app.ts";
@@ -111,7 +112,8 @@ test("a newer service worker takes over, and the page offers a reload", async ({
   // the worker script's own request, so the new one comes from another script URL).
   await page.evaluate(() => navigator.serviceWorker.register("/sw.js?next", { scope: "/" }));
   await expect(status).toHaveAttribute("data-state", "update");
-  await expect(status).toContainText(/A new version is ready|Update ready/);
+  await expect(status).toContainText(/A new version is ready|Reload to update/);
+  expect((await new AxeBuilder({ page }).analyze()).violations.map((v) => `${v.id}: ${v.help}`)).toEqual([]);
   await page.getByTestId("reload-update").click();
   await expect(status).toHaveAttribute("data-state", "idle");
   await expectControlled(page);

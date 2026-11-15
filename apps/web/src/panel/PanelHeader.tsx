@@ -73,14 +73,15 @@ function StatusLine({ brief }: { brief: boolean }) {
         </>
       ) : state === "update" ? (
         <>
-          <span className="truncate">{brief ? "Update ready" : "A new version is ready"}</span>
+          {/* Beside the phone header's buttons there is room for the button alone. */}
+          {!brief && <span className="truncate">A new version is ready</span>}
           <button
             type="button"
             onClick={() => location.reload()}
-            className="-my-1.5 shrink-0 cursor-pointer rounded-md px-1 py-1.5 font-semibold text-accent underline-offset-2 hover:underline focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
+            className={`-my-1.5 shrink-0 cursor-pointer rounded-md py-1.5 ${brief ? "-mx-1 px-1" : "px-1"} font-semibold text-accent underline-offset-2 hover:underline focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none`}
             data-testid="reload-update"
           >
-            Reload
+            {brief ? "Reload to update" : "Reload"}
           </button>
         </>
       ) : (
