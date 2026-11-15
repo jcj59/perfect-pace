@@ -197,7 +197,9 @@ for (const scheme of ["light", "dark"] satisfies ColorScheme[]) {
   test(`the races page has no axe violations, ${scheme}`, async ({ page }) => {
     await openRaces(page, scheme);
     expect((await new AxeBuilder({ page }).analyze()).violations.map((v) => `${v.id}: ${v.help}`)).toEqual([]);
-    await page.getByRole("button", { name: "Half marathons", exact: true }).click();
+    const chip = page.getByRole("button", { name: "Half marathons", exact: true });
+    await chip.click();
+    await expect(chip).toHaveAttribute("aria-pressed", "true");
     await page.getByRole("searchbox", { name: "Search races" }).fill("nowhere");
     await expect(page.getByTestId("races-empty")).toBeVisible();
     expect((await new AxeBuilder({ page }).analyze()).violations.map((v) => `${v.id}: ${v.help}`)).toEqual([]);

@@ -196,7 +196,7 @@ function Chip({
       onClick={onClick}
       data-testid="race-chip"
       data-series={testId}
-      className={`h-9 shrink-0 cursor-pointer rounded-full px-3.5 text-[13px] font-medium whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-map focus-visible:outline-none ${
+      className={`h-9 shrink-0 cursor-pointer rounded-full px-3.5 text-[13px] font-medium whitespace-nowrap focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-map focus-visible:outline-none ${
         pressed ? "bg-ink text-surface" : "bg-surface text-ink ring-1 ring-line ring-inset hover:bg-surface-raised"
       }`}
     >
