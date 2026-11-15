@@ -121,8 +121,8 @@ for (const scheme of ["light", "dark"] satisfies ColorScheme[]) {
     await expect(page).toHaveScreenshot(`share-export-${scheme}.png`);
   });
 
-  // The printed pace band, on a page the width of Letter paper inside its margins. Paper is white,
-  // so the band is the same in either theme; the dark run checks that.
+  // The printed pace band (in the Segments view, the default), on a page the width of Letter paper
+  // inside its margins. Paper is white, so the band is the same in either theme; the dark run checks that.
   test(`printed pace band, ${scheme} @visual`, async ({ page }) => {
     test.skip(isPhone(page), "the printed page is paper sized on every device");
     await page.emulateMedia({ reducedMotion: "reduce" });
@@ -131,6 +131,58 @@ for (const scheme of ["light", "dark"] satisfies ColorScheme[]) {
     await page.emulateMedia({ media: "print" });
     await expect(page.getByTestId("pace-band")).toBeVisible();
     await expect(page).toHaveScreenshot(`pace-band-${scheme}.png`, { fullPage: true });
+  });
+
+  // B11: a Custom plan with three breakpoints, their handles on the chart and their list.
+  test(`custom plan with breakpoints, ${scheme} @visual`, async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await planBoston(page, scheme);
+    if (isPhone(page)) {
+      await page.getByTestId("sheet-handle").click();
+      await expect(page.getByTestId("sheet")).toHaveAttribute("data-snap", "full");
+    }
+    const scroller = isPhone(page) ? "sheet-content" : "side-panel-content";
+    await scrollPanelTo(page, scroller, "plan-type");
+    await page.getByTestId("plan-type").getByText("Custom").click();
+    for (let i = 0; i < 3; i++) await page.getByRole("button", { name: "Add breakpoint" }).click();
+    await expect(page.getByTestId("segment-row")).toHaveCount(4, { timeout: 15_000 });
+    await expectPlanSettled(page);
+    await page.mouse.move(page.viewportSize()!.width - 2, page.viewportSize()!.height / 2);
+    await scrollPanelTo(page, scroller, "elevation-chart");
+    await expect(page).toHaveScreenshot(`plan-custom-${scheme}.png`);
+  });
+
+  // B11: mile splits shown in the Splits view.
+  test(`splits plan in the Splits view, ${scheme} @visual`, async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await planBoston(page, scheme);
+    if (isPhone(page)) {
+      await page.getByTestId("sheet-handle").click();
+      await expect(page.getByTestId("sheet")).toHaveAttribute("data-snap", "full");
+    }
+    const scroller = isPhone(page) ? "sheet-content" : "side-panel-content";
+    await scrollPanelTo(page, scroller, "plan-type");
+    await page.getByTestId("plan-type").getByText("Splits").click();
+    await expect(page.getByTestId("segment-row")).toHaveCount(27, { timeout: 15_000 });
+    await expectPlanSettled(page);
+    await page.getByTestId("table-view").getByText("Splits").click();
+    await expect(page.getByTestId("split-table")).toBeVisible();
+    await page.mouse.move(page.viewportSize()!.width - 2, page.viewportSize()!.height / 2);
+    await scrollPanelTo(page, scroller, "plan-inputs");
+    await expect(page).toHaveScreenshot(`plan-splits-view-${scheme}.png`);
+  });
+
+  // The pace band in the Splits view: the time at every mile.
+  test(`printed pace band in the Splits view, ${scheme} @visual`, async ({ page }) => {
+    test.skip(isPhone(page), "the printed page is paper sized on every device");
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await planBoston(page, scheme);
+    await page.getByTestId("table-view").getByText("Splits").click();
+    await expect(page.getByTestId("split-table")).toBeVisible();
+    await page.setViewportSize({ width: 725, height: 940 });
+    await page.emulateMedia({ media: "print" });
+    await expect(page.getByTestId("band-row")).toHaveCount(27);
+    await expect(page).toHaveScreenshot(`pace-band-splits-${scheme}.png`, { fullPage: true });
   });
 
   test(`a link that cannot be opened, ${scheme} @visual`, async ({ page }) => {

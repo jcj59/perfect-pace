@@ -18,7 +18,11 @@ import {
   type LatLon,
   ShareError,
   DEFAULT_CURVE_MAX_PACE_CHANGES,
+  MAX_CUSTOM_BREAKPOINTS,
+  MAX_SHARE_BREAKPOINT_M,
   MAX_SHARE_GOAL_S,
+  PLAN_TYPES,
+  type PlanType,
   type ShareTrack,
   type SharedCourse,
   type SharedPlan,
@@ -30,8 +34,18 @@ import {
   decodeSharedCourse,
   encodeSharedCourse,
   isShareFragment,
+  metersPerUnit,
 } from "@pp/core";
-import { type AppState, type PlanSettings, appStore, applyPlanSettings, setLinkError, setSheet } from "./app.ts";
+import {
+  type AppState,
+  type PlanSettings,
+  TABLE_VIEWS,
+  type TableView,
+  appStore,
+  applyPlanSettings,
+  setLinkError,
+  setSheet,
+} from "./app.ts";
 import { afterRouteDrawn, loadCourseCopy, loadGpxText, onGpxText, trackTitle } from "./course.ts";
 import { coreClient } from "../worker/client.ts";
 import { drawStore, drawing } from "./draw.ts";
@@ -55,12 +69,21 @@ type SavedCourse =
   | { kind: "copy"; copy: "link" | "saved"; name: string; c: string }
   | { kind: "drawn"; c: string };
 
+/**
+ * The saved session. `planType`, `splitM`, `breakpointsM` and `tableView` came with plan types;
+ * a session saved before them has none, and gets the defaults.
+ */
 interface SavedSession {
   v: number;
   course: SavedCourse | null;
   goalTimeS: number | null;
   paceChanges: number;
   minSegmentM: number;
+  planType: PlanType;
+  /** Null for the default, one unit. */
+  splitM: number | null;
+  breakpointsM: number[];
+  tableView: TableView;
 }
 
 function storage(): Storage | undefined {
@@ -95,8 +118,12 @@ function write(key: string, value: string | null): boolean {
 /** The longest plan inputs a link can carry, so a course that fits with these fits with any. */
 const LONGEST_SETTINGS: SharedSettings = {
   goalTimeS: MAX_SHARE_GOAL_S,
+  // Custom carries the breakpoints, the longest field after the course.
+  planType: "custom",
   paceChanges: DEFAULT_CURVE_MAX_PACE_CHANGES,
   minSegmentM: 1609.344,
+  splitM: 1609.344,
+  breakpointsM: Array.from({ length: MAX_CUSTOM_BREAKPOINTS }, (_, i) => MAX_SHARE_BREAKPOINT_M - i),
   unit: "mi",
 };
 
@@ -169,8 +196,8 @@ export function shareUrl(prepared: PreparedShare, settings: SharedSettings, base
 }
 
 function settingsOf(plan: SharedPlan): PlanSettings {
-  const { goalTimeS, paceChanges, minSegmentM, unit } = plan.settings;
-  return { goalTimeS, paceChanges, minSegmentM, units: unit };
+  const { unit, ...rest } = plan.settings;
+  return { ...rest, units: unit };
 }
 
 /** Load the course and inputs of a share link. */
@@ -212,12 +239,21 @@ function parseSession(text: string | null): SavedSession | undefined {
     const goal = value.goalTimeS;
     if (!(goal === null || (isNumber(goal) && goal > 0))) return undefined;
     if (!isNumber(value.paceChanges) || !isNumber(value.minSegmentM) || value.minSegmentM < 0) return undefined;
+    // Saved before plan types, or damaged: each falls back to its default on its own.
+    const planType = PLAN_TYPES.includes(value.planType as PlanType) ? (value.planType as PlanType) : "optimal";
+    const splitM = isNumber(value.splitM) && value.splitM > 0 ? value.splitM : null;
+    const breakpointsM = Array.isArray(value.breakpointsM) ? value.breakpointsM.filter(isNumber) : [];
+    const tableView = TABLE_VIEWS.includes(value.tableView as TableView) ? (value.tableView as TableView) : "segments";
     return {
       v: SESSION_VERSION,
       course: value.course ?? null,
       goalTimeS: goal,
       paceChanges: value.paceChanges,
       minSegmentM: value.minSegmentM,
+      planType,
+      splitM,
+      breakpointsM,
+      tableView,
     };
   } catch {
     return undefined;
@@ -228,7 +264,17 @@ function parseSession(text: string | null): SavedSession | undefined {
 function restoreSaved(): void {
   const saved = parseSession(read(SESSION_STORAGE_KEY));
   if (!saved) return;
-  const settings: PlanSettings = { ...saved, units: appStore.get().units };
+  const units = appStore.get().units;
+  const settings: PlanSettings = {
+    goalTimeS: saved.goalTimeS,
+    planType: saved.planType,
+    paceChanges: saved.paceChanges,
+    minSegmentM: saved.minSegmentM,
+    splitM: saved.splitM ?? metersPerUnit(units),
+    breakpointsM: saved.breakpointsM,
+    units,
+  };
+  appStore.set({ tableView: saved.tableView });
   const course = saved.course;
   try {
     if (course?.kind === "file") {
@@ -353,6 +399,10 @@ export function saveSession(): void {
     goalTimeS: state.goalTimeS,
     paceChanges: state.paceChanges,
     minSegmentM: state.minSegmentM,
+    planType: state.planType,
+    splitM: state.splitM,
+    breakpointsM: state.breakpointsM,
+    tableView: state.tableView,
   };
   write(SESSION_STORAGE_KEY, JSON.stringify(session));
 }
@@ -402,7 +452,11 @@ export function startSession(): () => void {
       state.course !== previous.course ||
       state.goalTimeS !== previous.goalTimeS ||
       state.paceChanges !== previous.paceChanges ||
-      state.minSegmentM !== previous.minSegmentM
+      state.minSegmentM !== previous.minSegmentM ||
+      state.planType !== previous.planType ||
+      state.splitM !== previous.splitM ||
+      state.breakpointsM !== previous.breakpointsM ||
+      state.tableView !== previous.tableView
     ) {
       schedule();
     }

@@ -59,6 +59,13 @@
  * Optionally every piece must weigh at least `minPieceWeight` (in the plan, a length in meters):
  * the inner minimum just skips the `i` whose piece would be too short. No extra cost.
  *
+ * ## Fixed partitions
+ *
+ * When the pieces are given (one piece, a piece per mile, breakpoints the user placed), there is
+ * nothing to search: `segmentPartition` gives each piece its weighted mean and adds up the piece
+ * costs from the same prefix sums. The goal time argument above holds for any partition, so
+ * those plans hit the goal too.
+ *
  * ## An exact speedup: pruning starts that can never win
  *
  * Done naively, the inner minimum looks at every earlier `i`, about `K n^2 / 2` piece costs: some
@@ -223,6 +230,116 @@ function insert(
   env.count = count;
 }
 
+/** Prefix sums of `w`, `w c` and `w c^2` over values centered on their weighted mean (see below). */
+interface CenteredSums {
+  PW: Float64Array;
+  P1: Float64Array;
+  P2: Float64Array;
+  /** The weighted mean the values were centered on. */
+  mean: number;
+  /** `sum_i w_i o_i^2`, the data's scale. */
+  scale: number;
+  /** `sum_i w_i`, summed in order. */
+  totalW: number;
+}
+
+/**
+ * Center the values on their weighted mean before squaring: the piece cost `S2 - S1^2 / W` is a
+ * difference of two large numbers, and centering keeps them small so less precision cancels.
+ */
+function centeredPrefixSums(values: ArrayLike<number>, weights: ArrayLike<number>): CenteredSums {
+  const n = values.length;
+  let totalW = 0;
+  let totalWO = 0;
+  let scale = 0;
+  for (let i = 0; i < n; i++) {
+    const w = weights[i] as number;
+    const o = values[i] as number;
+    totalW += w;
+    totalWO += w * o;
+    scale += w * o * o;
+  }
+  const mean = totalW > 0 ? totalWO / totalW : 0;
+  const PW = new Float64Array(n + 1);
+  const P1 = new Float64Array(n + 1);
+  const P2 = new Float64Array(n + 1);
+  for (let i = 0; i < n; i++) {
+    const w = weights[i] as number;
+    const c = (values[i] as number) - mean;
+    PW[i + 1] = (PW[i] as number) + w;
+    P1[i + 1] = (P1[i] as number) + w * c;
+    P2[i + 1] = (P2[i] as number) + w * c * c;
+  }
+  return { PW, P1, P2, mean, scale, totalW };
+}
+
+/** The error of one piece over `i..j - 1` at its weighted mean, in O(1) from the prefix sums. */
+function pieceCost(PW: Float64Array, P1: Float64Array, P2: Float64Array, i: number, j: number): number {
+  const W = (PW[j] as number) - (PW[i] as number);
+  if (!(W > 0)) return 0;
+  const s1 = (P1[j] as number) - (P1[i] as number);
+  const c = (P2[j] as number) - (P2[i] as number) - (s1 * s1) / W;
+  return c > 0 ? c : 0;
+}
+
+/**
+ * Each piece's mean straight from the inputs (not the prefix sums), which is exact for a constant
+ * piece. A piece with no weight gets `fallback`.
+ */
+function pieceMeans(
+  values: ArrayLike<number>,
+  weights: ArrayLike<number>,
+  bounds: readonly number[],
+  fallback: number,
+): number[] {
+  const out: number[] = [];
+  for (let p = 0; p + 1 < bounds.length; p++) {
+    let W = 0;
+    let S = 0;
+    for (let i = bounds[p] as number; i < (bounds[p + 1] as number); i++) {
+      W += weights[i] as number;
+      S += (weights[i] as number) * (values[i] as number);
+    }
+    out.push(W > 0 ? S / W : fallback);
+  }
+  return out;
+}
+
+/**
+ * The best constant value for each piece of a fixed partition, and its error: the same piece
+ * means and piece costs the dynamic program uses (see the module doc), so a partition the DP
+ * would pick gets exactly the DP's numbers. `bounds` is `[0, b_1, ..., n]`, strictly increasing.
+ * The pieces' weighted values add up to the whole's, so a plan's time is the goal however it is
+ * cut. O(n).
+ */
+export function segmentPartition(
+  values: ArrayLike<number>,
+  weights: ArrayLike<number>,
+  bounds: readonly number[],
+): Segmentation {
+  assertInputs(values, weights, { maxPieces: Math.max(1, bounds.length - 1) });
+  const n = values.length;
+  if (bounds[0] !== 0 || bounds.at(-1) !== n || bounds.length < 2) {
+    throw new RangeError(`segmentPartition: bounds must run from 0 to ${n}`);
+  }
+  for (let p = 1; p < bounds.length; p++) {
+    const b = bounds[p] as number;
+    if (!(Number.isInteger(b) && b > (bounds[p - 1] as number))) {
+      throw new RangeError("segmentPartition: bounds must be strictly increasing integers");
+    }
+  }
+  const { PW, P1, P2, mean } = centeredPrefixSums(values, weights);
+  let error = 0;
+  for (let p = 0; p + 1 < bounds.length; p++)
+    error += pieceCost(PW, P1, P2, bounds[p] as number, bounds[p + 1] as number);
+  return {
+    maxPieces: bounds.length - 1,
+    bounds: [...bounds],
+    values: pieceMeans(values, weights, bounds, mean),
+    error,
+  };
+}
+
 /**
  * The optimal segmentation for every `k = 1..maxPieces` (index `k - 1`) of `values` weighted by
  * `weights`, by the dynamic program in the module doc. Each result is the exact global minimum of
@@ -238,41 +355,12 @@ export function segmentLeastSquares(
   const n = values.length;
   const K = options.maxPieces;
 
-  // Center the values on their weighted mean before squaring: the piece cost `S2 - S1^2 / W` is a
-  // difference of two large numbers, and centering keeps them small so less precision cancels.
-  let totalW = 0;
-  let totalWO = 0;
-  let scale = 0;
-  for (let i = 0; i < n; i++) {
-    const w = weights[i] as number;
-    const o = values[i] as number;
-    totalW += w;
-    totalWO += w * o;
-    scale += w * o * o;
-  }
-  const mean = totalW > 0 ? totalWO / totalW : 0;
+  const { PW, P1, P2, mean, scale, totalW } = centeredPrefixSums(values, weights);
   const tol = RELATIVE_TOLERANCE * scale;
   const minW = options.minPieceWeight ?? 0;
   // Prefix sums compare lengths that were summed in different orders, so allow for rounding.
   const minWCheck = minW - 1e-9 * Math.max(minW, totalW * Number.EPSILON);
-
-  const PW = new Float64Array(n + 1);
-  const P1 = new Float64Array(n + 1);
-  const P2 = new Float64Array(n + 1);
-  for (let i = 0; i < n; i++) {
-    const w = weights[i] as number;
-    const c = (values[i] as number) - mean;
-    PW[i + 1] = (PW[i] as number) + w;
-    P1[i + 1] = (P1[i] as number) + w * c;
-    P2[i + 1] = (P2[i] as number) + w * c * c;
-  }
-  const cost = (i: number, j: number): number => {
-    const W = (PW[j] as number) - (PW[i] as number);
-    if (!(W > 0)) return 0;
-    const s1 = (P1[j] as number) - (P1[i] as number);
-    const c = (P2[j] as number) - (P2[i] as number) - (s1 * s1) / W;
-    return c > 0 ? c : 0;
-  };
+  const cost = (i: number, j: number): number => pieceCost(PW, P1, P2, i, j);
 
   // errors[k - 1][j] is E_k[j]; starts[k - 1][j] is where the last piece starts, or -1 when the
   // optimum for k is the one for k - 1 (more pieces did not help).
@@ -365,17 +453,7 @@ export function segmentLeastSquares(
       layer--;
     }
     bounds.reverse();
-    // Each piece's mean straight from the inputs, which is exact for a constant piece.
-    const pieceValues: number[] = [];
-    for (let p = 0; p + 1 < bounds.length; p++) {
-      let W = 0;
-      let S = 0;
-      for (let i = bounds[p] as number; i < (bounds[p + 1] as number); i++) {
-        W += weights[i] as number;
-        S += (weights[i] as number) * (values[i] as number);
-      }
-      pieceValues.push(W > 0 ? S / W : mean);
-    }
+    const pieceValues = pieceMeans(values, weights, bounds, mean);
     results.push({ maxPieces: k, bounds, values: pieceValues, error: (errors[k - 1] as Float64Array)[n] as number });
   }
   return results;

@@ -288,6 +288,32 @@ describe("startPlanner", () => {
     expect(store.get().selectedSegment).toBeNull();
   });
 
+  it("asks for each plan type with only the inputs it uses", () => {
+    store.set({ course: loaded(profile(MARATHON_M)) });
+    expect(calls[0]!.inputs).toMatchObject({ type: "optimal", paceChanges: 4 });
+    const next = (change: Partial<AppState>) => {
+      store.set(change);
+      vi.advanceTimersByTime(100);
+      return calls.at(-1)!.inputs;
+    };
+    expect(next({ planType: "even" })).toEqual({
+      type: "even",
+      goalTimeS: suggestedGoalS(MARATHON_M),
+      unit: "mi",
+      paceChanges: 0,
+    });
+    // Inputs Even does not use change nothing.
+    const count = calls.length;
+    next({ paceChanges: 9, minSegmentM: 0, breakpointsM: [100], splitM: 5000 });
+    expect(calls).toHaveLength(count);
+    expect(next({ planType: "splits" })).toMatchObject({ type: "splits", splitM: 5000 });
+    expect(next({ planType: "custom" })).toMatchObject({ type: "custom", breakpointsM: [100] });
+    expect(next({ breakpointsM: [100, 2000] })).toMatchObject({ breakpointsM: [100, 2000] });
+    const before = calls.length;
+    next({ breakpointsM: [100, 2000] });
+    expect(calls).toHaveLength(before);
+  });
+
   it("drops the plan when the course goes away", () => {
     store.set({ course: loaded(profile(5000)) });
     store.set({ course: { status: "empty" } });

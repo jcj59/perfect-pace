@@ -14,9 +14,21 @@ import { type CSSProperties, type KeyboardEvent, useId, useLayoutEffect, useMemo
 import { useWidth } from "../layout/useWidth.ts";
 import { InfoPopover } from "./InfoPopover.tsx";
 import { curveKnee, curvePoints } from "../plan/curve.ts";
+import { paceBand } from "../plan/export.ts";
 import { SUGGESTED_PACE_S_PER_MI, checkGoal, minSegmentOptions, roundPreservingSum } from "../plan/inputs.ts";
 import { TONES, type Tone, segmentTone, toneLabel, toneVar } from "../plan/tones.ts";
-import { setGoalTimeS, setMinSegmentM, setPaceChanges, setSelectedSegment, useAppState } from "../state/app.ts";
+import {
+  type TableView,
+  setGoalTimeS,
+  setMinSegmentM,
+  setPaceChanges,
+  setSelectedSegment,
+  setTableView,
+  useAppState,
+} from "../state/app.ts";
+import { CustomControls, EvenControls, PlanTypePicker, SplitControls } from "./PlanTypeControls.tsx";
+import { Segmented } from "./Segmented.tsx";
+import { SplitTable } from "./SplitTable.tsx";
 import {
   PLAN_RECOMPUTE_MEASURE,
   PLAN_RENDERED_MARK,
@@ -32,11 +44,12 @@ const CURVE_HEIGHT_PX = 64;
 const CURVE_TOP_PX = 18;
 
 /**
- * The pacing plan for the loaded course: the inputs (goal time, pace changes with the error
- * curve, shortest segment), the predicted finish and the segment table, with how the plan works
- * behind the (i) beside the heading. Pace changes and the shortest segment recompute the plan in
- * the worker as they change (see `state/plan.ts`); the plan in view stays up, marked as updating,
- * until the new one lands.
+ * The pacing plan for the loaded course: the plan type, its inputs (the goal time, then for
+ * Optimal the pace changes with the error curve and the shortest segment, for Splits the split
+ * length, for Custom the breakpoints), the predicted finish and the plan table by segment or by
+ * split, with how the plan works behind the (i) beside the heading. Every input recomputes the
+ * plan in the worker as it changes (see `state/plan.ts`); the plan in view stays up, marked as
+ * updating, until the new one lands.
  */
 export function PacingPlan({ profile, headingLevel }: { profile: ElevationProfile; headingLevel: 2 | 3 }) {
   const units = useAppState((s) => s.units);
@@ -44,6 +57,8 @@ export function PacingPlan({ profile, headingLevel }: { profile: ElevationProfil
   const plan = view.profile === profile ? view.plan : null;
   const error = view.profile === profile ? view.error : null;
   const lengthM = profile.course.points.at(-1)?.distM ?? 0;
+  const planType = useAppState((s) => s.planType);
+  const tableView = useAppState((s) => s.tableView);
   const Heading = headingLevel === 2 ? "h2" : "h3";
 
   return (
@@ -74,10 +89,24 @@ export function PacingPlan({ profile, headingLevel }: { profile: ElevationProfil
         </span>
       </div>
 
-      <div className="mt-3 space-y-5 rounded-2xl bg-surface-raised px-4 py-4 ring-1 ring-line ring-inset">
+      <div className="mt-3">
+        <PlanTypePicker />
+      </div>
+
+      <div
+        className="mt-3 space-y-5 rounded-2xl bg-surface-raised px-4 py-4 ring-1 ring-line ring-inset"
+        data-testid="plan-inputs"
+      >
         <GoalRow profile={profile} lengthM={lengthM} units={units} plan={plan} />
-        <PaceChanges plan={plan} units={units} />
-        <MinSegment units={units} />
+        {planType === "optimal" && (
+          <>
+            <PaceChanges plan={plan} units={units} />
+            <MinSegment units={units} />
+          </>
+        )}
+        {planType === "even" && <EvenControls plan={plan} units={units} />}
+        {planType === "splits" && <SplitControls plan={plan} units={units} lengthM={lengthM} />}
+        {planType === "custom" && <CustomControls profile={profile} plan={plan} units={units} />}
       </div>
 
       {error ? (
@@ -94,7 +123,7 @@ export function PacingPlan({ profile, headingLevel }: { profile: ElevationProfil
           data-pending={view.pending || undefined}
           aria-busy={view.pending}
         >
-          <SegmentTable plan={plan} units={units} />
+          <PlanTables plan={plan} units={units} view={tableView} />
           <ToneLegend plan={plan} units={units} />
         </div>
       ) : (
@@ -429,6 +458,48 @@ function gradeText(grade: number): string {
   return grade > 0 ? `+${pct}%` : `${pct}%`;
 }
 
+const TABLE_VIEW_OPTIONS: { value: TableView; label: string; ariaLabel: string }[] = [
+  { value: "segments", label: "Segments", ariaLabel: "Segments table" },
+  { value: "splits", label: "Splits", ariaLabel: "Splits table" },
+];
+
+/**
+ * The plan table, by segment or by split (each mile or kilometer), with the switch between them.
+ * The CSV and the printed pace band follow the same view.
+ */
+function PlanTables({ plan, units, view }: { plan: Plan; units: DistanceUnit; view: TableView }) {
+  // The recompute is done once the new plan is on screen.
+  useLayoutEffect(() => {
+    if (performance.getEntriesByName(PLAN_REQUEST_MARK, "mark").length === 0) return;
+    performance.clearMarks(PLAN_RENDERED_MARK);
+    performance.clearMeasures(PLAN_RECOMPUTE_MEASURE);
+    performance.mark(PLAN_RENDERED_MARK);
+    performance.measure(PLAN_RECOMPUTE_MEASURE, PLAN_REQUEST_MARK, PLAN_RENDERED_MARK);
+  }, [plan]);
+
+  const segments = plan.segments.length;
+  const splits = view === "splits" ? paceBand(plan, units).length : 0;
+  return (
+    <>
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <p className="text-[13px] text-ink-muted" data-testid="table-summary">
+          {view === "segments"
+            ? `${segments} ${segments === 1 ? "segment" : "segments"}`
+            : `${splits} ${splits === 1 ? "split" : "splits"} by the ${units === "mi" ? "mile" : "kilometer"}`}
+        </p>
+        <Segmented
+          legend="Show the plan"
+          options={TABLE_VIEW_OPTIONS}
+          value={view}
+          onChange={setTableView}
+          testId="table-view"
+        />
+      </div>
+      {view === "segments" ? <SegmentTable plan={plan} units={units} /> : <SplitTable plan={plan} units={units} />}
+    </>
+  );
+}
+
 /**
  * One row per segment: where it runs, the pace to hold, its average grade and its time, with the
  * reason under it. The times are rounded so they add up to the predicted finish in the last row.
@@ -439,15 +510,6 @@ function SegmentTable({ plan, units }: { plan: Plan; units: DistanceUnit }) {
   const decimals = metersToUnit(plan.lengthM, units) < 3 ? 2 : 1;
   const times = roundPreservingSum(plan.segments.map((s) => s.timeS));
   const total = times.reduce((a, b) => a + b, 0);
-
-  // The recompute is done once the new plan is on screen.
-  useLayoutEffect(() => {
-    if (performance.getEntriesByName(PLAN_REQUEST_MARK, "mark").length === 0) return;
-    performance.clearMarks(PLAN_RENDERED_MARK);
-    performance.clearMeasures(PLAN_RECOMPUTE_MEASURE);
-    performance.mark(PLAN_RENDERED_MARK);
-    performance.measure(PLAN_RECOMPUTE_MEASURE, PLAN_REQUEST_MARK, PLAN_RENDERED_MARK);
-  }, [plan]);
 
   return (
     <table
@@ -578,12 +640,35 @@ function ToneLegend({ plan, units }: { plan: Plan; units: DistanceUnit }) {
   );
 }
 
-/** How the plan is worked out: the pace model's stated assumption, which every number rests on. */
+/**
+ * How the plan is worked out: the pace model's stated assumption, which every number rests on,
+ * and what each plan type does with it.
+ */
 function PlanExplanation({ plan, units }: { plan: Plan; units: DistanceUnit }) {
   return (
-    <p data-testid="plan-assumption">
-      {plan.model.assumption} For your goal that makes flat ground {formatPace(plan.flatPaceSPerM, units)} /{units}. The
-      plan holds each segment at the average of that ideal, hill-by-hill pace, so the segments add up to your goal.
-    </p>
+    <>
+      <p data-testid="plan-assumption">
+        {plan.model.assumption} For your goal that makes flat ground {formatPace(plan.flatPaceSPerM, units)} /{units}.
+        The plan holds each segment at the average of that ideal, hill-by-hill pace, so the segments add up to your
+        goal.
+      </p>
+      <ul className="space-y-1" data-testid="plan-types-explained">
+        <li>
+          <span className="font-semibold text-ink">Optimal</span> places the pace changes you allow where they follow
+          the hills most closely.
+        </li>
+        <li>
+          <span className="font-semibold text-ink">Even</span> holds one pace for the whole course.
+        </li>
+        <li>
+          <span className="font-semibold text-ink">Splits</span> gives every mile, kilometer or split you choose its own
+          pace.
+        </li>
+        <li>
+          <span className="font-semibold text-ink">Custom</span> changes pace only at the breakpoints you place.
+        </li>
+      </ul>
+      <p>Every type uses the same ideal pace, so they compare directly.</p>
+    </>
   );
 }

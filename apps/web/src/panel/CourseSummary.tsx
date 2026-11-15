@@ -2,7 +2,7 @@ import { type DistanceUnit, type ElevationProfile, type GpxFile, courseLengthM }
 import { type ReactNode, useMemo } from "react";
 import { CHART_HEIGHT_PX, type ChartSegment, ElevationChart } from "../chart/ElevationChart.tsx";
 import { segmentTone } from "../plan/tones.ts";
-import { type CourseState, type ElevationState, useAppState } from "../state/app.ts";
+import { type CourseState, type ElevationState, setBreakpointsM, useAppState } from "../state/app.ts";
 import { drawing, useDrawState } from "../state/draw.ts";
 import { DRAW, Icon } from "../draw/icons.tsx";
 import { DRAW_OFFLINE_TITLE, DrawButton, SECONDARY_BUTTON } from "../draw/DrawButton.tsx";
@@ -495,7 +495,13 @@ function PlannedChart({ profile, units }: { profile: ElevationProfile; units: Di
         : undefined,
     [plan, planProfile, profile],
   );
-  return <ElevationChart profile={profile} units={units} segments={segments} />;
+  const planType = useAppState((s) => s.planType);
+  const breakpointsM = useAppState((s) => s.breakpointsM);
+  const editor = useMemo(
+    () => (planType === "custom" ? { valuesM: breakpointsM, onChange: setBreakpointsM } : undefined),
+    [planType, breakpointsM],
+  );
+  return <ElevationChart profile={profile} units={units} segments={segments} breakpoints={editor} />;
 }
 
 /** The share and export controls, once the course's elevation profile is ready. */

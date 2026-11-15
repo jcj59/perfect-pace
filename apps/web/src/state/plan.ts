@@ -1,7 +1,7 @@
 /**
  * The pacing plan for the current course and inputs, computed in the core worker. The planner
  * watches the app store: a new elevation profile gets its plan right away, and input changes
- * (goal, pace changes, shortest segment, units) are debounced, so dragging the slider or typing a
+ * (goal, plan type, pace changes, shortest segment, split, breakpoints, units) are debounced, so dragging the slider or typing a
  * goal sends one request once the input settles. A newer request aborts the one before it, so a
  * stale plan never lands over a fresh one. The plan in view stays up, marked pending, until the
  * new one arrives.
@@ -50,20 +50,33 @@ export function effectiveGoalS(state: Pick<AppState, "goalTimeS">, profile: Elev
 
 type PlanInputs = CoreOps["plan"]["input"]["inputs"];
 
-function inputsFor(state: AppState, profile: ElevationProfile): PlanInputs {
-  return {
-    goalTimeS: effectiveGoalS(state, profile),
-    paceChanges: state.paceChanges,
-    unit: state.units,
-    minSegmentM: state.minSegmentM,
-  };
+/** The inputs the plan type uses: the others stay out, so changing them recomputes nothing. */
+export function inputsFor(state: AppState, profile: ElevationProfile): PlanInputs {
+  const goalTimeS = effectiveGoalS(state, profile);
+  const unit = state.units;
+  switch (state.planType) {
+    case "optimal":
+      return { type: "optimal", goalTimeS, unit, paceChanges: state.paceChanges, minSegmentM: state.minSegmentM };
+    case "even":
+      return { type: "even", goalTimeS, unit, paceChanges: 0 };
+    case "splits":
+      return { type: "splits", goalTimeS, unit, paceChanges: 0, splitM: state.splitM };
+    case "custom":
+      return { type: "custom", goalTimeS, unit, paceChanges: 0, breakpointsM: state.breakpointsM };
+  }
 }
 
+const sameBreakpoints = (a: readonly number[] = [], b: readonly number[] = []) =>
+  a.length === b.length && a.every((x, i) => x === b[i]);
+
 const sameInputs = (a: PlanInputs, b: PlanInputs) =>
+  a.type === b.type &&
   a.goalTimeS === b.goalTimeS &&
   a.paceChanges === b.paceChanges &&
   a.unit === b.unit &&
-  a.minSegmentM === b.minSegmentM;
+  a.minSegmentM === b.minSegmentM &&
+  a.splitM === b.splitM &&
+  sameBreakpoints(a.breakpointsM, b.breakpointsM);
 
 const sameBounds = (a: readonly PlanSegment[], b: readonly PlanSegment[]) =>
   a.length === b.length && a.every((s, i) => s.startIndex === b[i]?.startIndex);

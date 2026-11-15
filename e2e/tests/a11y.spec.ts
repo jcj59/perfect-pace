@@ -43,7 +43,7 @@ for (const scheme of ["light", "dark"] satisfies ColorScheme[]) {
   test(`a link that cannot be opened has no axe violations, ${scheme}`, async ({ page }) => {
     await openApp(page, scheme);
     await page.evaluate(() => {
-      location.hash = "v=2&c=t.AAAA";
+      location.hash = "v=3&c=t.AAAA";
     });
     await expect(page.getByTestId("link-error")).toBeVisible();
     expect((await new AxeBuilder({ page }).analyze()).violations.map((v) => `${v.id}: ${v.help}`)).toEqual([]);
