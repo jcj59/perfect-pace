@@ -148,17 +148,17 @@ on the three device projects, so Playwright would pull all of those into the sam
 
 To add capacity as the suite grows, raise the shard count in the `e2e-shard` matrix. Measured on
 real runs on 2-vCPU `ubuntu-latest` with 398 tests (before: the last green PR 12 run; after: the
-sharding PR once PR 12 was merged into it):
+sharding PR on two runs once PR 12 was merged into it):
 
 | Job                   | Before (one E2E job)  | After (sharded)                    |
 | --------------------- | --------------------- | ---------------------------------- |
 | `verify`              | 1.9 min               | 0.9 to 1.9 min (Turbo cache)       |
 | `perf`                | 0.7 min               | 0.7 min                            |
 | `preview`             | 0.4 min, after verify | 5 s, at the start                  |
-| E2E                   | 20.0 min, after both  | 3.2 to 4.6 min per shard, parallel |
+| E2E                   | 20.0 min, after both  | 2.8 to 6.0 min per shard, parallel |
 | `e2e-perf`            | inside E2E            | 1.5 to 1.9 min, parallel           |
-| `e2e` check green     | 22.4 min              | 4.9 min                            |
-| Whole run, wall clock | 22.5 min              | 5.2 min                            |
+| `e2e` check green     | 22.4 min              | 4.9 to 6.2 min                     |
+| Whole run, wall clock | 22.5 min              | 5.2 to 6.7 min                     |
 
 On the 335-test suite before PR 12, the same change took a run from 19.2 to 5.3 minutes.
 
