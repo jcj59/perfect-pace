@@ -51,6 +51,10 @@ export function decodeEntities(raw: string): string {
 }
 
 const NAME_END = /[\s/>]/;
+const QUOTE = 0x22;
+const APOSTROPHE = 0x27;
+const LT = 0x3c;
+const GT = 0x3e;
 const ATTR = /([^\s=/>]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g;
 
 function skipPast(xml: string, from: number, terminator: string, what: string, start: number): number {
@@ -61,23 +65,29 @@ function skipPast(xml: string, from: number, terminator: string, what: string, s
 
 /** Index of the `>` that closes the tag starting at `start`, honoring quoted attribute values. */
 function tagEnd(xml: string, start: number): number {
-  let quote = "";
+  // Character codes, not one-character strings: this runs over every byte of a large file.
+  let quote = 0;
   for (let i = start + 1; i < xml.length; i++) {
-    const c = xml[i];
+    const c = xml.charCodeAt(i);
     if (quote) {
-      if (c === quote) quote = "";
-    } else if (c === '"' || c === "'") {
+      if (c === quote) quote = 0;
+    } else if (c === QUOTE || c === APOSTROPHE) {
       quote = c;
-    } else if (c === ">") {
+    } else if (c === GT) {
       return i;
-    } else if (c === "<") {
+    } else if (c === LT) {
       throw new XmlSyntaxError("a tag is missing its closing >", start, false);
     }
   }
   throw new XmlSyntaxError("unterminated tag", start, true);
 }
 
-function parseAttrs(source: string, start: number): Map<string, string> {
+/** The attributes of every tag without any, shared: handlers only read them. */
+const NO_ATTRS: ReadonlyMap<string, string> = new Map();
+
+function parseAttrs(source: string, start: number): ReadonlyMap<string, string> {
+  // Most tags (`<ele>`, `<time>`) have nothing after their name.
+  if (source === "") return NO_ATTRS;
   const attrs = new Map<string, string>();
   ATTR.lastIndex = 0;
   let consumed = 0;
