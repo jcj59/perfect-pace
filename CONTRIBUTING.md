@@ -147,16 +147,20 @@ videos as `playwright-shard-<i>-<attempt>`. The budget projects cannot share a s
 on the three device projects, so Playwright would pull all of those into the same shard.
 
 To add capacity as the suite grows, raise the shard count in the `e2e-shard` matrix. Measured on
-real runs (2-vCPU `ubuntu-latest`, 335 tests):
+real runs on 2-vCPU `ubuntu-latest` with 398 tests (before: the last green PR 12 run; after: the
+sharding PR once PR 12 was merged into it):
 
-| Job                   | Before (one E2E job)  | After (sharded) |
-| --------------------- | --------------------- | --------------- |
-| `verify`              | 0.8 to 1.5 min        | same            |
-| `perf`                | 0.7 min               | same            |
-| `preview`             | 0.5 min, after verify | 5 s, at start   |
-| E2E (longest shard)   | 17.7 min              | 4.6 min         |
-| `e2e` check green     | 19.2 min              | 4.9 min         |
-| Whole run, wall clock | 19.2 min              | 5.4 min         |
+| Job                   | Before (one E2E job)  | After (sharded)                    |
+| --------------------- | --------------------- | ---------------------------------- |
+| `verify`              | 1.9 min               | 0.9 to 1.9 min (Turbo cache)       |
+| `perf`                | 0.7 min               | 0.7 min                            |
+| `preview`             | 0.4 min, after verify | 5 s, at the start                  |
+| E2E                   | 20.0 min, after both  | 3.2 to 4.6 min per shard, parallel |
+| `e2e-perf`            | inside E2E            | 1.5 to 1.9 min, parallel           |
+| `e2e` check green     | 22.4 min              | 4.9 min                            |
+| Whole run, wall clock | 22.5 min              | 5.2 min                            |
+
+On the 335-test suite before PR 12, the same change took a run from 19.2 to 5.3 minutes.
 
 Deploys need two repository secrets: `CLOUDFLARE_API_TOKEN` (a token from the "Edit Cloudflare
 Workers" template) and `CLOUDFLARE_ACCOUNT_ID`. Without them the `preview` job skips the deploy and
