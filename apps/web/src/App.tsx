@@ -296,9 +296,10 @@ export function App() {
 /** The pace band for printing, while there is a plan for the course on screen. */
 function PrintedBand({ course }: { course: CourseState }) {
   const units = useAppState((s) => s.units);
+  const view = useAppState((s) => s.tableView);
   const planProfile = usePlanView((v) => v.profile);
   const plan = usePlanView((v) => v.plan);
   const profile = readyProfile(course);
   if (!plan || !profile || planProfile !== profile) return null;
-  return <PaceBand plan={plan} units={units} title={courseName(course)} />;
+  return <PaceBand plan={plan} units={units} view={view} title={courseName(course)} />;
 }
