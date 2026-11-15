@@ -2,11 +2,11 @@ name: CI
 
 # Every PR gets one of three kinds of run (decided by the `changes` job):
 # - quick (every push by default): verify, perf, preview, and the desktop E2E project on 3 shards.
-#   The required `e2e` and `lighthouse` checks are NOT reported (their jobs get other names), so
+#   The required `e2e` and `lighthouse` checks are NOT reported (those jobs get other names), so
 #   branch protection keeps the PR unmergeable until a full run passes on the head commit.
 # - full: verify, perf, preview, every E2E project (desktop, iPhone, Pixel) on 8 shards, the
-#   timing budgets (`e2e-perf`) and Lighthouse; the `e2e` job gathers them into the required
-#   check. Runs when the PR has the `full-ci` label (adding it dispatches a run, see ci-full.yml),
+#   timing budgets (`e2e-perf`) and Lighthouse; the `e2e` and `lighthouse` jobs gather them into
+#   the required checks. Runs when the PR has the `full-ci` label (adding it dispatches a run, see ci-full.yml),
 #   when it is marked ready for review, and on a manual run.
 # - docs: only documentation changed. verify runs; the rest is skipped and `e2e` passes.
 # Required checks on main: verify, perf, preview, e2e, lighthouse. See CONTRIBUTING.md.
@@ -260,12 +260,13 @@ jobs:
           retention-days: 14
 
   # The required check, reported only by a full or docs run. In a full run it passes only when
-  # every shard, the timing budgets and Lighthouse passed; in a docs run, when `changes` did. In a
-  # quick run this job is named `e2e (quick)` instead and reports the desktop subset, so the
-  # required `e2e` stays "expected" (merge blocked) until a full run passes on the head commit.
+  # every shard and the timing budgets passed; in a docs run, when `changes` did. In a quick run
+  # this job is named `e2e (quick)` instead and reports the desktop subset, so the required `e2e`
+  # stays "expected" (merge blocked) until a full run passes on the head commit. (A job's name is
+  # only evaluated when it runs, hence `always()`: a skipped job shows its raw expression.)
   e2e:
     name: ${{ needs.changes.outputs.mode == 'quick' && 'e2e (quick)' || 'e2e' }}
-    needs: [changes, preview, e2e-shard, e2e-perf, lighthouse]
+    needs: [changes, preview, e2e-shard, e2e-perf]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -277,17 +278,16 @@ jobs:
           PREVIEW: ${{ needs.preview.result }}
           SHARDS: ${{ needs.e2e-shard.result }}
           PERF: ${{ needs.e2e-perf.result }}
-          LIGHTHOUSE: ${{ needs.lighthouse.result }}
           PR: ${{ github.event.pull_request.number || inputs.pr }}
         run: |
-          echo "mode=$MODE changes=$CHANGES preview=$PREVIEW e2e-shard=$SHARDS e2e-perf=$PERF lighthouse=$LIGHTHOUSE"
+          echo "mode=$MODE changes=$CHANGES preview=$PREVIEW e2e-shard=$SHARDS e2e-perf=$PERF"
           [ "$CHANGES" = success ] || exit 1
           case "$MODE" in
             docs)
               echo "Only documentation changed: E2E skipped."
               ;;
             full)
-              [ "$PREVIEW" = success ] && [ "$SHARDS" = success ] && [ "$PERF" = success ] && [ "$LIGHTHOUSE" = success ]
+              [ "$PREVIEW" = success ] && [ "$SHARDS" = success ] && [ "$PERF" = success ]
               ;;
             quick)
               [ "$PREVIEW" = success ] && [ "$SHARDS" = success ] || exit 1
@@ -325,10 +325,8 @@ jobs:
           retention-days: 14
 
   # Lighthouse accessibility (at least 95, phone and desktop) against the preview. Installability
-  # and the service worker are asserted in the E2E suite (e2e/tests/pwa.spec.ts). Full runs only;
-  # in a quick run it is skipped under another name, so the required `lighthouse` stays expected.
-  lighthouse:
-    name: ${{ needs.changes.outputs.mode == 'quick' && 'lighthouse (full run only)' || 'lighthouse' }}
+  # and the service worker are asserted in the E2E suite (e2e/tests/pwa.spec.ts). Full runs only.
+  lighthouse-run:
     needs: [changes, preview]
     if: needs.changes.outputs.mode == 'full'
     runs-on: ubuntu-latest
@@ -352,3 +350,27 @@ jobs:
           name: lighthouse-${{ github.run_attempt }}
           path: e2e/lighthouse-report
           retention-days: 14
+
+  # The required check: Lighthouse's result in a full run, a pass in a docs run. In a quick run it
+  # is named `lighthouse (full run only)`, so the required `lighthouse` stays expected.
+  lighthouse:
+    name: ${{ needs.changes.outputs.mode == 'quick' && 'lighthouse (full run only)' || 'lighthouse' }}
+    needs: [changes, lighthouse-run]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Lighthouse passed
+        env:
+          MODE: ${{ needs.changes.outputs.mode }}
+          CHANGES: ${{ needs.changes.result }}
+          RUN: ${{ needs.lighthouse-run.result }}
+        run: |
+          echo "mode=$MODE changes=$CHANGES lighthouse-run=$RUN"
+          [ "$CHANGES" = success ] || exit 1
+          case "$MODE" in
+            docs) echo "Only documentation changed: Lighthouse skipped." ;;
+            full) [ "$RUN" = success ] ;;
+            quick) echo "::notice title=Full run needed before merge::Lighthouse runs only in a full run (add the full-ci label)." ;;
+            *) exit 1 ;;
+          esac
