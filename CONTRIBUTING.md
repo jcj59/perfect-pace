@@ -115,15 +115,52 @@ issue. Quarantined tests still run in CI in a separate, non-blocking step.
 
 ## CI and deploys
 
-| Workflow           | Trigger                          | What it does                                                             |
-| ------------------ | -------------------------------- | ------------------------------------------------------------------------ |
-| `CI`               | every PR                         | `verify`, `perf`, `preview` (Worker version with alias `pr-<n>`), `e2e`  |
-| `Deploy`           | push to `main`                   | deploy production, smoke test it, roll back and open an issue on failure |
-| `Nightly`          | 07:17 UTC daily                  | live smoke against production, full E2E on Chromium, Firefox and WebKit  |
-| `Visual baselines` | `visual-update` PR label, manual | regenerate screenshot baselines (used by `pnpm visual:update --ci`)      |
+| Workflow           | Trigger                          | What it does                                                                                                          |
+| ------------------ | -------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `CI`               | every PR                         | `verify`, `perf`, `preview` (Worker version with alias `pr-<n>`), `e2e`                                               |
+| `Deploy`           | push to `main`                   | deploy production, smoke test it, roll back and open an issue on failure                                              |
+| `Nightly`          | 07:17 UTC daily                  | live smoke against production, full E2E on Chromium, Firefox and WebKit                                               |
+| `Visual baselines` | `visual-update` PR label, manual | regenerate screenshot baselines, one runner per project, merged into one artifact (used by `pnpm visual:update --ci`) |
 
 The required checks on `main` are `verify`, `perf`, `preview` and `e2e`, with an up-to-date
 branch. Playwright traces, videos and screenshot diffs are uploaded as artifacts when a test fails.
+
+### How a CI run is laid out
+
+Every job starts at once except E2E, which waits only for `preview` (seconds) and `changes`:
+
+| Job             | What it does                                                                                      |
+| --------------- | ------------------------------------------------------------------------------------------------- |
+| `verify`        | lint, format, Worker types, typecheck, unit/golden/Worker tests, build                            |
+| `perf`          | Vitest benchmarks against their budgets                                                           |
+| `changes`       | decides whether E2E runs: it is skipped only when every changed file is `docs/**` or a root `.md` |
+| `preview`       | builds and uploads the `pr-<n>` preview version (does nothing without Cloudflare secrets)         |
+| `e2e shard i/8` | the desktop, iPhone and Pixel projects, split by test count over 8 runners (`--shard i/8`)        |
+| `e2e-perf`      | the `load-perf` and `plan-perf` budgets, one at a time on a runner of their own                   |
+| `e2e`           | the required check: passes only if every shard and `e2e-perf` passed (or E2E was skipped)         |
+| `e2e-report`    | merges the shards' blob reports into one HTML report (artifact `playwright-report-<attempt>`)     |
+
+Each shard is a full Playwright run in the Playwright container, with one worker (the 2-vCPU
+runner's default; two workers were only 1.4x faster and stretched each test by 40%) and the same
+single retry, so a test behaves as it did unsharded. On failure a shard uploads its traces and
+videos as `playwright-shard-<i>-<attempt>`. The budget projects cannot share a shard: they depend
+on the three device projects, so Playwright would pull all of those into the same shard.
+
+To add capacity as the suite grows, raise the shard count in the `e2e-shard` matrix. Measured on
+real runs on 2-vCPU `ubuntu-latest` with 398 tests (before: the last green PR 12 run; after: the
+sharding PR on two runs once PR 12 was merged into it):
+
+| Job                   | Before (one E2E job)  | After (sharded)                    |
+| --------------------- | --------------------- | ---------------------------------- |
+| `verify`              | 1.9 min               | 0.9 to 1.9 min (Turbo cache)       |
+| `perf`                | 0.7 min               | 0.7 min                            |
+| `preview`             | 0.4 min, after verify | 5 s, at the start                  |
+| E2E                   | 20.0 min, after both  | 2.8 to 6.0 min per shard, parallel |
+| `e2e-perf`            | inside E2E            | 1.5 to 1.9 min, parallel           |
+| `e2e` check green     | 22.4 min              | 4.9 to 6.2 min                     |
+| Whole run, wall clock | 22.5 min              | 5.2 to 6.7 min                     |
+
+On the 335-test suite before PR 12, the same change took a run from 19.2 to 5.3 minutes.
 
 Deploys need two repository secrets: `CLOUDFLARE_API_TOKEN` (a token from the "Edit Cloudflare
 Workers" template) and `CLOUDFLARE_ACCOUNT_ID`. Without them the `preview` job skips the deploy and

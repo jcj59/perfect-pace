@@ -18,10 +18,14 @@ env:
   TURBO_TELEMETRY_DISABLED: "1"
 
 jobs:
+  # One runner per project, in parallel; `merge` combines their baselines into one artifact.
   update:
     if: github.event_name == 'workflow_dispatch' || github.event.label.name == 'visual-update'
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    strategy:
+      matrix:
+        project: [desktop, iphone, pixel]
     container:
       image: mcr.microsoft.com/playwright:v1.65.0-noble
       options: --ipc=host
@@ -32,13 +36,33 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: ./.github/actions/setup
       - run: pnpm build
-      - name: Regenerate every baseline
+      - name: Regenerate every ${{ matrix.project }} baseline
+        env:
+          PROJECT: ${{ matrix.project }}
         run: |
-          rm -rf e2e/tests/__screenshots__
-          pnpm e2e --grep @visual --update-snapshots=all
+          rm -rf "e2e/tests/__screenshots__/$PROJECT"
+          pnpm e2e --project "$PROJECT" --grep @visual --update-snapshots=all
+      - uses: actions/upload-artifact@v7
+        with:
+          name: visual-baselines-${{ matrix.project }}
+          path: e2e/tests/__screenshots__/${{ matrix.project }}
+          if-no-files-found: error
+          retention-days: 1
+
+  merge:
+    needs: update
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: visual-baselines-*
+          path: shots
+      - name: One directory per project
+        run: for dir in shots/visual-baselines-*; do mv "$dir" "shots/${dir#shots/visual-baselines-}"; done
       - uses: actions/upload-artifact@v7
         with:
           name: visual-baselines
-          path: e2e/tests/__screenshots__
+          path: shots
           if-no-files-found: error
           retention-days: 7
