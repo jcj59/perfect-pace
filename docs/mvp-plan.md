@@ -269,3 +269,4 @@ PRs 2 to 5 (core) can proceed in parallel with PR 6 once PR 1 lands. PR 7 needs 
 - **Data:** FIT/TCX import, Strava import, better DEMs where available.
 - **Infra:** self-hosted Valhalla routing and PMTiles basemap, short share links stored in D1.
 - **Product:** accounts and a saved-route library, a Capacitor app with GPS "live pacing" and watch workout export.
+
