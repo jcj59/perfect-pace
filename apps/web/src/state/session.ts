@@ -41,6 +41,11 @@ export const SESSION_GPX_STORAGE_KEY = "pp:session-gpx";
 const SESSION_VERSION = 1;
 /** Quiet time after a change before the session is written (and always when the page hides). */
 const SAVE_DEBOUNCE_MS = 300;
+/**
+ * The longest GPX text kept whole, in characters. Local storage holds about 5 million characters
+ * per site; this leaves room for everything else.
+ */
+const MAX_STORED_GPX_CHARS = 2_500_000;
 /** The most characters a saved simplified copy may take. */
 const SAVED_COPY_MAX_CHARS = 400_000;
 
@@ -234,6 +239,19 @@ function restoreSaved(): void {
 
 let opened = false;
 
+/** A loaded file's text waiting to be written with the session. */
+let pendingText: { text: string; file: GpxFile } | null = null;
+
+/** Write a loaded file's text, if it is the course on screen. A file past the cap is never tried. */
+function storePendingText(state: AppState): void {
+  const pending = pendingText;
+  if (!pending || state.course.status !== "loaded" || state.course.file !== pending.file) return;
+  pendingText = null;
+  const kept = pending.text.length <= MAX_STORED_GPX_CHARS && write(SESSION_GPX_STORAGE_KEY, pending.text);
+  if (!kept) write(SESSION_GPX_STORAGE_KEY, null);
+  storedFile = kept ? pending.file : null;
+}
+
 /** The file whose text is in storage, so the session can name it instead of keeping a copy. */
 let storedFile: GpxFile | null = null;
 
@@ -272,6 +290,7 @@ function savedCourse(state: AppState, route: DrawnRoute): SavedCourse | null | "
 /** Write the session now. */
 export function saveSession(): void {
   const state = appStore.get();
+  storePendingText(state);
   const course = savedCourse(state, drawStore.get().history.present);
   if (course === "skip") return;
   if (course?.kind !== "file") {
@@ -294,9 +313,10 @@ export function saveSession(): void {
  * Returns the function that stops it.
  */
 export function startSession(): () => void {
+  // The text is written with the session (debounced), off the load's critical path: a large
+  // file's write is slow, and may only fail on quota.
   onGpxText((text, file) => {
-    storedFile = write(SESSION_GPX_STORAGE_KEY, text) ? file : null;
-    if (!storedFile) write(SESSION_GPX_STORAGE_KEY, null);
+    pendingText = { text, file };
   });
 
   const takeFragment = (): boolean => {
