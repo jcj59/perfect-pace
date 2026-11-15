@@ -230,9 +230,24 @@ On the 335-test suite before PR 12, the same change took a run from 19.2 to 5.3 
 
 Billed minutes are the sum over a run's jobs of each job's minutes, rounded up per job (how GitHub
 bills, though Actions are free on this public repository); skipped jobs cost nothing. Measured on
-real runs (before: PRs 17 and 19 on 2026-11-15; after: this change's PR and its probes):
+real runs on 2026-11-15 (before: PRs 17, 18 and 19 and the docs-only phase 2 plan PR; after: this
+change's PR #37 and its probe PRs #38 and #39):
 
-BILLING_TABLE
+| Run                                     | Before                                   | After                                                     |
+| --------------------------------------- | ---------------------------------------- | --------------------------------------------------------- |
+| A push to a PR                          | full suite every push: 50, 56, 57, 63    | quick: 14, 16, 16, 16                                     |
+| The full suite on the PR's final commit | (the last push's run)                    | full: 37, 37, 38, 39, plus 1 for the `Full CI` re-run job |
+| A docs-only push                        | 5                                        | 4                                                         |
+| A PR with 5 pushes, same hour's runners | 5 x 37 = 185 (no lighthouse gate job)    | 4 x 16 + 38 + 1 = 103                                     |
+| Cross-browser (Firefox, WebKit)         | daily: 33 (one job, timed out at 30 min) | weekly: 52 over 4 shards (with today's Firefox failures)  |
+| Live smoke                              | daily: 2                                 | daily: 2                                                  |
+
+Runner speed varies by the hour: the same full suite billed 50 to 63 minutes in the morning's runs
+and 37 to 39 in the evening's, so compare quick and full runs from the same hour. A quick run is
+about 40% of a full run: 6 or 7 of its minutes are one-minute floors on jobs that take seconds
+(`changes`, `preview`, the two gates), and its 3 desktop shards bill 8 or 9. The weekly
+cross-browser run had every Firefox test failing (each one retried, 17 s apiece), so a green run
+should cost less.
 
 Where a full run's minutes go: each shard spends about a minute on overhead (30 to 45 s pulling the
 Playwright container, 20 s installing dependencies from the pnpm cache, a few seconds building and
