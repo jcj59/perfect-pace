@@ -187,6 +187,9 @@ jobs:
       - name: Build for local wrangler dev (no preview URL)
         if: env.PP_BASE_URL == ''
         run: pnpm build
+      # Hosted runners vary in CPU, and the budgets track it; the model explains a slow run.
+      - name: Runner CPU
+        run: grep -m1 'model name' /proc/cpuinfo; nproc
       - name: Load and plan budgets, alone
         env:
           PP_BLOB_REPORT: "1"
