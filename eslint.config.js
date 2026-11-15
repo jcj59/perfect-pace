@@ -13,6 +13,7 @@ export default tseslint.config(
       "**/.wrangler/**",
       "**/test-results/**",
       "**/playwright-report/**",
+      "**/lighthouse-report/**",
       "apps/worker/worker-configuration.d.ts",
     ],
   },
@@ -22,7 +23,13 @@ export default tseslint.config(
     languageOptions: {
       parserOptions: {
         projectService: {
-          allowDefaultProject: ["*.js", "scripts/*.mjs", "apps/worker/scripts/*.mjs", "packages/core/bench/*.mjs"],
+          allowDefaultProject: [
+            "*.js",
+            "scripts/*.mjs",
+            "apps/worker/scripts/*.mjs",
+            "packages/core/bench/*.mjs",
+            "e2e/scripts/*.mjs",
+          ],
         },
       },
     },

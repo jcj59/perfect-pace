@@ -1,10 +1,19 @@
 // The worker bridge over a real MessageChannel, so every message goes through structured clone
 // exactly as it does between the page and the Web Worker.
-import { type ElevationProvider, type LatLon, computePlan, parseGpx } from "@pp/core";
+import {
+  type Course,
+  type ElevationProvider,
+  type LatLon,
+  buildElevationProfile,
+  computePlan,
+  parseGpx,
+  simplifyForShare,
+} from "@pp/core";
 import { afterEach, describe, expect, it } from "vitest";
+import { CORE_CODECS, packCourse, unpackCourse } from "../src/worker/codecs.ts";
 import { createCoreHandlers } from "../src/worker/handlers.ts";
 import { CORE_PROTOCOL_VERSION, type CoreOps } from "../src/worker/protocol.ts";
-import { type Endpoint, type OpMap, RpcError, createRpcClient, serveRpc } from "../src/worker/rpc.ts";
+import { type Codecs, type Endpoint, type OpMap, RpcError, createRpcClient, serveRpc } from "../src/worker/rpc.ts";
 
 /** A straight 2 km track north from (42.44, -76.5), one point every ~111 m, without elevation. */
 function gpx(): string {
@@ -19,11 +28,11 @@ const hillProvider: ElevationProvider = {
 };
 
 const channels: MessageChannel[] = [];
-function connect<Ops extends OpMap>(handlers: Parameters<typeof serveRpc<Ops>>[1]) {
+function connect<Ops extends OpMap>(handlers: Parameters<typeof serveRpc<Ops>>[1], codecs: Codecs<Ops> = {}) {
   const channel = new MessageChannel();
   channels.push(channel);
-  serveRpc<Ops>(channel.port2, handlers);
-  return createRpcClient<Ops>(channel.port1);
+  serveRpc<Ops>(channel.port2, handlers, codecs);
+  return createRpcClient<Ops>(channel.port1, codecs);
 }
 
 afterEach(() => {
@@ -34,7 +43,8 @@ afterEach(() => {
 });
 
 describe("core worker ops", () => {
-  const client = () => connect<CoreOps>(createCoreHandlers({ elevationProvider: () => hillProvider }));
+  // With the app's codecs, so courses cross packed into transferred typed arrays as in the app.
+  const client = () => connect<CoreOps>(createCoreHandlers({ elevationProvider: () => hillProvider }), CORE_CODECS);
 
   it("answers ping with the protocol version", async () => {
     await expect(client().call("ping", null)).resolves.toEqual({ protocol: CORE_PROTOCOL_VERSION });
@@ -61,6 +71,24 @@ describe("core worker ops", () => {
     expect(file).toEqual(parseGpx(gpx()));
   });
 
+  it("crosses every value exactly as calling core directly gives it", async () => {
+    const core = client();
+    const text = gpx();
+    // A picked file is read in the worker; the result is the same as for its text.
+    const fromFile = await core.call("parse", { file: new Blob([text]) });
+    expect(fromFile).toEqual(parseGpx(text));
+    const course = fromFile.tracks[0]!.course;
+    const direct = await buildElevationProfile(course, { provider: hillProvider, origin: "file" });
+    const profile = await core.call("elevation", { course, origin: "file" });
+    expect(profile).toEqual(direct);
+    // The sender's own course is untouched by packing it for the trip.
+    expect(course).toEqual(parseGpx(text).tracks[0]!.course);
+    const maxChars = 200;
+    await expect(core.call("shareTrack", { points: course.points, maxChars })).resolves.toEqual(
+      simplifyForShare(course.points, maxChars) ?? null,
+    );
+  });
+
   it("rejects with the core error's class name and code", async () => {
     const error = await client()
       .call("parse", { text: "<gpx><trk></trk></gpx>" })
@@ -79,9 +107,27 @@ describe("core worker ops", () => {
 
   it("reports a DEM failure from the elevation op", async () => {
     const failing: ElevationProvider = { elevations: () => Promise.reject(new Error("offline")) };
-    const core = connect<CoreOps>(createCoreHandlers({ elevationProvider: () => failing }));
+    const core = connect<CoreOps>(createCoreHandlers({ elevationProvider: () => failing }), CORE_CODECS);
     const course = parseGpx(gpx()).tracks[0]!.course;
     await expect(core.call("elevation", { course })).rejects.toThrow("offline");
+  });
+});
+
+describe("course codec", () => {
+  it("unpacks to equal points, keeping elevation only where there was one", () => {
+    const course: Course = {
+      points: [
+        { lat: 42.44, lon: -76.5, ele: 250.5, distM: 0 },
+        { lat: 42.441, lon: -76.5, distM: 111.2 },
+        { lat: -0, lon: 179.999999, ele: -0, distM: 222.4 },
+        { lat: 89.9, lon: -180, ele: 0, distM: 1e7 },
+      ],
+    };
+    const unpacked = unpackCourse(packCourse(course));
+    expect(unpacked).toStrictEqual(course);
+    expect(Object.is(unpacked.points[2]!.lat, -0)).toBe(true);
+    expect("ele" in unpacked.points[1]!).toBe(false);
+    expect(unpackCourse(packCourse({ points: [] }))).toStrictEqual({ points: [] });
   });
 });
 
@@ -133,6 +179,44 @@ describe("rpc transport", () => {
     const rpc = connect<TestOps>(handlers);
     await expect(rpc.call("echo", { value: 1, delayMs: 0 }, { signal: AbortSignal.abort() })).rejects.toMatchObject({
       name: "AbortError",
+    });
+    expect(rpc.pending).toBe(0);
+  });
+
+  it("encodes and decodes through an op's codec, transferring its buffers", async () => {
+    type Ops = { sum: { input: number[]; output: number[] } };
+    let received: unknown;
+    const codec = {
+      encode: (values: number[]) => {
+        const packed = Float64Array.from(values);
+        return { wire: packed, transfer: [packed.buffer] };
+      },
+      decode: (wire: unknown) => {
+        received = wire;
+        return Array.from(wire as Float64Array);
+      },
+    };
+    const rpc = connect<Ops>(
+      { sum: (values) => [values.reduce((a, b) => a + b, 0)] },
+      { sum: { input: codec, output: codec } },
+    );
+    await expect(rpc.call("sum", [1, 2, 3.5])).resolves.toEqual([6.5]);
+    expect(received).toBeInstanceOf(Float64Array);
+  });
+
+  it("rejects a reply its codec cannot decode", async () => {
+    type Ops = { echo: { input: number; output: number } };
+    const broken = {
+      encode: (v: number) => ({ wire: v, transfer: [] }),
+      decode: () => {
+        throw new TypeError("bad wire");
+      },
+    };
+    const rpc = connect<Ops>({ echo: (v) => v }, { echo: { output: broken } });
+    await expect(rpc.call("echo", 1)).rejects.toMatchObject({
+      op: "echo",
+      errorName: "TypeError",
+      message: "bad wire",
     });
     expect(rpc.pending).toBe(0);
   });

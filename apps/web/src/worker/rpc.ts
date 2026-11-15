@@ -2,7 +2,9 @@
  * A typed request/response layer over `postMessage`. An op map describes each operation's input
  * and output; the client gets one promise per call, and the server maps each op to a handler.
  * Inputs and outputs must be structured-cloneable (no functions or class instances; errors are
- * flattened to `SerializedError` and rebuilt as `RpcError`).
+ * flattened to `SerializedError` and rebuilt as `RpcError`). An op can also have a `WireCodec`
+ * for its input or output, which turns the value into a cheaper form for the trip (typed arrays
+ * that are transferred rather than copied) and back again on the other side.
  */
 
 /** Op name to `{ input, output }`. */
@@ -16,6 +18,22 @@ export interface Endpoint {
   removeEventListener(type: "message", listener: (event: MessageEvent) => void): void;
   /** MessagePorts queue messages until started; Workers have no `start`. */
   start?(): void;
+}
+
+/** How a value crosses `postMessage`: `encode` on the sending side, `decode` on the receiving one. */
+export interface WireCodec<T> {
+  /** The form to post, and the buffers in it to transfer (the sender must not use them afterwards). */
+  encode(value: T): { wire: unknown; transfer: Transferable[] };
+  decode(wire: unknown): T;
+}
+
+/** Codecs for some ops' inputs and outputs; the rest cross as plain structured clones. Both sides must share them. */
+export type Codecs<Ops extends OpMap> = {
+  [K in keyof Ops & string]?: { input?: WireCodec<Ops[K]["input"]>; output?: WireCodec<Ops[K]["output"]> };
+};
+
+function encodeWith<T>(codec: WireCodec<T> | undefined, value: T): { wire: unknown; transfer: Transferable[] } {
+  return codec ? codec.encode(value) : { wire: value, transfer: [] };
 }
 
 export type RpcRequest<Ops extends OpMap> = {
@@ -72,11 +90,16 @@ function abortError(): DOMException {
   return new DOMException("The operation was aborted", "AbortError");
 }
 
-export function createRpcClient<Ops extends OpMap>(endpoint: Endpoint): RpcClient<Ops> {
+export function createRpcClient<Ops extends OpMap>(endpoint: Endpoint, codecs: Codecs<Ops> = {}): RpcClient<Ops> {
   let nextId = 1;
   const waiting = new Map<
     number,
-    { op: string; resolve: (value: unknown) => void; reject: (error: unknown) => void }
+    {
+      op: string;
+      resolve: (value: unknown) => void;
+      reject: (error: unknown) => void;
+      decode?: (wire: unknown) => unknown;
+    }
   >();
 
   endpoint.addEventListener("message", (event: MessageEvent) => {
@@ -84,8 +107,15 @@ export function createRpcClient<Ops extends OpMap>(endpoint: Endpoint): RpcClien
     const entry = waiting.get(response.id);
     if (!entry) return; // aborted, or not ours
     waiting.delete(response.id);
-    if (response.ok) entry.resolve(response.output);
-    else entry.reject(new RpcError(entry.op, response.error));
+    if (!response.ok) {
+      entry.reject(new RpcError(entry.op, response.error));
+      return;
+    }
+    try {
+      entry.resolve(entry.decode ? entry.decode(response.output) : response.output);
+    } catch (error) {
+      entry.reject(new RpcError(entry.op, serializeError(error)));
+    }
   });
   // A crashed worker or an uncloneable reply fails every outstanding call instead of hanging it.
   const failAll = (message: string) => () => {
@@ -113,10 +143,18 @@ export function createRpcClient<Ops extends OpMap>(endpoint: Endpoint): RpcClien
             signal?.removeEventListener("abort", onAbort);
             fn(...args);
           };
-        waiting.set(id, { op, resolve: settle(resolve), reject: settle(reject) });
+        const codec = codecs[op];
+        const outputCodec = codec?.output;
+        waiting.set(id, {
+          op,
+          resolve: settle(resolve),
+          reject: settle(reject),
+          ...(outputCodec ? { decode: (wire: unknown) => outputCodec.decode(wire) } : {}),
+        });
         signal?.addEventListener("abort", onAbort, { once: true });
         try {
-          endpoint.postMessage({ id, op, input }, transfer);
+          const encoded = encodeWith(codec?.input, input);
+          endpoint.postMessage({ id, op, input: encoded.wire }, [...(transfer ?? []), ...encoded.transfer]);
         } catch (error) {
           waiting.get(id)?.reject(new RpcError(op, serializeError(error)));
           waiting.delete(id);
@@ -134,12 +172,16 @@ export type Handlers<Ops extends OpMap> = {
 };
 
 /** Answer requests on `endpoint` with `handlers`. Requests run concurrently; each gets exactly one response. */
-export function serveRpc<Ops extends OpMap>(endpoint: Endpoint, handlers: Handlers<Ops>): void {
+export function serveRpc<Ops extends OpMap>(
+  endpoint: Endpoint,
+  handlers: Handlers<Ops>,
+  codecs: Codecs<Ops> = {},
+): void {
   endpoint.addEventListener("message", (event: MessageEvent) => {
     const { id, op, input } = event.data as RpcRequest<Ops>;
-    const reply = (response: RpcResponse) => {
+    const reply = (response: RpcResponse, transfer: Transferable[] = []) => {
       try {
-        endpoint.postMessage(response);
+        endpoint.postMessage(response, transfer);
       } catch (error) {
         endpoint.postMessage({ id, ok: false, error: serializeError(error) } satisfies RpcResponse);
       }
@@ -149,10 +191,12 @@ export function serveRpc<Ops extends OpMap>(endpoint: Endpoint, handlers: Handle
       reply({ id, ok: false, error: { name: "RpcError", message: `Unknown op "${op}"`, code: "unknown_op" } });
       return;
     }
+    const codec = Object.hasOwn(codecs, op) ? codecs[op] : undefined;
     Promise.resolve()
-      .then(() => handler(input))
+      .then(() => handler(codec?.input ? codec.input.decode(input) : input))
+      .then((output) => encodeWith(codec?.output, output))
       .then(
-        (output) => reply({ id, ok: true, output }),
+        ({ wire, transfer }) => reply({ id, ok: true, output: wire }, transfer),
         (error: unknown) => reply({ id, ok: false, error: serializeError(error) }),
       );
   });

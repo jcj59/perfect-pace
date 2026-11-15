@@ -124,6 +124,15 @@ describe("sheet snaps", () => {
     expect(heights).toEqual({ peek: SHEET_PEEK_PX, half: 400, full: 800 - SHEET_TOP_GAP_PX });
   });
 
+  it("raises peek above the home indicator and keeps full below the status bar", () => {
+    // An iPhone 15 in portrait: 59 px status bar inset, 34 px home indicator.
+    expect(snapHeights(800, { top: 59, bottom: 34 })).toEqual({
+      peek: SHEET_PEEK_PX + 34,
+      half: 400,
+      full: 800 - SHEET_TOP_GAP_PX - 59,
+    });
+  });
+
   it("keeps the snaps ordered in a very short layout", () => {
     const short = snapHeights(120);
     expect(short.peek).toBeLessThanOrEqual(short.half);

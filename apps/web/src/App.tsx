@@ -2,7 +2,8 @@ import { Suspense, lazy, useEffect, useMemo, useSyncExternalStore } from "react"
 import { BottomSheet } from "./layout/BottomSheet.tsx";
 import { SIDE_PANEL_GAP_PX, SidePanel } from "./layout/SidePanel.tsx";
 import { usePanelWidth } from "./layout/usePanelWidth.ts";
-import { SHEET_PEEK_PX, snapHeights } from "./layout/sheet.ts";
+import { useSafeArea } from "./layout/safeArea.ts";
+import { snapHeights } from "./layout/sheet.ts";
 import { DESKTOP_QUERY, subscribeResize, useMediaQuery } from "./layout/useMediaQuery.ts";
 import { DrawButton } from "./draw/DrawButton.tsx";
 import { DrawToolbar } from "./draw/DrawToolbar.tsx";
@@ -19,12 +20,13 @@ import { LinkError } from "./panel/LinkError.tsx";
 import { LoadError } from "./panel/LoadError.tsx";
 import { courseName } from "./plan/export.ts";
 import { PaceBand } from "./print/PaceBand.tsx";
+import { startPwa } from "./pwa/pwa.ts";
 import { startSession } from "./state/session.ts";
 import { PanelHeader } from "./panel/PanelHeader.tsx";
 import { ThemeSwitch } from "./panel/ThemeSwitch.tsx";
 import { type CourseState, type SheetSnap, setSheet, useAppState } from "./state/app.ts";
 import { drawStore, drawing, useDrawState } from "./state/draw.ts";
-import { LOAD_MEASURE, LOAD_START_MARK, ROUTE_DRAWN_MARK } from "./state/course.ts";
+import { LOAD_MEASURE, LOAD_START_MARK, ROUTE_DRAWN_MARK, routeSettled } from "./state/course.ts";
 import { focusNearest, focusPosition, readyProfile } from "./state/focus.ts";
 import { startPlanner, usePlanView } from "./state/plan.ts";
 import { segmentTone } from "./plan/tones.ts";
@@ -39,12 +41,31 @@ const PANEL_LABEL = "Course panel";
 /** The phone map's insets: the sheet's footprint at `peek`, else at `half` (above that it covers most of the map). */
 function usePhoneInsets(sheet: SheetSnap): Insets {
   const height = useSyncExternalStore(subscribeResize, () => window.innerHeight);
-  const bottom = sheet === "peek" ? SHEET_PEEK_PX : snapHeights(height).half;
-  return useMemo(() => ({ top: 0, right: 0, bottom, left: 0 }), [bottom]);
+  const { top, bottom: safeBottom } = useSafeArea();
+  const heights = snapHeights(height, { top, bottom: safeBottom });
+  const bottom = sheet === "peek" ? heights.peek : heights.half;
+  return useMemo(() => ({ top, right: 0, bottom, left: 0 }), [top, bottom]);
 }
 
-/** Once a new route is on screen: close the load measure that the perf budget reads. */
+/** Where the desktop panel's left edge sits: the gap, or past a left safe-area inset (a landscape notch). */
+function usePanelLeft(): number {
+  return Math.max(SIDE_PANEL_GAP_PX, useSafeArea().left);
+}
+
+/**
+ * The desktop map's insets: the side panel's footprint at the width it rests at (a drag moves the
+ * camera once, at its end).
+ */
+function useDesktopInsets(panelLeft: number, panelWidth: number): Insets {
+  return useMemo(() => ({ top: 0, right: 0, bottom: 0, left: panelLeft + panelWidth }), [panelLeft, panelWidth]);
+}
+
+/**
+ * Once a new route is on screen: let the work that waited for it run, and close the load measure
+ * that the perf budget reads.
+ */
 function markRouteDrawn(): void {
+  routeSettled();
   if (performance.getEntriesByName(LOAD_START_MARK, "mark").length === 0) return;
   performance.mark(ROUTE_DRAWN_MARK);
   performance.measure(LOAD_MEASURE, LOAD_START_MARK, ROUTE_DRAWN_MARK);
@@ -192,21 +213,16 @@ function PhoneHeaderAction({ course }: { course: CourseState }) {
   );
 }
 
-/** The desktop map's insets: the panel at the width it rests at (a drag moves the camera once, at its end). */
-function useDesktopInsets(panelWidth: number): Insets {
-  return useMemo(() => ({ top: 0, right: 0, bottom: 0, left: panelWidth + SIDE_PANEL_GAP_PX }), [panelWidth]);
-}
-
 /** Where the drawing toolbar sits: right of the desktop panel (following a drag), or just above the phone sheet. */
-function useToolbarStyle(desktop: boolean, panelWidth: number, insets: Insets, sheet: SheetSnap) {
+function useToolbarStyle(desktop: boolean, panelRight: number, insets: Insets, sheet: SheetSnap) {
   return useMemo(
     () =>
       desktop
-        ? { top: SIDE_PANEL_GAP_PX, left: panelWidth + SIDE_PANEL_GAP_PX * 2, right: SIDE_PANEL_GAP_PX }
+        ? { top: SIDE_PANEL_GAP_PX, left: panelRight + SIDE_PANEL_GAP_PX, right: SIDE_PANEL_GAP_PX }
         : sheet === "full"
           ? null
           : { bottom: insets.bottom + 12, left: 12, right: 12 },
-    [desktop, panelWidth, insets.bottom, sheet],
+    [desktop, panelRight, insets.bottom, sheet],
   );
 }
 
@@ -219,12 +235,14 @@ export function App() {
   const course = useAppState((s) => s.course);
   const phoneInsets = usePhoneInsets(sheet);
   const panel = usePanelWidth();
-  const desktopInsets = useDesktopInsets(panel.settledWidth);
+  const panelLeft = usePanelLeft();
+  const desktopInsets = useDesktopInsets(panelLeft, panel.settledWidth);
   const editing = useDrawState((s) => s.editing);
-  const toolbarStyle = useToolbarStyle(desktop, panel.width, phoneInsets, sheet);
+  const toolbarStyle = useToolbarStyle(desktop, panelLeft + panel.width, phoneInsets, sheet);
 
   useEffect(() => startPlanner(), []);
   useEffect(() => startSession(), []);
+  useEffect(() => startPwa(), []);
 
   useEffect(() => {
     performance.mark("pp:ready");
@@ -268,7 +286,12 @@ export function App() {
             label={PANEL_LABEL}
             snap={sheet}
             onSnapChange={setSheet}
-            header={<PanelHeader action={<PhoneHeaderAction course={course} />} />}
+            header={
+              <PanelHeader
+                action={<PhoneHeaderAction course={course} />}
+                brief={course.status === "empty" || (course.status === "drawn" && editing)}
+              />
+            }
           >
             <PanelContent course={course} sheet />
             <div className="border-t border-line px-6 pt-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]">

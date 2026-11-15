@@ -1,3 +1,4 @@
+import { CORE_CODECS } from "./codecs.ts";
 import type { CoreOps } from "./protocol.ts";
 import { type RpcClient, createRpcClient } from "./rpc.ts";
 
@@ -7,6 +8,7 @@ let client: RpcClient<CoreOps> | undefined;
 export function coreClient(): RpcClient<CoreOps> {
   client ??= createRpcClient<CoreOps>(
     new Worker(new URL("./core.worker.ts", import.meta.url), { type: "module", name: "core" }),
+    CORE_CODECS,
   );
   return client;
 }

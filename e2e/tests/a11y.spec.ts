@@ -60,6 +60,22 @@ for (const scheme of ["light", "dark"] satisfies ColorScheme[]) {
   });
 }
 
+// B7: offline, before and after loading a course.
+for (const scheme of ["light", "dark"] satisfies ColorScheme[]) {
+  test(`offline has no axe violations, ${scheme}`, async ({ page }) => {
+    await openApp(page, scheme);
+    await page.context().setOffline(true);
+    await expect(page.getByTestId("status-line")).toHaveAttribute("data-state", "offline");
+    expect((await new AxeBuilder({ page }).analyze()).violations.map((v) => `${v.id}: ${v.help}`)).toEqual([]);
+    await page.context().setOffline(false);
+    await uploadGpx(page, corpusPath("boston.gpx"));
+    await expectRouteDrawn(page);
+    await page.context().setOffline(true);
+    await expect(page.getByTestId("status-line")).toHaveAttribute("data-state", "offline");
+    expect((await new AxeBuilder({ page }).analyze()).violations.map((v) => `${v.id}: ${v.help}`)).toEqual([]);
+  });
+}
+
 test.describe("drawing", () => {
   test.use({ geolocation: ITHACA, permissions: ["geolocation"] });
 
@@ -74,6 +90,20 @@ test.describe("drawing", () => {
       ]);
       await expect(page.getByTestId("routing-error")).toBeVisible();
       await expectLegsSettled(page, 2);
+      expect((await new AxeBuilder({ page }).analyze()).violations.map((v) => `${v.id}: ${v.help}`)).toEqual([]);
+    });
+
+    // From the keyboard: the focused map shows its crosshair; offline, the toolbar's notice shows.
+    test(`keyboard drawing, then offline, has no axe violations, ${scheme}`, async ({ page }) => {
+      await startDrawing(page, scheme);
+      await page.keyboard.press("Shift");
+      await page.locator("canvas.maplibregl-canvas").focus();
+      await page.keyboard.press("Enter");
+      await expect(page.getByTestId("draw-crosshair")).toBeVisible();
+      await expect(page.getByTestId("waypoint")).toHaveCount(1);
+      expect((await new AxeBuilder({ page }).analyze()).violations.map((v) => `${v.id}: ${v.help}`)).toEqual([]);
+      await page.context().setOffline(true);
+      await expect(page.getByTestId("draw-offline")).toBeVisible();
       expect((await new AxeBuilder({ page }).analyze()).violations.map((v) => `${v.id}: ${v.help}`)).toEqual([]);
     });
   }

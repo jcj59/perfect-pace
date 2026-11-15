@@ -233,3 +233,37 @@ test("starting to draw replaces nothing until there is a route, and Cancel goes 
   await expect(page.getByTestId("empty-state")).toBeAttached();
   await expect(page.getByTestId("map")).not.toHaveAttribute("data-drawing");
 });
+
+// Keyboard only: the arrow keys pan the focused map, Enter adds a point at its crosshair, the
+// arrow keys move a focused point (routing once the key is let go), and Enter removes it.
+test("drawing with the keyboard alone: add, move and remove points", async ({ page }) => {
+  const stub = await startDrawing(page);
+  await page.keyboard.press("Shift"); // the last input was a key, so focus shows the crosshair
+  const canvas = page.locator("canvas.maplibregl-canvas");
+  await canvas.focus();
+  await expect(canvas).toHaveAttribute("aria-label", /Enter adds a point at the center/);
+  await expect(page.getByTestId("draw-crosshair")).toBeVisible();
+  await page.keyboard.press("Enter");
+  await expect(page.getByTestId("waypoint")).toHaveCount(1);
+  for (let i = 0; i < 3; i++) await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("Enter");
+  await expect(page.getByTestId("waypoint")).toHaveCount(2);
+  await expectLegsSettled(page, 1);
+  const [start, finish] = await waypoints(page);
+  expect(finish!.lon).toBeGreaterThan(start!.lon);
+
+  // Hold ArrowDown to move the finish south: the leg routes once, when the key is let go.
+  const calls = stub.calls.length;
+  await page.getByTestId("waypoint").nth(1).focus();
+  for (let i = 0; i < 4; i++) await page.keyboard.down("ArrowDown");
+  await page.keyboard.up("ArrowDown");
+  await expect.poll(async () => (await waypointAt(page, 1)).lat).toBeLessThan(finish!.lat);
+  await expectLegsSettled(page, 1);
+  expect(stub.calls.length - calls).toBe(1);
+  expect((await waypointAt(page, 1)).lon).toBeCloseTo(finish!.lon, 6);
+
+  // Enter on a point removes it.
+  await page.getByTestId("waypoint").nth(1).focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByTestId("waypoint")).toHaveCount(1);
+});

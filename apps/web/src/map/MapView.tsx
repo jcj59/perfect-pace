@@ -15,6 +15,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 // MapLibre finds its worker next to its own module, which a bundle moves; point it at the built file.
 import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url";
 import type { Theme } from "../state/app.ts";
+import { ROUTE_SET_MARK, mapCannotDraw } from "../state/course.ts";
 import {
   COURSE_HIT_LAYER,
   COURSE_LINE_LAYER,
@@ -202,6 +203,8 @@ export default function MapView({
    * rests, as the `data-route-box` attribute, so tests can check it sits clear of the panel.
    */
   const [routeBox, setRouteBox] = useState<{ of: readonly CoursePoint[] | null; box: string }>({ of: null, box: "" });
+  const crosshair = useRef<HTMLDivElement>(null);
+  const [keyboardFocus, setKeyboardFocus] = useState(false);
   useLayoutEffect(() => {
     latestInsets.current = insets;
     latestRoute.current = route;
@@ -213,6 +216,7 @@ export default function MapView({
 
   useEffect(() => {
     const element = container.current;
+    if (!webgl) mapCannotDraw();
     if (!element || !webgl) return;
     const { theme, insets } = initial.current;
     let instance: MapLibreMap;
@@ -234,6 +238,7 @@ export default function MapView({
       });
     } catch (error) {
       console.error("The map could not start", error);
+      mapCannotDraw();
       return;
     }
     instance.touchZoomRotate.disableRotation();
@@ -266,8 +271,35 @@ export default function MapView({
       }
       onEdit.current?.({ type: "add", at: { lat: event.lngLat.lat, lon: event.lngLat.lng } });
     });
+    // Drawing from the keyboard: pan with the arrow keys, then Enter adds a waypoint at the
+    // crosshair (the center of the map's padded view), or zooms in first, like a click.
+    const canvas = instance.getCanvas();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Enter" || !latestDrawing.current || event.altKey || event.ctrlKey || event.metaKey) return;
+      event.preventDefault();
+      const center = instance.getCenter();
+      if (instance.getZoom() < MIN_DRAW_ZOOM) {
+        instance.easeTo({ center, zoom: DRAW_ZOOM_IN, duration: reducedMotion() ? 0 : 600 });
+        return;
+      }
+      onEdit.current?.({ type: "add", at: { lat: center.lat, lon: center.lng } });
+    };
+    const onFocusChange = () => setKeyboardFocus(canvas.matches(":focus-visible"));
+    const placeCrosshair = () => {
+      const { x, y } = instance.project(instance.getCenter());
+      crosshair.current?.style.setProperty("translate", `${x}px ${y}px`);
+    };
+    canvas.addEventListener("keydown", onKeyDown);
+    canvas.addEventListener("focus", onFocusChange);
+    canvas.addEventListener("blur", onFocusChange);
+    instance.on("move", placeCrosshair);
+    instance.on("resize", placeCrosshair);
+    placeCrosshair();
     map.current = instance;
     return () => {
+      canvas.removeEventListener("keydown", onKeyDown);
+      canvas.removeEventListener("focus", onFocusChange);
+      canvas.removeEventListener("blur", onFocusChange);
       courseMarker.current?.remove();
       courseMarker.current = null;
       instance.remove();
@@ -336,6 +368,7 @@ export default function MapView({
         return;
       }
       void source.setData(data);
+      if (route) performance.mark(ROUTE_SET_MARK);
       const bounds = route && courseBounds(route);
       if (!bounds) return;
       instance.fitBounds(bounds, {
@@ -516,6 +549,13 @@ export default function MapView({
     dataset["lon"] = String(markerLon);
   }, [markerLat, markerLon]);
 
+  // Say how to draw without a pointer, to the screen reader on the focused map.
+  useEffect(() => {
+    map.current
+      ?.getCanvas()
+      .setAttribute("aria-label", isDrawing ? "Map. Arrow keys pan, Enter adds a point at the center" : "Map");
+  }, [isDrawing, state]);
+
   const courseState: CourseDrawState = !route ? "none" : drawnRoute === route ? "drawn" : "drawing";
 
   return (
@@ -531,6 +571,21 @@ export default function MapView({
       data-route-box={route && routeBox.of === route ? routeBox.box : undefined}
     >
       <div ref={container} className="size-full" />
+      {drawing && keyboardFocus && (
+        <div
+          ref={(element) => {
+            crosshair.current = element;
+            const instance = map.current;
+            if (element && instance) {
+              const { x, y } = instance.project(instance.getCenter());
+              element.style.setProperty("translate", `${x}px ${y}px`);
+            }
+          }}
+          className="pp-crosshair"
+          data-testid="draw-crosshair"
+          aria-hidden="true"
+        />
+      )}
       {state === "unavailable" && (
         <p className="absolute inset-x-0 top-1/3 px-8 text-center text-sm text-ink-muted">
           The map needs WebGL, which this browser has turned off.

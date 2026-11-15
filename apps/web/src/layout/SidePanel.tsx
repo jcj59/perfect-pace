@@ -7,6 +7,10 @@ export const SIDE_PANEL_GAP_PX = 16;
 const HANDLE_INSET_PX = 4;
 const HANDLE_WIDTH_PX = 14;
 const PANEL_ID = "course-panel";
+/** The panel's top, bottom and left: clear of a landscape phone's notch and home indicator (zero elsewhere). */
+const TOP = `max(${SIDE_PANEL_GAP_PX}px, env(safe-area-inset-top))`;
+const BOTTOM = `max(${SIDE_PANEL_GAP_PX}px, env(safe-area-inset-bottom))`;
+const LEFT = `max(${SIDE_PANEL_GAP_PX}px, env(safe-area-inset-left))`;
 
 export interface SidePanelProps {
   label: string;
@@ -37,7 +41,7 @@ export function SidePanel({ label, header, children, footer, width, range, onPre
         aria-label={label}
         data-testid="side-panel"
         className="@container absolute z-10 flex flex-col overflow-hidden rounded-3xl border border-line bg-surface shadow-panel"
-        style={{ top: SIDE_PANEL_GAP_PX, bottom: SIDE_PANEL_GAP_PX, left: SIDE_PANEL_GAP_PX, width }}
+        style={{ top: TOP, bottom: BOTTOM, left: LEFT, width }}
       >
         <div className="shrink-0 pt-3">{header}</div>
         {/* Focusable so keyboard users can scroll it when nothing inside takes focus. */}
@@ -124,9 +128,9 @@ function ResizeHandle({ width, range, onPreview, onCommit }: Omit<SidePanelProps
       data-dragging={dragging || undefined}
       className="group absolute z-20 cursor-col-resize touch-none select-none focus-visible:outline-none"
       style={{
-        top: SIDE_PANEL_GAP_PX,
-        bottom: SIDE_PANEL_GAP_PX,
-        left: SIDE_PANEL_GAP_PX + width - HANDLE_INSET_PX,
+        top: TOP,
+        bottom: BOTTOM,
+        left: `calc(${LEFT} + ${width - HANDLE_INSET_PX}px)`,
         width: HANDLE_WIDTH_PX,
       }}
       onPointerDown={onPointerDown}
