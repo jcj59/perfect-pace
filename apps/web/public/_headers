@@ -1,0 +1,13 @@
+# Cloudflare static asset headers (read by the Worker's assets, never served).
+# Hashed build output never changes under a name, so caches may keep it for good.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# The service worker and the manifest must always be revalidated, so updates reach users.
+/sw.js
+  Cache-Control: no-cache
+  Content-Type: text/javascript; charset=utf-8
+
+/manifest.webmanifest
+  Cache-Control: no-cache
+  Content-Type: application/manifest+json; charset=utf-8

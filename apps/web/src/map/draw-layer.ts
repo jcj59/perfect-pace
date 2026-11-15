@@ -167,6 +167,15 @@ const toLatLon = (marker: Marker): LatLon => {
   return { lat, lon: lng };
 };
 
+/** How far one arrow key press moves a focused waypoint, in screen pixels. */
+const KEY_STEP_PX = 10;
+const ARROW_DELTAS: Record<string, [number, number]> = {
+  ArrowUp: [0, -1],
+  ArrowDown: [0, 1],
+  ArrowLeft: [-1, 0],
+  ArrowRight: [1, 0],
+};
+
 function waypointLabel(index: number, count: number): string {
   if (index === 0) return count === 1 ? "Remove the start point" : "Remove point 1 (start)";
   if (index === count - 1) return `Remove point ${index + 1} (finish)`;
@@ -206,6 +215,7 @@ export class DrawHandles {
       if (!this.dragged(marker)) this.callbacks.onEdit({ type: "remove", index: Number(element.dataset["index"]) });
     });
     element.addEventListener("dblclick", (event) => event.stopPropagation());
+    this.keyboardMove(marker, element);
     marker.on("drag", () =>
       this.callbacks.onPreview({ kind: "move", index: Number(element.dataset["index"]), at: toLatLon(marker) }),
     );
@@ -220,6 +230,40 @@ export class DrawHandles {
       if (at) marker.setLngLat([at.lon, at.lat]);
     });
     return marker;
+  }
+
+  /**
+   * The keyboard's drag: the arrow keys move a focused waypoint (`KEY_STEP_PX` a press, five
+   * times that with Shift) as a preview, and the route is edited once the key is let go (or the
+   * point loses focus), so holding a key down routes the leg once, not on every step.
+   */
+  private keyboardMove(marker: Marker, element: HTMLElement): void {
+    let moving = false;
+    const commit = () => {
+      if (!moving) return;
+      moving = false;
+      const i = Number(element.dataset["index"]);
+      this.callbacks.onPreview(null);
+      this.callbacks.onEdit({ type: "move", index: i, to: toLatLon(marker) });
+      const at = this.view.waypoints[i];
+      if (at) marker.setLngLat([at.lon, at.lat]);
+    };
+    element.addEventListener("keydown", (event) => {
+      const delta = ARROW_DELTAS[event.key];
+      if (!delta || event.altKey || event.ctrlKey || event.metaKey) return;
+      // Stop here, or the map's keyboard handler pans the camera too.
+      event.preventDefault();
+      event.stopPropagation();
+      const step = event.shiftKey ? KEY_STEP_PX * 5 : KEY_STEP_PX;
+      const { x, y } = this.map.project(marker.getLngLat());
+      marker.setLngLat(this.map.unproject([x + delta[0] * step, y + delta[1] * step]));
+      moving = true;
+      this.callbacks.onPreview({ kind: "move", index: Number(element.dataset["index"]), at: toLatLon(marker) });
+    });
+    element.addEventListener("keyup", (event) => {
+      if (ARROW_DELTAS[event.key]) commit();
+    });
+    element.addEventListener("blur", commit);
   }
 
   private midpointMarker(): Marker {
@@ -264,6 +308,7 @@ export class DrawHandles {
       element.dataset["lon"] = String(p.lon);
       element.setAttribute("aria-label", waypointLabel(i, waypoints.length));
       element.title = "Drag to move, click to remove";
+      element.setAttribute("aria-description", "Arrow keys move it");
     });
     while (this.midpoints.length > legs.length) this.midpoints.pop()?.remove();
     while (this.midpoints.length < legs.length)

@@ -21,7 +21,7 @@ export async function stubMapNetwork(page: Page): Promise<void> {
 }
 
 const DEM_DIR = new URL("../../packages/core/test/fixtures/dem/", import.meta.url);
-const TERRARIUM = "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/**";
+export const TERRARIUM = "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/**";
 
 /**
  * Serve Terrarium elevation tiles from the core fixtures (`packages/core/test/fixtures/dem`), the

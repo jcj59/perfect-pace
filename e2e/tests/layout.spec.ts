@@ -67,6 +67,41 @@ test.describe("phone", () => {
     await expect(page.getByRole("button", { name: "Zoom in" })).toHaveCount(0);
   });
 
+  // An iPhone's status bar and home indicator, as env(safe-area-inset-*) reports them with
+  // viewport-fit=cover. Chromium's DevTools protocol can simulate them.
+  test("the sheet clears the home indicator at peek and the status bar at full", async ({ page }) => {
+    const insets = { top: 59, bottom: 34, left: 0, right: 0 };
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send("Emulation.setSafeAreaInsetsOverride", { insets });
+    await openApp(page);
+    const viewport = page.viewportSize()!;
+    expect(await sheetVisiblePx(page)).toBe(92 + insets.bottom);
+    // The header (and its buttons) sit above the home indicator (give or take the sheet's 1 px top border).
+    const header = (await page.locator("[data-testid=sheet] header").boundingBox())!;
+    expect(header.y + header.height).toBeLessThanOrEqual(viewport.height - insets.bottom + 1);
+    const gpx = (await page.getByRole("button", { name: "Load GPX" }).boundingBox())!;
+    expect(gpx.y + gpx.height).toBeLessThanOrEqual(viewport.height - insets.bottom);
+    // The map's attribution button stays below the status bar.
+    const attribution = (await page.locator(".maplibregl-ctrl-attrib").boundingBox())!;
+    expect(attribution.y).toBeGreaterThanOrEqual(insets.top);
+
+    const handle = page.getByTestId("sheet-handle");
+    await handle.click();
+    await handle.click();
+    await expect(page.getByTestId("sheet")).toHaveAttribute("data-snap", "full");
+    await expect
+      .poll(async () => (await page.getByTestId("sheet").boundingBox())!.y)
+      .toBeGreaterThanOrEqual(insets.top);
+    // Scrolled to the end, the last control clears the home indicator too.
+    const themeBottom = async () => {
+      await page.getByTestId("sheet-content").evaluate((e) => (e.scrollTop = e.scrollHeight));
+      const box = (await page.getByRole("group", { name: "Appearance" }).boundingBox())!;
+      return box.y + box.height;
+    };
+    // Polled, since the sheet is still sliding up for a moment.
+    await expect.poll(themeBottom).toBeLessThanOrEqual(viewport.height - insets.bottom + 1);
+  });
+
   test("a 375 px wide phone has no horizontal scroll at any snap", async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 667 });
     await openApp(page);

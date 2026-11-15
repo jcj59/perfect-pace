@@ -9,6 +9,7 @@ Perfect Pace is a rebuild of the Cornell CS 5999 project (`daniel-lee-user/perfe
 - **Pacing scope:** the same as the original project. Goal time plus a number of pace changes gives a piecewise-constant pace plan. Extensions are listed at the end and are out of scope.
 - **No accounts.** Sharing is through URLs, and persistence uses local storage.
 - **Mobile:** a responsive PWA first, structured so that a Capacitor wrapper (or React Native using `@pp/core`) is possible later.
+- **Phase 2 (added 2026-11-15):** weather comes from Open-Meteo, called from the browser behind a `WeatherProvider` interface. User problem reports become GitHub issues through a Worker endpoint. Conditions (weather, surface, altitude) enter as pace factors that multiply the ideal pace, scaffolded with neutral multipliers before any model is chosen.
 
 ## Algorithm summary (why there is no LP solver)
 
@@ -111,6 +112,91 @@ Each behavior lists its acceptance criteria and how it is tested. "E2E" means Pl
 
 ### Non-goals for the MVP
 Accounts or a saved-route library, effort/fatigue models, native apps, FIT/TCX import, Strava integration, and self-hosted tiles or routing.
+
+## Phase 2 scope: end goals and behaviors
+
+Added 2026-11-15, after PR 13 was in flight. These land before the acceptance pass (PR 14 now runs last, see the PR plan), so the acceptance audit covers B1 to B14. Each behavior states the **end goal** (where the feature is headed, including parts not built yet) and then what this phase delivers.
+
+### B8. Plan explanation behind an info button
+- **End goal:** the plan view shows only the plan. The explanation (pace model, flat-ground pace, how segments are averaged, and later which condition factors are active) is one tap away and never takes permanent panel space.
+- **This phase:**
+  - the always-visible "How the plan works" note (`Assumption` in `PacingPlan.tsx`) is removed
+  - a small (i) button beside the "Pacing plan" heading opens a popover with that same text
+  - the popover is a real disclosure: `aria-expanded`, Esc and outside click close it, focus moves into it and returns to the button, and it fits inside the phone sheet without horizontal scroll
+- **Tests:** E2E opens and closes it by mouse, keyboard and touch at all three viewports; axe on the open state; visual baselines for the plan view (now shorter) and the open popover.
+
+### B9. Resizable side panel
+- **End goal:** on desktop the user sizes the panel to taste (a wide panel for the table, a narrow one for the map), and the app remembers it.
+- **This phase:**
+  - a drag handle on the panel's right edge, with a resize cursor and a visible grip on hover and focus
+  - width clamped to 320 px minimum and `min(720 px, 60% of the window)` maximum; double-click resets to the default 384 px
+  - keyboard: the handle is a focusable `role="separator"` with `aria-valuenow/min/max`; arrow keys move 16 px, Home and End jump to min and max
+  - the width persists per device (`pp:panelWidth`) and is re-clamped when the window shrinks
+  - the map's camera padding follows the panel, applied when a drag ends (not every frame), so a loaded course stays framed clear of the panel; the chart and table reflow live
+  - phones keep the bottom sheet with its snap points; the handle does not render there
+- **Tests:** E2E drags the handle and asserts the width, the clamps, the reset, keyboard resizing and restore after reload; a test that the course stays clear of the panel after a resize; visual baselines at a wide and a narrow width.
+
+### B10. Remember the last map view
+- **End goal:** opening the site on a device puts the map back where the user last looked, so a returning user is never dropped onto a whole-US view.
+- **This phase:**
+  - the camera (center, zoom) is saved to local storage (`pp:camera`, versioned like the session) on `moveend`, debounced
+  - start-up framing precedence: a share link frames its course; otherwise the saved camera; otherwise a restored session course is fit as today; otherwise the default US bounds
+  - a corrupt or out-of-range saved camera is ignored, never an error
+- **Tests:** E2E pans and zooms, reloads, and asserts the center and zoom within a tolerance at desktop and phone; a share link wins over the saved camera; a corrupt value falls back to the default; unit tests for the precedence function.
+
+### B11. Plan types and split views
+- **End goal:** the user picks how the plan is shaped, as the original app allowed ("Hill Detection", "Per Mile", "Per Kilometer", "No Segments", "Custom Segments", plus its Segments vs Miles/Kilometers table toggle), and every type shares the same ideal-pace model so they are directly comparable.
+- **This phase, plan types** (a segmented control above the plan inputs):
+  - **Optimal** (today's DP with K pace changes and a shortest segment, the default)
+  - **Even pace:** one segment
+  - **Splits:** a segment per split, with split length 1 mi, 1 km, or a custom distance (for example 5 km or 0.5 mi); the last split is the remainder
+  - **Custom:** the user places breakpoints by clicking or tapping the elevation chart, drags them to move, or types distances in a list; breakpoints snap to the resample spacing
+- **Why this is cheap:** Even, Splits and Custom are all fixed partitions. For any fixed partition the best constant pace of a piece is the length-weighted mean of the ideal pace over it (the same fact the DP relies on), so they reuse the DP's prefix sums, and their times also sum to the goal automatically. Core gains `planForPartition(course, breakpoints, inputs)`; `computePlan` dispatches on the plan type.
+- **Table view toggle:** "Segments | Splits". Splits view shows any plan type as per-mile or per-km rows (pace, split time, elapsed time), which is what most runners want on a pace band. The CSV export and pace band follow the chosen view.
+- **Share link:** the format moves to `v=2` and carries the plan type, split length and custom breakpoints. `v=1` links still decode (as Optimal). `docs/sharing.md` is updated.
+- **Tests:** core invariants for every type (total equals the goal within 1 s, pieces match the partition, Even equals Optimal at K=0), golden snapshots extended with each type for the fixed courses, E2E per type including placing and dragging custom breakpoints by mouse and touch, a `v=1` link test, and visual baselines.
+
+### B12. Report a problem
+- **End goal:** any user can report a bug or idea from inside the app in a few seconds, and the report arrives with enough context to reproduce it, without anyone needing an account.
+- **This phase:**
+  - a "Report a problem" entry in the panel header menu (desktop) and sheet header (phone) opens a dialog: kind (bug or idea), description (required), optional email
+  - **"Include diagnostics"** (on by default, previewable): app version (git SHA), browser, viewport, units, theme, plan inputs, and the last 20 uncaught errors and unhandled rejections from a small in-memory ring buffer
+  - **"Include my course"** (off by default, since a course can reveal where someone lives): attaches a share link to the current state so the report reproduces in one click
+  - `POST /api/report` on the Worker validates the payload (size cap, schema), checks a Cloudflare Turnstile token, rate limits (5 per IP per hour), and opens a GitHub issue in `jcj59/perfect-pace` labeled `user-report` plus `bug` or `idea`, using a fine-grained token secret `GITHUB_REPORT_TOKEN` (Issues read/write on this repo only)
+  - the dialog confirms with "Thanks, report sent" and keeps the text if sending fails so nothing is lost
+- **User to-dos:** create the fine-grained token and a Turnstile widget (both free), and set `GITHUB_REPORT_TOKEN` and `TURNSTILE_SECRET` as repo and Worker secrets.
+- **Tests:** Miniflare integration with a mocked GitHub API and Turnstile (success, invalid payload, rate limited, upstream failure); E2E submits the dialog against the stubbed Worker at all viewports and asserts the issue body (diagnostics present, course only when opted in); axe on the dialog; visual baselines.
+
+### B13. Race library
+- **End goal:** the user picks a famous race and its course loads instantly with the race's date and start time filled in (which feeds weather, B14). Covers the eight Abbott World Marathon Majors, the major US marathons, and the major US road races at other distances.
+- **This phase:**
+  - a `/races` page (the Worker already serves the SPA fallback; a ~30-line pathname router, no router dependency) reachable from the empty state ("Browse races") and the panel header
+  - search by name or city, filter chips (World Marathon Majors, US marathons, Half marathons, 10 mi to 15K, 10K and shorter), grouped list; each row shows name, city, distance and usual month
+  - every race shows a "Course coming soon" badge until its GPX exists; rows with a course link to `/?race=<slug>`, which loads `/races/<slug>.gpx` through the normal upload path
+  - data in `apps/web/src/races/catalog.json`: `slug`, `name`, `city`, `region`, `country`, `distanceM`, `usualMonth`, `timezone` (IANA), `startTimeLocal` (main wave, `HH:MM`), `website`, `series` tags, `gpx` (null for now), `verified` (month the facts were last checked). The list to seed is in `docs/race-catalog.md`; the implementer verifies each fact against the race's website and does not guess
+  - a `pnpm races:add <slug> <file.gpx>` script for adding the GPX files later (exported from Strava): it parses, simplifies, checks the distance, writes `apps/web/public/races/<slug>.gpx` and sets `gpx` in the catalog
+- **Tests:** catalog unit tests (unique slugs, valid timezone and time, known distance, ISO country); a test that every catalog entry with a GPX parses and measures within 1.5% of `distanceM` (vacuous until GPX files land, then it guards each one); E2E search, filter, and loading a race via a fixture GPX entry; visual baselines for the page.
+
+### B14. Race conditions: weather, surface and altitude (scaffolding)
+- **End goal:** the plan accounts for the conditions on race day. The weather the runner will meet at each point (temperature, dew point, wind relative to their direction of travel, at the time they will be there), the running surface underfoot, and the altitude all adjust the ideal pace, and the panel shows how much each one costs.
+- **Approach:** every condition becomes a **pace factor** that multiplies the ideal pace per point. The ideal pace becomes `o_i = (b + g_i) * m_i`, where `g_i` is the grade adjustment and `m_i` is the product of the factor multipliers. Total time is still linear in the base pace `b`, so `b` stays a closed-form solve and the DP and every plan type are untouched.
+- **Time-dependent factors:** weather depends on when the runner reaches each point, which depends on the plan. Arrival times come from the current plan, weather is sampled at those times, the plan is recomputed, and this repeats until arrival times move less than 30 s (expected 2 to 3 rounds, since conditions shift pace by a few percent).
+- **This phase builds the data and the plumbing, not the models.** Factors ship with neutral multipliers (exactly 1), so plans and golden snapshots do not change. Conditions data is shown to the user; the "effect on plan" readouts stay hidden until real models land. Choosing the models is a separate design step (PR 25).
+- **Race start:** date and local start time inputs (prefilled from the race library), in the course's local timezone.
+- **Weather:**
+  - a `WeatherProvider` interface in core with an Open-Meteo implementation (free, no key, CORS-enabled, called from the browser; `timezone=auto` gives the course's timezone)
+  - up to 16 days out it uses the hourly forecast; further out it uses climatology (the same calendar window, plus or minus 7 days, over the last 15 years from the historical archive, as median and 10th to 90th percentiles); past dates use the archive's actual weather
+  - sampled at points every 5 km along the course (deduplicated to the weather grid) and interpolated in time to each point's arrival time
+  - wind is split into head/tail and cross components using the course bearing at each point
+  - shown as a conditions card (start and finish temperature and dew point, wind) and a weather strip under the elevation chart
+- **Surface:**
+  - classes: paved, compacted gravel, loose gravel or dirt, grass, sand, track, unknown (treated as paved)
+  - drawn routes take OSM surface from ORS `extra_info: ["surface", "waytype"]`, passed through `/api/route`
+  - uploaded courses are matched against the `transportation` layer of the OpenFreeMap vector tiles the map already uses (nearest way within 15 m; that layer carries paved or unpaved plus the way class), decoded by a small dependency-free MVT reader in core
+  - the user can override the surface for any range of the chart, and overrides go in the share link
+  - shown as a surface band under the chart and a breakdown ("92% paved, 8% gravel")
+- **Altitude:** uses the absolute elevation already computed; the user can enter the altitude they live and train at; shown as the course's average and maximum altitude.
+- **Tests:** core tests for the factor pipeline (neutral factors leave every golden snapshot byte-identical, a synthetic non-neutral factor still makes the plan hit the goal, the arrival-time iteration converges); recorded Open-Meteo fixtures for forecast, climatology and archive; MVT reader tests on fixture tiles; ORS fixtures re-recorded with `extra_info`; E2E for the conditions inputs, weather strip, surface band and override; visual baselines.
 
 ## Stack
 
@@ -250,22 +336,70 @@ This PR builds all of the testing and CI machinery before any features exist, so
 - Manifest, icons, service worker (app shell plus a bounded DEM tile cache), offline messaging, accessibility pass (keyboard, focus, contrast, labels), Lighthouse CI
 - **Tests:** the B7 automated checks. Lighthouse CI and axe checks become required checks on `main`.
 
-### PR 14: MVP acceptance pass
+### Phase 2 PRs (B8 to B14)
+
+These run after PR 13 and before PR 14, in this order. PRs 15 to 17 are small and independent; PR 18 onward builds on them.
+
+### PR 15: Plan explanation behind an info button
+- Replace the `Assumption` note with an (i) button and popover beside the "Pacing plan" heading (B8).
+- **Tests:** the B8 tests.
+
+### PR 16: Resizable side panel
+- Drag and keyboard resize handle, clamps, reset, persistence, camera padding on drag end (B9).
+- **Tests:** the B9 tests.
+
+### PR 17: Remember the last map view
+- Save the camera on `moveend`; the start-up framing precedence function (B10).
+- **Tests:** the B10 tests.
+
+### PR 18: Plan types and split views
+- `planForPartition` and plan-type dispatch in core; Even, Splits and Custom; custom breakpoint editing on the chart; the Segments/Splits table toggle; export and pace band follow the view; share link `v=2` (B11).
+- **Tests:** the B11 tests, golden snapshots for every type.
+
+### PR 19: Report a problem
+- The dialog, the error ring buffer, `POST /api/report` with Turnstile, rate limiting and GitHub issue creation (B12).
+- **Tests:** the B12 tests. Until the user adds the secrets, the endpoint returns `not_configured` and the dialog says reporting is unavailable.
+
+### PR 20: Race library
+- The `/races` page and router, `catalog.json` seeded from `docs/race-catalog.md` with each fact verified, `?race=<slug>` loading, and the `pnpm races:add` script. No GPX files yet (B13).
+- **Tests:** the B13 tests.
+
+### PR 21: Pace factor pipeline
+- Core only: the `PaceFactor` interface, `o_i = (b + g_i) * m_i` with the closed-form base pace, the arrival-time iteration for time-dependent factors, a per-factor time breakdown, and neutral weather, surface and altitude factors registered (B14 approach).
+- **Tests:** golden snapshots byte-identical, synthetic-factor and convergence tests, the recompute budget (under 50 ms per round) still holds.
+
+### PR 22: Race start and weather
+- Date and start time inputs (prefilled from `?race=`), the Open-Meteo `WeatherProvider` (forecast, climatology, archive), sampling along the course at arrival times, head/cross wind, the conditions card and weather strip. The start time joins the share link.
+- **Tests:** the B14 weather tests with recorded fixtures; a nightly live smoke test against Open-Meteo.
+
+### PR 23: Running surface
+- Surface classes, ORS `extra_info` through `/api/route` (with fixtures re-recorded), the MVT reader and tile matching for uploaded courses, the surface band, breakdown and range override (in the share link).
+- **Tests:** the B14 surface tests.
+
+### PR 24: Altitude
+- The home altitude input and the course altitude stats in the conditions card, wired to the neutral altitude factor.
+- **Tests:** the B14 altitude tests.
+
+### PR 25: Pacing models design doc
+- `docs/pacing-models.md`, for the user to review before any model is coded. For each factor (heat and humidity, wind, surface, altitude) it lays out candidate models from the literature with their sources, what inputs they need, how they combine (multiplicative vs additive), and how to validate them against real race results. It also covers whether the app needs a second mode that predicts finish time from flat-road fitness, since with a fixed goal time the factors only redistribute effort across the course.
+- The PRs that implement the chosen models are planned after this doc is agreed.
+
+### PR 14: MVP acceptance pass (runs last)
 - Run the full suite on both viewport projects against the production deploy, do a manual check on a real phone, fix whatever falls out, and write the README (what it does, the algorithm, how to run it).
-- Audit the safety net: every B1 to B7 criterion maps to at least one named test that runs on every PR (a table in the README), the nightly and post-deploy workflows have run green for several days in a row, and no tests are left in quarantine.
-- **Done when:** every B1 to B7 criterion passes and the audit is clean.
+- Audit the safety net: every B1 to B14 criterion maps to at least one named test that runs on every PR (a table in the README), the nightly and post-deploy workflows have run green for several days in a row, and no tests are left in quarantine.
+- **Done when:** every B1 to B14 criterion passes and the audit is clean.
 
 ### Dependency order
-PRs 2 to 5 (core) can proceed in parallel with PR 6 once PR 1 lands. PR 7 needs PRs 3, 4 and 6. PR 8 needs PR 7. PR 9 needs PRs 5 and 8. PR 11 needs PRs 10 and 7.
+PRs 2 to 5 (core) can proceed in parallel with PR 6 once PR 1 lands. PR 7 needs PRs 3, 4 and 6. PR 8 needs PR 7. PR 9 needs PRs 5 and 8. PR 11 needs PRs 10 and 7. PRs 15 to 17 need only PR 13. PR 18 needs PR 15 (it reworks the same plan header). PRs 19 and 20 are independent of each other. PR 21 needs PR 18 (factors apply to every plan type). PR 22 needs PRs 20 and 21. PRs 23 and 24 need PR 21 and the conditions card from PR 22. PR 25 needs PRs 22 to 24. PR 14 runs after PR 25.
 
 ## Future extensions (post-MVP)
 
 - **Better objectives:**
   - effort-based plans: minimize time for a fixed total effort, using a metabolic cost-of-running vs grade curve such as Minetti's
   - fatigue and negative-split modeling
-  - pace changes allowed only at mile/km markers
-  - heat or wind adjustments
+  - an Optimal variant whose pace changes may happen only at mile/km markers
+  - the condition models themselves (heat, wind, surface, altitude), planned once PR 25 is agreed
   - a personalized grade response fit from the user's own activity history
-- **Data:** FIT/TCX import, Strava import, better DEMs where available.
+- **Data:** the GPX files for the race library (B13), FIT/TCX import, Strava import, better DEMs where available.
 - **Infra:** self-hosted Valhalla routing and PMTiles basemap, short share links stored in D1.
 - **Product:** accounts and a saved-route library, a Capacitor app with GPS "live pacing" and watch workout export.

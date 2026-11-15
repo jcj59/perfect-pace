@@ -8,6 +8,7 @@ import {
   useState,
 } from "react";
 import type { SheetSnap } from "../state/app.ts";
+import { useSafeArea } from "./safeArea.ts";
 import { SHEET_PEEK_PX, nextSnap, releaseSnap, snapHeights, stepSnap } from "./sheet.ts";
 
 export interface BottomSheetProps {
@@ -55,7 +56,10 @@ export function BottomSheet({ label, snap, onSnapChange, header, children }: Bot
     return () => observer.disconnect();
   }, []);
 
-  const heights = snapHeights(containerPx);
+  const safeArea = useSafeArea();
+  const heights = snapHeights(containerPx, safeArea);
+  // At `peek` only the header shows, with bare sheet below it over the home indicator.
+  const contentPx = snap === "peek" ? 0 : heights[snap] - SHEET_PEEK_PX;
   const visible = dragHeight ?? heights[snap];
 
   // Follow the pointer on the window, so a fast drag that leaves the header in one step still
@@ -150,7 +154,7 @@ export function BottomSheet({ label, snap, onSnapChange, header, children }: Bot
       <div
         className="min-h-0 overflow-y-auto overscroll-contain focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
         tabIndex={0}
-        style={{ height: heights[snap] - SHEET_PEEK_PX }}
+        style={{ height: contentPx }}
         inert={snap === "peek"}
         data-testid="sheet-content"
       >

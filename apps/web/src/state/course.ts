@@ -18,6 +18,8 @@ export const LOAD_START_MARK = "pp:load-start";
 export const ROUTE_DRAWN_MARK = "pp:route-drawn";
 export const LOAD_MEASURE = "pp:load-course";
 export const PARSED_MARK = "pp:parsed";
+/** Set when the map is handed the new route's line (after it is simplified for drawing). */
+export const ROUTE_SET_MARK = "pp:route-set";
 
 const UNREADABLE =
   "Something went wrong while reading this file. Try again, or export it again from where it came from.";
@@ -56,14 +58,77 @@ function raiseSheet(): void {
 
 /**
  * Told the text of each GPX file that loads, with what it parsed to, so the session can keep it
- * for the next visit (see `session.ts`).
+ * for the next visit (see `session.ts`). The text is null for a picked file too long to keep.
  */
-let fileSink: ((text: string, file: GpxFile, fileName: string) => void) | undefined;
-export function onGpxText(sink: typeof fileSink): void {
+let fileSink: ((text: string | null, file: GpxFile, fileName: string) => void) | undefined;
+/** The longest text, in characters, the sink keeps. */
+let sinkMaxChars = Infinity;
+export function onGpxText(sink: typeof fileSink, maxChars = Infinity): void {
   fileSink = sink;
+  sinkMaxChars = maxChars;
+}
+
+/**
+ * The text of a picked file for the sink, read on the main thread beside the worker's own read,
+ * or null when it is surely too long to keep: UTF-8 takes at most 3 bytes per UTF-16 character,
+ * so a file of more than 3 bytes per character allowed has more characters than allowed. A large
+ * file is then never decoded on the main thread at all.
+ */
+function textForSink(file: File): Promise<string | null> {
+  if (!fileSink || file.size > 3 * sinkMaxChars) return Promise.resolve(null);
+  return file.text().then(
+    (text) => (text.length <= sinkMaxChars ? text : null),
+    () => null,
+  );
+}
+
+/**
+ * Whether a new course's route is on its way to the map. Work that can wait (saving the session,
+ * simplifying the track for a link) waits for it with `afterRouteDrawn`, so on a slow or two-core
+ * machine it never competes with drawing the route for the CPU.
+ */
+let routePending = false;
+/** False once the map has turned out unable to draw anything (no WebGL): then nothing waits. */
+let mapDraws = true;
+const routeWaiters = new Set<() => void>();
+/** The longest that waiting work waits, should the route never be drawn (no WebGL, say). */
+const ROUTE_WAIT_MAX_MS = 5000;
+
+/** The map drew the route (or the load ended without one): run the work that waited for it. */
+export function routeSettled(): void {
+  routePending = false;
+  const waiting = [...routeWaiters];
+  routeWaiters.clear();
+  for (const run of waiting) run();
+}
+
+/** The map cannot draw (no WebGL, or it failed to start): stop waiting for routes it will never draw. */
+export function mapCannotDraw(): void {
+  mapDraws = false;
+  routeSettled();
+}
+
+/** Run `task` once the course being loaded is drawn on the map, or now if none is. Returns its cancel. */
+export function afterRouteDrawn(task: () => void): () => void {
+  if (!routePending || !mapDraws) {
+    task();
+    return () => undefined;
+  }
+  const run = () => {
+    clearTimeout(timer);
+    routeWaiters.delete(run);
+    task();
+  };
+  const timer = setTimeout(run, ROUTE_WAIT_MAX_MS);
+  routeWaiters.add(run);
+  return () => {
+    clearTimeout(timer);
+    routeWaiters.delete(run);
+  };
 }
 
 function startLoad(): AbortSignal {
+  routePending = true;
   load?.abort();
   elevation?.abort();
   const controller = new AbortController();
@@ -81,6 +146,7 @@ export async function loadGpxFile(file: File): Promise<void> {
   performance.clearMarks(LOAD_START_MARK);
   performance.clearMarks(ROUTE_DRAWN_MARK);
   performance.clearMarks(PARSED_MARK);
+  performance.clearMarks(ROUTE_SET_MARK);
   performance.clearMeasures(LOAD_MEASURE);
   performance.mark(LOAD_START_MARK);
   setCourse({ status: "reading", fileName }, true);
@@ -93,14 +159,17 @@ export async function loadGpxFile(file: File): Promise<void> {
         code: "too-large",
         message: `This file is ${Math.round(file.size / 1024 / 1024)} MB, more than any course needs. GPX files of whole races are usually under 20 MB.`,
       });
+      routeSettled();
       raiseSheet();
       return;
     }
-    const text = await file.text();
-    if (signal.aborted) return;
-    const gpx = await coreClient().call("parse", { text }, { signal });
+    // The worker reads the file itself: the main thread neither decodes nor copies its text.
+    const text = textForSink(file);
+    const gpx = await coreClient().call("parse", { file }, { signal });
     performance.mark(PARSED_MARK);
-    fileSink?.(text, gpx, fileName);
+    const kept = await text;
+    if (signal.aborted) return;
+    fileSink?.(kept, gpx, fileName);
     showTrack({ status: "loaded", fileName, file: gpx, track: gpx.defaultTrack, elevation: { status: "loading" } });
     raiseSheet();
   } catch (error) {
@@ -109,6 +178,7 @@ export async function loadGpxFile(file: File): Promise<void> {
       console.error("Could not load", fileName, error);
     const code = error instanceof RpcError ? error.code : undefined;
     setCourse({ status: "error", fileName, ...(code ? { code } : {}), message: loadErrorMessage(error) });
+    routeSettled();
     raiseSheet();
   }
 }
@@ -125,7 +195,11 @@ export async function loadGpxText(text: string, fileName: string, track: number)
     const gpx = await coreClient().call("parse", { text }, { signal });
     // Anything the person did meanwhile (drawing, say) wins over the restore.
     const current = appStore.get().course;
-    if (signal.aborted || current.status !== "reading" || current.fileName !== fileName) return false;
+    if (signal.aborted || current.status !== "reading" || current.fileName !== fileName) {
+      // Unless a newer load took over, there is no route of this load to wait for.
+      if (!signal.aborted) routeSettled();
+      return false;
+    }
     fileSink?.(text, gpx, fileName);
     const index = Number.isInteger(track) && gpx.tracks[track] ? track : gpx.defaultTrack;
     showTrack({ status: "loaded", fileName, file: gpx, track: index, elevation: { status: "loading" } }, true);
@@ -134,6 +208,7 @@ export async function loadGpxText(text: string, fileName: string, track: number)
     if (isAbort(error) || signal.aborted || appStore.get().course.status !== "reading") return false;
     console.error("Could not restore", fileName, error);
     setCourse({ status: "empty" }, true);
+    routeSettled();
     return false;
   }
 }
@@ -187,9 +262,15 @@ function showTrack(course: Loaded, fresh = false): void {
     .then(
       (profile) => {
         if (!stillCurrent()) return;
-        current = { ...course, elevation: { status: "ready", profile } };
-        setCourse(current);
-        performance.mark("pp:elevation-ready");
+        // Shown once the route is on the map: drawing the profile and working out the plan
+        // would otherwise compete with drawing the route on a machine with few cores.
+        const cancel = afterRouteDrawn(() => {
+          if (!stillCurrent()) return;
+          current = { ...course, elevation: { status: "ready", profile } };
+          setCourse(current);
+          performance.mark("pp:elevation-ready");
+        });
+        controller.signal.addEventListener("abort", cancel, { once: true });
       },
       (error: unknown) => {
         if (isAbort(error) || !stillCurrent()) return;

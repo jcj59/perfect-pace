@@ -19,7 +19,9 @@
     "fixtures:record": "pnpm --filter @pp/worker fixtures:record",
     "e2e": "pnpm --filter @pp/e2e e2e",
     "visual:update": "bash scripts/visual-update.sh",
-    "rollback": "bash scripts/rollback.sh"
+    "rollback": "bash scripts/rollback.sh",
+    "lighthouse": "pnpm --filter @pp/e2e lighthouse",
+    "icons": "node scripts/icons.mjs"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

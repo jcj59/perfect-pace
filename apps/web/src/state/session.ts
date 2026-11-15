@@ -34,7 +34,7 @@ import {
   isShareFragment,
 } from "@pp/core";
 import { type AppState, type PlanSettings, appStore, applyPlanSettings, setLinkError, setSheet } from "./app.ts";
-import { loadCourseCopy, loadGpxText, onGpxText, trackTitle } from "./course.ts";
+import { afterRouteDrawn, loadCourseCopy, loadGpxText, onGpxText, trackTitle } from "./course.ts";
 import { coreClient } from "../worker/client.ts";
 import { drawStore, drawing } from "./draw.ts";
 import { type StartFraming, holdStartCamera, readSavedCamera, releaseStartCamera, startFraming } from "./camera.ts";
@@ -112,16 +112,25 @@ export interface PreparedShare {
 }
 
 /**
- * Run `task` once the main thread is idle (so work that can wait never delays drawing a course),
- * or after `timeoutMs` at the latest. Returns the function that cancels it.
+ * Run `task` once a course being loaded is on the map and then the main thread is idle (so work
+ * that can wait never delays drawing a course), or `timeoutMs` after the route is drawn at the
+ * latest. Returns the function that cancels it.
  */
 export function whenIdle(task: () => void, timeoutMs = 1000): () => void {
-  if (typeof requestIdleCallback === "function") {
-    const id = requestIdleCallback(task, { timeout: timeoutMs });
-    return () => cancelIdleCallback(id);
-  }
-  const id = setTimeout(task, 50);
-  return () => clearTimeout(id);
+  let cancelIdle = () => {};
+  const cancelWait = afterRouteDrawn(() => {
+    if (typeof requestIdleCallback === "function") {
+      const id = requestIdleCallback(task, { timeout: timeoutMs });
+      cancelIdle = () => cancelIdleCallback(id);
+    } else {
+      const id = setTimeout(task, 50);
+      cancelIdle = () => clearTimeout(id);
+    }
+  });
+  return () => {
+    cancelWait();
+    cancelIdle();
+  };
 }
 
 /** The page links point at: this one, without its query or fragment. */
@@ -146,13 +155,14 @@ export async function prepareShare(
   const maxChars = shareTrackBudget(base, { settings: LONGEST_SETTINGS, ...named });
   const track = await coreClient().call(
     "shareTrack",
-    { points: plainPoints(course.points), maxChars },
+    // Positions only cross to the worker (see `codecs.ts`).
+    { points: course.points, maxChars },
     options.signal ? { signal: options.signal } : {},
   );
   return track ? { course: { kind: "track", points: track.points }, ...named, track } : undefined;
 }
 
-/** Positions only, so a course's points cross to the worker without their other fields. */
+/** Positions only, so a saved copy carries just what a link does. */
 const plainPoints = (points: readonly LatLon[]): LatLon[] => points.map(({ lat, lon }) => ({ lat, lon }));
 
 /** The link for a prepared course with these plan inputs. */
@@ -282,14 +292,17 @@ function restoreSaved(): void {
 let opened = false;
 
 /** A loaded file's text waiting to be written with the session. */
-let pendingText: { text: string; file: GpxFile } | null = null;
+let pendingText: { text: string | null; file: GpxFile } | null = null;
 
 /** Write a loaded file's text, if it is the course on screen. A file past the cap is never tried. */
 function storePendingText(state: AppState): void {
   const pending = pendingText;
   if (!pending || state.course.status !== "loaded" || state.course.file !== pending.file) return;
   pendingText = null;
-  const kept = pending.text.length <= MAX_STORED_GPX_CHARS && write(SESSION_GPX_STORAGE_KEY, pending.text);
+  const kept =
+    pending.text !== null &&
+    pending.text.length <= MAX_STORED_GPX_CHARS &&
+    write(SESSION_GPX_STORAGE_KEY, pending.text);
   if (!kept) write(SESSION_GPX_STORAGE_KEY, null);
   storedFile = kept ? pending.file : null;
 }
@@ -311,7 +324,7 @@ function requestSavedCopy(file: GpxFile, track: number): void {
   const request = { file, track };
   copyRequest = request;
   void coreClient()
-    .call("shareTrack", { points: plainPoints(trackPoints(file, track)), maxChars: SAVED_COPY_MAX_CHARS })
+    .call("shareTrack", { points: trackPoints(file, track), maxChars: SAVED_COPY_MAX_CHARS })
     .then(
       (copy) => ({ file, track, c: copy ? encodeSharedCourse({ kind: "track", points: copy.points }) : null }),
       () => ({ file, track, c: null }),
@@ -389,7 +402,7 @@ export function startSession(): () => void {
   // file's write is slow, and may only fail on quota.
   onGpxText((text, file) => {
     pendingText = { text, file };
-  });
+  }, MAX_STORED_GPX_CHARS);
 
   // Read before the link is taken off the address.
   startView();

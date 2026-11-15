@@ -6,6 +6,7 @@ coverage/
 .dev.vars*
 bench-results.json
 test-results/
+lighthouse-report/
 playwright-report/
 blob-report/
 *.log

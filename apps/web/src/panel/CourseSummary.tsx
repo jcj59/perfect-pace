@@ -5,7 +5,8 @@ import { segmentTone } from "../plan/tones.ts";
 import { type CourseState, type ElevationState, useAppState } from "../state/app.ts";
 import { drawing, useDrawState } from "../state/draw.ts";
 import { DRAW, Icon } from "../draw/icons.tsx";
-import { DrawButton, SECONDARY_BUTTON } from "../draw/DrawButton.tsx";
+import { DRAW_OFFLINE_TITLE, DrawButton, SECONDARY_BUTTON } from "../draw/DrawButton.tsx";
+import { usePwaState } from "../pwa/pwa.ts";
 import { retryElevation, selectTrack, trackTitle } from "../state/course.ts";
 import { usePlanView } from "../state/plan.ts";
 import { FileButton } from "./FileButton.tsx";
@@ -83,6 +84,7 @@ export function DrawnCourseSummary({
   profileFirst?: boolean;
 }) {
   const waypoints = useDrawState((s) => s.history.present.waypoints.length);
+  const online = usePwaState((s) => s.online);
   const header = editing ? (
     editor
   ) : (
@@ -98,7 +100,14 @@ export function DrawnCourseSummary({
         <p className="mt-1 text-sm text-ink-muted">{waypoints} points, drawn on the map</p>
       </div>
       <div className="mt-1 flex shrink-0 flex-col items-end gap-2">
-        <button type="button" onClick={drawing.edit} className={SECONDARY_BUTTON} data-testid="edit-route">
+        <button
+          type="button"
+          onClick={drawing.edit}
+          className={SECONDARY_BUTTON}
+          disabled={!online}
+          title={online ? undefined : DRAW_OFFLINE_TITLE}
+          data-testid="edit-route"
+        >
           <Icon className="size-4">{DRAW}</Icon>
           Edit route
         </button>

@@ -1,5 +1,6 @@
 import { type LegMode, canRedo, canUndo } from "@pp/core";
 import type { ReactNode } from "react";
+import { usePwaState } from "../pwa/pwa.ts";
 import { drawing, useDrawState } from "../state/draw.ts";
 import { CLEAR, Icon, PATHS, REDO, RETRY, STRAIGHT, UNDO } from "./icons.tsx";
 
@@ -44,6 +45,7 @@ export function DrawToolbar({ placement }: { placement: "top" | "bottom" }) {
   const legs = useDrawState((s) => s.legs);
   const failed = legs.find((leg) => leg.status === "error");
   const empty = history.present.waypoints.length === 0;
+  const online = usePwaState((s) => s.online);
 
   return (
     // Under the map's top edge the error hangs below the toolbar; over the phone sheet it sits
@@ -93,6 +95,18 @@ export function DrawToolbar({ placement }: { placement: "top" | "bottom" }) {
           <Icon>{CLEAR}</Icon>
         </ToolButton>
       </div>
+      {!online && (
+        <div
+          role="status"
+          data-testid="draw-offline"
+          className="pointer-events-auto w-[22rem] max-w-full rounded-2xl border border-line bg-surface p-3.5 shadow-panel"
+        >
+          <p className="text-[13px] leading-snug font-semibold text-ink">You're offline</p>
+          <p className="mt-0.5 text-[13px] leading-snug text-ink-muted">
+            Drawing needs an internet connection: new legs can't follow paths until you reconnect.
+          </p>
+        </div>
+      )}
       {failed && (
         <div
           role="alert"

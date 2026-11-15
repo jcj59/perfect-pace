@@ -1,5 +1,6 @@
 import { DrawButton } from "../draw/DrawButton.tsx";
 import { DRAW, Icon } from "../draw/icons.tsx";
+import { usePwaState } from "../pwa/pwa.ts";
 import { UploadCard } from "./UploadCard.tsx";
 
 const STEPS = [
@@ -59,8 +60,9 @@ export function EmptyState({ upload = true }: EmptyStateProps) {
   );
 }
 
-/** The other way in: draw the course on the map. */
+/** The other way in: draw the course on the map (online only; a GPX file works offline). */
 function DrawCard() {
+  const online = usePwaState((s) => s.online);
   return (
     <div
       data-testid="draw-card"
@@ -71,8 +73,10 @@ function DrawCard() {
       </span>
       <div className="min-w-0 flex-1">
         <h3 className="text-[15px] font-semibold text-ink">Or draw it on the map</h3>
-        <p className="mt-0.5 text-[13px] leading-snug text-pretty text-ink-muted">
-          Place the points and each leg follows the paths between them.
+        <p className="mt-0.5 text-[13px] leading-snug text-pretty text-ink-muted" data-testid="draw-card-note">
+          {online
+            ? "Place the points and each leg follows the paths between them."
+            : "Drawing needs an internet connection. You're offline, but GPX files still load."}
         </p>
         <DrawButton variant="secondary" className="mt-3">
           Draw route
