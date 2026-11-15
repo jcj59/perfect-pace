@@ -164,7 +164,15 @@ test("a share link frames its course, not the saved view", async ({ browser }, t
   const base = new URL("/", testInfo.project.use.baseURL).href;
   const link = buildShareLink(base, {
     course: { kind: "track", points },
-    settings: { goalTimeS: 1500, paceChanges: 2, minSegmentM: 0, unit: "mi" },
+    settings: {
+      goalTimeS: 1500,
+      planType: "optimal",
+      paceChanges: 2,
+      minSegmentM: 0,
+      splitM: 1609.344,
+      breakpointsM: [],
+      unit: "mi",
+    },
     name: "Lakefront",
   })!.url;
   // Somewhere else entirely: Denver, close in.

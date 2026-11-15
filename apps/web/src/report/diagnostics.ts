@@ -48,6 +48,9 @@ function planFields({ app, draw, plan }: DiagnosticsSource): ReportDiagnostics["
     fields["elevationSource"] = profile.source;
   }
   fields["goalTimeS"] = app.goalTimeS;
+  fields["planType"] = app.planType;
+  fields["splitM"] = app.splitM;
+  fields["breakpoints"] = app.breakpointsM.length;
   fields["paceChanges"] = app.paceChanges;
   fields["minSegmentM"] = app.minSegmentM;
   if (plan.plan && plan.profile === profile) fields["segments"] = plan.plan.segments.length;
@@ -110,8 +113,11 @@ export async function currentCourseLink(signal?: AbortSignal): Promise<string | 
   if (!prepared) return null;
   return shareUrl(prepared, {
     goalTimeS: app.goalTimeS,
+    planType: app.planType,
     paceChanges: app.paceChanges,
     minSegmentM: app.minSegmentM,
+    splitM: app.splitM,
+    breakpointsM: app.breakpointsM,
     unit: app.units,
   });
 }

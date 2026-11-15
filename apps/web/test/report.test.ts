@@ -65,6 +65,9 @@ describe("buildDiagnostics", () => {
       plan: {
         course: "empty",
         goalTimeS: 10800,
+        planType: "optimal",
+        splitM: diagnostics.plan["splitM"],
+        breakpoints: 0,
         paceChanges: 4,
         minSegmentM: diagnostics.plan["minSegmentM"],
         planError: "Too fast for the descents",

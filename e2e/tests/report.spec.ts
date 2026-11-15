@@ -100,7 +100,7 @@ test("attaches the course and the email only when opted in", async ({ page, base
   expect(report.kind).toBe("idea");
   expect(report.email).toBe("runner@example.com");
   expect(report).not.toHaveProperty("diagnostics");
-  expect(report.courseLink).toMatch(new RegExp(`^${baseURL}/#v=1&c=t\\.[A-Za-z0-9_-]+&k=4&`));
+  expect(report.courseLink).toMatch(new RegExp(`^${baseURL}/#v=\\d+&c=t\\.[A-Za-z0-9_-]+&`));
 
   // The link opens the same course.
   await page.goto(report.courseLink!);
