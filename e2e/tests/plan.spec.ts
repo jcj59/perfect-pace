@@ -38,6 +38,8 @@ test("a 3:00:00 plan for Boston with 6 changes adds up to 3:00:00 and is drawn o
     await expect(segments.nth(i)).toHaveAttribute("data-tone", (await rows.nth(i).getAttribute("data-tone"))!);
   }
   await expect(page.getByTestId("map")).toHaveAttribute("data-segments", String(count));
+  // The pace model it rests on is one click away, behind the (i) beside the heading.
+  await page.getByRole("button", { name: "How the plan works" }).click();
   await expect(page.getByTestId("plan-assumption")).toContainText("12 s per mile");
 });
 

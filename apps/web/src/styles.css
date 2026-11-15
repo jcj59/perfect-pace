@@ -92,6 +92,13 @@ body {
   text-rendering: optimizeLegibility;
 }
 
+/* While the panel's handle is dragged: the resize cursor everywhere, and no text selection. */
+.pp-resizing,
+.pp-resizing * {
+  cursor: col-resize !important;
+  user-select: none !important;
+}
+
 /* MapLibre's control corners, clear of notches and the home indicator (insets are zero elsewhere). */
 .maplibregl-map .maplibregl-ctrl-top-right {
   top: env(safe-area-inset-top);
