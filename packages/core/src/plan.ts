@@ -6,8 +6,11 @@
  *
  * 1. Interval lengths `w_i` and grades come from the course's points (normally the smoothed,
  *    resampled course of `buildElevationProfile`).
- * 2. The pace model gives the ideal pace `o_i` of every interval, scaled so that
- *    `sum_i w_i o_i` is the goal time.
+ * 2. The pace model gives the ideal pace `o_i = (b + g_i) * m_i` of every interval: the base pace
+ *    `b` plus the grade adjustment `g_i`, times the product `m_i` of the pace factors' multipliers
+ *    (weather, surface, altitude; `pace-factors.ts`), with `b` solved so that `sum_i w_i o_i` is
+ *    the goal time. Time-dependent factors are resolved by iterating on the arrival times
+ *    (`solvePlan` below).
  * 3. The plan type picks the pieces. `optimal` (the default): `segmentLeastSquares` picks at most
  *    `paceChanges + 1` contiguous pieces minimizing `sum_i w_i (p_i - o_i)^2`, each at least
  *    `minSegmentM` long. The others are fixed partitions, paced by `planForPartition`: `even` is
@@ -17,11 +20,21 @@
  *    automatic for any partition).
  * 4. Each piece gets its average grade, gain and loss, a terrain label and a short reason.
  *
- * Every plan type shares steps 1, 2 and 4 (`idealPaces` and `describePlan` below), so they are
- * directly comparable, and a change to the ideal pace applies to all of them at once.
+ * Every plan type shares steps 1, 2 and 4 (`solvePlan`, `idealPaces` and `describeSegments`
+ * below), so they are directly comparable, and a change to the ideal pace (a new factor included)
+ * applies to all of them at once. Step 3 only ever sees the ideal paces.
  */
-import { type Course, type CoursePoint, courseLengthM } from "./course.ts";
+import { type Course, type CoursePoint, courseBearingsDeg, courseLengthM } from "./course.ts";
 import { DEFAULT_GAIN_THRESHOLD_M, MAX_ABS_GRADE, computeGrades, gainLoss } from "./elevation.ts";
+import {
+  DEFAULT_PACE_FACTORS,
+  FACTOR_ARRIVAL_TOLERANCE_S,
+  MAX_FACTOR_ROUNDS,
+  type PaceFactor,
+  type PaceFactorContext,
+  type PaceFactorEffect,
+  type PaceFactorSummary,
+} from "./pace-factors.ts";
 import { type PaceModel, danielsPaceModel } from "./pace-model.ts";
 import { type Segmentation, segmentLeastSquares, segmentPartition } from "./segmenter.ts";
 import { type DistanceUnit, metersPerUnit, metersToUnit } from "./units.ts";
@@ -54,6 +67,11 @@ export interface PlanInputs {
   curveMaxPaceChanges?: number;
   /** The ideal pace model. Default `danielsPaceModel`. */
   model?: PaceModel;
+  /**
+   * The race-day conditions applied to the ideal pace, each with a unique `id`. Default
+   * `DEFAULT_PACE_FACTORS` (all neutral); `[]` applies none.
+   */
+  factors?: readonly PaceFactor[];
   /**
    * How the course is cut into segments (default `optimal`). `paceChanges`, `minSegmentM` and
    * `curveMaxPaceChanges` apply to `optimal` only, `splitM` to `splits` and `breakpointsM` to
@@ -151,6 +169,8 @@ export interface Plan {
   errorCurve: ErrorCurvePoint[];
   /** The model's ideal pace of every course interval `i..i + 1`, seconds per meter. */
   idealPacesSPerM: number[];
+  /** How the pace factors were applied, and what each one costs. */
+  paceFactors: PaceFactorSummary;
 }
 
 const METERS_PER_FOOT = 0.3048;
@@ -181,6 +201,11 @@ function assertInputs(course: Course, inputs: PlanInputs): void {
   }
   if (breakpointsM?.some((b) => !Number.isFinite(b))) {
     throw new RangeError("computePlan: every breakpoint must be a finite distance");
+  }
+  const ids = new Set<string>();
+  for (const f of inputs.factors ?? []) {
+    if (ids.has(f.id)) throw new RangeError(`computePlan: two pace factors share the id ${f.id}`);
+    ids.add(f.id);
   }
 }
 
@@ -239,11 +264,15 @@ interface IdealPaces {
   eleM: number[];
 }
 
-/**
- * Steps 1 and 2 of the pipeline, shared by every plan type: interval lengths and grades from the
- * points, then the pace model's ideal pace for each, scaled to the goal.
- */
-function idealPaces(course: Course, goalTimeS: number, model: PaceModel): IdealPaces {
+/** Step 1: the course's points as the arrays the pace model and the factors read. */
+interface CourseIntervals {
+  distM: number[];
+  eleM: number[];
+  lengths: Float64Array;
+  grades: number[];
+}
+
+function courseIntervals(course: Course): CourseIntervals {
   const points = course.points;
   const distM = points.map((p) => p.distM);
   const eleM = points.map((p) => p.ele as number);
@@ -251,8 +280,185 @@ function idealPaces(course: Course, goalTimeS: number, model: PaceModel): IdealP
   const lengths = new Float64Array(n);
   for (let i = 0; i < n; i++) lengths[i] = (distM[i + 1] as number) - (distM[i] as number);
   const grades = computeGrades(distM, eleM, MAX_ABS_GRADE);
-  const { paces, flatPaceSPerM } = model.idealPaces(lengths, grades, goalTimeS);
-  return { lengths, paces, flatPaceSPerM, eleM };
+  return { distM, eleM, lengths, grades };
+}
+
+/** Step 2 for given multipliers: the model's ideal paces, scaled to the goal. */
+function idealPaces(c: CourseIntervals, goalTimeS: number, model: PaceModel, multipliers?: Float64Array): IdealPaces {
+  const { paces, flatPaceSPerM } = model.idealPaces(c.lengths, c.grades, goalTimeS, multipliers);
+  return { lengths: c.lengths, paces, flatPaceSPerM, eleM: c.eleM };
+}
+
+/** Seconds after the start the runner reaches each point, holding `paces` on the intervals. */
+function arrivalsFromPaces(lengths: Float64Array, paces: ArrayLike<number>): Float64Array {
+  const out = new Float64Array(lengths.length + 1);
+  for (let i = 0; i < lengths.length; i++)
+    out[i + 1] = (out[i] as number) + (lengths[i] as number) * (paces[i] as number);
+  return out;
+}
+
+/** Seconds after the start the runner reaches each point following the plan's pieces. */
+function arrivalsFromPlan(lengths: Float64Array, chosen: Segmentation): Float64Array {
+  const out = new Float64Array(lengths.length + 1);
+  for (let p = 0; p + 1 < chosen.bounds.length; p++) {
+    const pace = chosen.values[p] as number;
+    for (let i = chosen.bounds[p] as number; i < (chosen.bounds[p + 1] as number); i++) {
+      out[i + 1] = (out[i] as number) + (lengths[i] as number) * pace;
+    }
+  }
+  return out;
+}
+
+/** A factor's multipliers for `ctx`, checked: one positive finite number per interval. */
+function sampleFactor(factor: PaceFactor, ctx: PaceFactorContext): Float64Array {
+  const raw = factor.multipliers(ctx);
+  const n = ctx.lengthsM.length;
+  if (raw.length !== n) {
+    throw new RangeError(`computePlan: pace factor ${factor.id} gave ${raw.length} multipliers for ${n} intervals`);
+  }
+  const out = Float64Array.from(raw);
+  for (let i = 0; i < n; i++) {
+    const m = out[i] as number;
+    if (!(Number.isFinite(m) && m > 0)) {
+      throw new RangeError(`computePlan: pace factor ${factor.id} gave invalid multiplier ${m} at interval ${i}`);
+    }
+  }
+  return out;
+}
+
+/** The elementwise product of `arrays` (all of length `n`), or all ones when there are none. */
+function product(arrays: readonly Float64Array[], n: number): Float64Array {
+  const out = new Float64Array(n).fill(1);
+  for (const a of arrays) for (let i = 0; i < n; i++) out[i] = (out[i] as number) * (a[i] as number);
+  return out;
+}
+
+function sameValues(a: Float64Array, b: Float64Array): boolean {
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
+
+function maxShift(a: Float64Array, b: Float64Array): number {
+  let max = 0;
+  for (let i = 0; i < a.length; i++) max = Math.max(max, Math.abs((a[i] as number) - (b[i] as number)));
+  return max;
+}
+
+/** `sum_i w_i o_i (1 - 1 / m_i)`: seconds the multipliers `m` add at the same base pace. */
+function addedTimeS(lengths: Float64Array, paces: Float64Array, m: Float64Array): number {
+  let total = 0;
+  for (let i = 0; i < lengths.length; i++) {
+    const mi = m[i] as number;
+    if (mi !== 1) total += (lengths[i] as number) * (paces[i] as number) * (1 - 1 / mi);
+  }
+  return total;
+}
+
+/**
+ * The first guess of the arrival times: from the grade-adjusted ideal paces with no factor, or,
+ * when the goal is too fast for those (the factors may still make it possible), from an even pace.
+ */
+function initialArrivals(c: CourseIntervals, goalTimeS: number, model: PaceModel): Float64Array {
+  try {
+    return arrivalsFromPaces(c.lengths, idealPaces(c, goalTimeS, model).paces);
+  } catch (error) {
+    if (!(error instanceof RangeError)) throw error;
+    const total = c.distM.at(-1) as number;
+    return Float64Array.from(c.distM, (d) => (goalTimeS * d) / total);
+  }
+}
+
+/** The plan's pieces for given ideal paces (step 3), plus whatever else the plan type keeps. */
+type Segment<T> = (ideal: IdealPaces) => { chosen: Segmentation; extra: T };
+
+/**
+ * Steps 1 to 3 with the pace factors: the ideal paces, the plan type's pieces (`segment`), and
+ * the factor summary.
+ *
+ * Time-independent factors are sampled once. Without a time-dependent one this is a single
+ * round. With one, it is the fixed-point iteration of `pace-factors.ts`:
+ *
+ * - Round 0 guess: arrival times from the grade-adjusted ideal paces with no factor (an O(n)
+ *   solve, much closer than an even pace).
+ * - Each round: sample the time-dependent factors at the current arrival times, build the plan,
+ *   and take the arrival times of the plan itself (its constant-pace pieces, which is what the
+ *   runner actually follows, not the ideal).
+ * - Stop when the newest arrival times are within `FACTOR_ARRIVAL_TOLERANCE_S` of the ones the
+ *   factors were sampled at, or when sampling at the newest times gives exactly the same
+ *   multipliers (then the next plan would be this one: an exact fixed point, found without
+ *   building it; this is what keeps a neutral time-dependent factor at one round), or after
+ *   `MAX_FACTOR_ROUNDS` plans, reported as not converged.
+ *
+ * Each round costs one segmentation plus O(n) per factor, so the time-dependent case costs about
+ * `rounds` times a plan without one.
+ */
+function solvePlan<T>(course: Course, inputs: PlanInputs, segment: Segment<T>) {
+  const { goalTimeS, model = danielsPaceModel, factors = DEFAULT_PACE_FACTORS } = inputs;
+  const c = courseIntervals(course);
+  const n = c.lengths.length;
+  if (factors.length === 0) {
+    const ideal = idealPaces(c, goalTimeS, model);
+    const paceFactors: PaceFactorSummary = { rounds: 1, converged: true, arrivalShiftS: 0, timeS: 0, effects: [] };
+    return { ideal, ...segment(ideal), paceFactors };
+  }
+
+  const base: PaceFactorContext = {
+    course,
+    goalTimeS,
+    distM: Float64Array.from(c.distM),
+    eleM: Float64Array.from(c.eleM),
+    arrivalS: initialArrivals(c, goalTimeS, model),
+    lengthsM: c.lengths,
+    grades: Float64Array.from(c.grades),
+    bearingDeg: courseBearingsDeg(course),
+  };
+  const perFactor = factors.map((f) => sampleFactor(f, base));
+  const dynamic = factors.flatMap((f, k) => (f.timeDependent ? [k] : []));
+  const staticM = product(
+    perFactor.filter((_, k) => !factors[k]!.timeDependent),
+    n,
+  );
+  const dynamicM = (samples: readonly Float64Array[]) =>
+    product(
+      dynamic.map((k) => samples[k]!),
+      n,
+    );
+
+  let arrivalS = base.arrivalS;
+  let rounds = 0;
+  let converged = dynamic.length === 0;
+  let arrivalShiftS = 0;
+  for (;;) {
+    rounds++;
+    const m = product([staticM, dynamicM(perFactor)], n);
+    const ideal = idealPaces(c, goalTimeS, model, m);
+    const result = segment(ideal);
+    if (!converged) {
+      const next = arrivalsFromPlan(c.lengths, result.chosen);
+      const ctx = { ...base, arrivalS: next };
+      const resampled = perFactor.map((v, k) => (factors[k]!.timeDependent ? sampleFactor(factors[k]!, ctx) : v));
+      if (sameValues(dynamicM(resampled), dynamicM(perFactor))) {
+        converged = true;
+      } else {
+        arrivalShiftS = maxShift(next, arrivalS);
+        converged = arrivalShiftS < FACTOR_ARRIVAL_TOLERANCE_S;
+      }
+      if (!converged && rounds < MAX_FACTOR_ROUNDS) {
+        arrivalS = next;
+        perFactor.splice(0, perFactor.length, ...resampled);
+        continue;
+      }
+    }
+    const effects: PaceFactorEffect[] = factors.map((f, k) => ({
+      id: f.id,
+      label: f.label,
+      timeDependent: f.timeDependent,
+      timeS: addedTimeS(c.lengths, ideal.paces, perFactor[k]!),
+    }));
+    const timeS = addedTimeS(c.lengths, ideal.paces, m);
+    const paceFactors: PaceFactorSummary = { rounds, converged, arrivalShiftS, timeS, effects };
+    return { ideal, ...result, paceFactors };
+  }
 }
 
 /** Step 4: each piece of `chosen` as a described segment. */
@@ -342,6 +548,7 @@ function assembledPlan(
   inputs: PlanInputs,
   ideal: IdealPaces,
   chosen: Segmentation,
+  paceFactors: PaceFactorSummary,
   fields: Pick<Plan, "type" | "paceChanges" | "minSegmentM" | "splitM" | "errorCurve">,
 ): Plan {
   const { goalTimeS, unit, model = danielsPaceModel } = inputs;
@@ -361,6 +568,7 @@ function assembledPlan(
     segments,
     errorCurve: fields.errorCurve,
     idealPacesSPerM: Array.from(ideal.paces),
+    paceFactors,
   };
 }
 
@@ -373,15 +581,16 @@ function assembledPlan(
  */
 export function planForPartition(course: Course, breakpointsM: readonly number[], inputs: PlanInputs): Plan {
   assertInputs(course, { ...inputs, breakpointsM });
-  const { goalTimeS, model = danielsPaceModel } = inputs;
   const bounds = partitionBounds(course, breakpointsM);
   if (bounds.length - 1 > MAX_PARTITION_SEGMENTS) {
     throw new RangeError(`planForPartition: more than ${MAX_PARTITION_SEGMENTS} segments`);
   }
-  const ideal = idealPaces(course, goalTimeS, model);
-  const chosen = segmentPartition(ideal.paces, ideal.lengths, bounds);
+  const { ideal, chosen, paceFactors } = solvePlan(course, inputs, (ideal) => ({
+    chosen: segmentPartition(ideal.paces, ideal.lengths, bounds),
+    extra: null,
+  }));
   const type = inputs.type && inputs.type !== "optimal" ? inputs.type : "custom";
-  return assembledPlan(course, inputs, ideal, chosen, {
+  return assembledPlan(course, inputs, ideal, chosen, paceFactors, {
     type,
     paceChanges: bounds.length - 2,
     minSegmentM: 0,
@@ -406,18 +615,28 @@ export function computePlan(course: Course, inputs: PlanInputs): Plan {
   }
   if (type === "custom") return planForPartition(course, inputs.breakpointsM ?? [], inputs);
 
-  const { goalTimeS, paceChanges, minSegmentM = 0, model = danielsPaceModel } = inputs;
+  const { paceChanges, minSegmentM = 0 } = inputs;
   const curveMax = Math.max(paceChanges, inputs.curveMaxPaceChanges ?? DEFAULT_CURVE_MAX_PACE_CHANGES);
-  const ideal = idealPaces(course, goalTimeS, model);
   const lengthM = courseLengthM(course);
-  const all = segmentLeastSquares(ideal.paces, ideal.lengths, { maxPieces: curveMax + 1, minPieceWeight: minSegmentM });
+  const {
+    ideal,
+    chosen,
+    extra: all,
+    paceFactors,
+  } = solvePlan(course, inputs, (ideal) => {
+    const all = segmentLeastSquares(ideal.paces, ideal.lengths, {
+      maxPieces: curveMax + 1,
+      minPieceWeight: minSegmentM,
+    });
+    return { chosen: all[paceChanges]!, extra: all };
+  });
   const errorCurve = all.map((s) => ({
     paceChanges: s.maxPieces - 1,
     segments: s.bounds.length - 1,
     error: s.error,
     rmsPaceGapSPerM: Math.sqrt(s.error / lengthM),
   }));
-  return assembledPlan(course, inputs, ideal, all[paceChanges]!, {
+  return assembledPlan(course, inputs, ideal, chosen, paceFactors, {
     type: "optimal",
     paceChanges,
     minSegmentM,

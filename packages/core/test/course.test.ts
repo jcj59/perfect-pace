@@ -4,7 +4,9 @@ import {
   DEFAULT_RESAMPLE_SPACING_M,
   type TrackPoint,
   buildCourse,
+  courseBearingsDeg,
   courseLengthM,
+  initialBearingDeg,
   haversineM,
   pointAtDistance,
   resampleCourse,
@@ -208,6 +210,62 @@ describe("resampleCourse", () => {
       const out = resampleCourse(course, 10);
       expect(Math.abs(polylineM(out) - courseLengthM(course))).toBeLessThan(1e-6);
       for (const p of out.points) expect(Math.abs(p.lon)).toBeGreaterThan(179.999);
+    });
+  });
+});
+
+describe("courseBearingsDeg", () => {
+  it("gives the direction of travel of every interval", () => {
+    const course = buildCourse([
+      { lat: 0, lon: 0 },
+      { lat: 0.001, lon: 0 },
+      { lat: 0.001, lon: 0.001 },
+      { lat: 0, lon: 0.001 },
+      { lat: 0, lon: 0 },
+    ]);
+    expect(Array.from(courseBearingsDeg(course), (d) => Math.round(d))).toEqual([0, 90, 180, 270]);
+  });
+
+  it("carries the previous bearing over duplicate points, and the first one back to the start", () => {
+    const course = buildCourse([
+      { lat: 0, lon: 0 },
+      { lat: 0, lon: 0 },
+      { lat: 0, lon: 0.001 },
+      { lat: 0, lon: 0.001 },
+      { lat: 0.001, lon: 0.001 },
+    ]);
+    expect(Array.from(courseBearingsDeg(course), (d) => Math.round(d))).toEqual([90, 90, 90, 0]);
+  });
+
+  it("is 0 for a course with no direction, and empty without an interval", () => {
+    const still = buildCourse([
+      { lat: 1, lon: 2 },
+      { lat: 1, lon: 2 },
+      { lat: 1, lon: 2 },
+    ]);
+    expect(Array.from(courseBearingsDeg(still))).toEqual([0, 0]);
+    expect(courseBearingsDeg(buildCourse([{ lat: 1, lon: 2 }]))).toHaveLength(0);
+    expect(courseBearingsDeg({ points: [] })).toHaveLength(0);
+  });
+
+  it("matches initialBearingDeg on random tracks with duplicates (seeded)", () => {
+    const course = buildCourse(
+      randomTrack(77, { count: 400, minStepM: 2, maxStepM: 20, maxTurnDeg: 40, duplicateChance: 0.1 }),
+    );
+    const bearings = courseBearingsDeg(course);
+    expect(bearings).toHaveLength(course.points.length - 1);
+    let last = Number.NaN;
+    bearings.forEach((deg, i) => {
+      const a = course.points[i]!;
+      const b = course.points[i + 1]!;
+      if (b.distM > a.distM) {
+        last = initialBearingDeg(a, b);
+        expect(deg, `seed 77 interval ${i}`).toBe(last);
+      } else if (!Number.isNaN(last)) {
+        expect(deg, `seed 77 interval ${i}`).toBe(last);
+      }
+      expect(deg).toBeGreaterThanOrEqual(0);
+      expect(deg).toBeLessThan(360);
     });
   });
 });

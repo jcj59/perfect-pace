@@ -3,7 +3,7 @@
  * track. Every later stage (elevation, grade, pace model, segmenter) works on a `Course`, usually
  * one resampled to a fixed spacing by `resampleCourse`.
  */
-import { type LatLon, haversineM, lerpLatLon } from "./geo.ts";
+import { type LatLon, haversineM, initialBearingDeg, lerpLatLon } from "./geo.ts";
 
 /** A track position with optional elevation in meters. */
 export interface TrackPoint extends LatLon {
@@ -102,6 +102,33 @@ export function pointAtDistance(course: Course, distM: number): CoursePoint {
   const d = Math.min(Math.max(distM, 0), courseLengthM(course));
   const i = segmentIndex(points, d);
   return interpolate(points[i] as CoursePoint, points[i + 1] as CoursePoint, d);
+}
+
+/**
+ * The course bearing of every interval `points[i]..points[i + 1]`, in degrees clockwise from true
+ * north in `[0, 360)` (`initialBearingDeg`): the direction the runner travels there, which is what
+ * turns a wind into head, tail and cross components. One value per interval, aligned with the
+ * interval lengths, grades and ideal paces of the plan. An interval of zero length (a duplicate
+ * point) has no direction of its own, so it takes the bearing of the interval before it, or for
+ * leading ones the first interval that has a direction; a course with none at all is 0 throughout.
+ */
+export function courseBearingsDeg(course: Course): Float64Array {
+  const { points } = course;
+  const n = Math.max(0, points.length - 1);
+  const out = new Float64Array(n);
+  let firstKnown = -1;
+  for (let i = 0; i < n; i++) {
+    const a = points[i] as CoursePoint;
+    const b = points[i + 1] as CoursePoint;
+    if (b.distM > a.distM && (a.lat !== b.lat || a.lon !== b.lon)) {
+      out[i] = initialBearingDeg(a, b);
+      if (firstKnown < 0) firstKnown = i;
+    } else if (firstKnown >= 0) {
+      out[i] = out[i - 1] as number;
+    }
+  }
+  if (firstKnown > 0) out.fill(out[firstKnown] as number, 0, firstKnown);
+  return out;
 }
 
 /** The resampling spacing the app uses unless told otherwise: 10 m. */

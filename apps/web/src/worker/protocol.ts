@@ -15,10 +15,13 @@ import type {
 } from "@pp/core";
 
 /** Bumped when an op's input or output changes shape, so a stale cached worker is detectable. */
-export const CORE_PROTOCOL_VERSION = 4;
+export const CORE_PROTOCOL_VERSION = 5;
 
-/** `computePlan` inputs that can be cloned: the pace model is fixed to the default inside the worker. */
-export type PlanRequest = Omit<PlanInputs, "model">;
+/**
+ * `computePlan` inputs that can be cloned: the pace model and the pace factors (functions) are
+ * fixed to the defaults inside the worker.
+ */
+export type PlanRequest = Omit<PlanInputs, "model" | "factors">;
 
 export type CoreOps = {
   /** Answers once the worker has loaded; the app sends it at startup to warm the worker up. */

@@ -1,11 +1,12 @@
 export { prefixSums, rangeSum } from "./prefix-sums.ts";
-export { EARTH_RADIUS_M, type LatLon, haversineM, lerpLatLon } from "./geo.ts";
+export { EARTH_RADIUS_M, type LatLon, haversineM, initialBearingDeg, lerpLatLon } from "./geo.ts";
 export {
   type Course,
   type CoursePoint,
   type TrackPoint,
   DEFAULT_RESAMPLE_SPACING_M,
   buildCourse,
+  courseBearingsDeg,
   courseLengthM,
   pointAtDistance,
   resampleCourse,
@@ -81,6 +82,22 @@ export {
   danielsAdjustment,
   danielsPaceModel,
 } from "./pace-model.ts";
+export {
+  DEFAULT_PACE_FACTORS,
+  FACTOR_ARRIVAL_TOLERANCE_S,
+  MAX_FACTOR_ROUNDS,
+  PACE_FACTOR_IDS,
+  type PaceFactor,
+  type PaceFactorContext,
+  type PaceFactorEffect,
+  type PaceFactorId,
+  type PaceFactorSummary,
+  neutralAltitudeFactor,
+  neutralPaceFactor,
+  neutralSurfaceFactor,
+  neutralWeatherFactor,
+  replacePaceFactor,
+} from "./pace-factors.ts";
 export { type Segmentation, type SegmentationOptions, segmentLeastSquares, segmentPartition } from "./segmenter.ts";
 export {
   CLIMB_GRADE,

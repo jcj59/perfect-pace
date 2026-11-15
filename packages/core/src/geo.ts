@@ -37,3 +37,19 @@ export function lerpLatLon(a: LatLon, b: LatLon, t: number): LatLon {
   else if (lon < -180) lon += 360;
   return { lat: a.lat + (b.lat - a.lat) * t, lon };
 }
+
+/**
+ * The initial great-circle bearing from `a` to `b`, in degrees clockwise from true north, in
+ * `[0, 360)`: 0 is north, 90 east, 180 south, 270 west. Over the short hops of a track this is the
+ * direction of travel. 0 when the points coincide (no direction).
+ */
+export function initialBearingDeg(a: LatLon, b: LatLon): number {
+  const phi1 = a.lat * RAD;
+  const phi2 = b.lat * RAD;
+  const dLon = (b.lon - a.lon) * RAD;
+  const y = Math.sin(dLon) * Math.cos(phi2);
+  const x = Math.cos(phi1) * Math.sin(phi2) - Math.sin(phi1) * Math.cos(phi2) * Math.cos(dLon);
+  if (y === 0 && x === 0) return 0;
+  const deg = Math.atan2(y, x) / RAD;
+  return deg < 0 ? deg + 360 : deg >= 360 ? deg - 360 : deg;
+}
