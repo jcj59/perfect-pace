@@ -35,6 +35,7 @@ import { type AppState, type PlanSettings, appStore, applyPlanSettings, setLinkE
 import { afterRouteDrawn, loadCourseCopy, loadGpxText, onGpxText, trackTitle } from "./course.ts";
 import { coreClient } from "../worker/client.ts";
 import { drawStore, drawing } from "./draw.ts";
+import { openRace, restoreRace } from "./race.ts";
 
 export const SESSION_STORAGE_KEY = "pp:session";
 /** The loaded file's text, kept apart from the session so plan changes never rewrite it. */
@@ -51,7 +52,8 @@ const MAX_STORED_GPX_CHARS = 2_500_000;
 const SAVED_COPY_MAX_CHARS = 400_000;
 
 type SavedCourse =
-  | { kind: "file"; fileName: string; track: number }
+  /** `race`: the race-library race the file is the course of. */
+  | { kind: "file"; fileName: string; track: number; race?: string }
   | { kind: "copy"; copy: "link" | "saved"; name: string; c: string }
   | { kind: "drawn"; c: string };
 
@@ -234,7 +236,12 @@ function restoreSaved(): void {
     if (course?.kind === "file") {
       const text = read(SESSION_GPX_STORAGE_KEY);
       if (!text || typeof course.fileName !== "string") return;
-      void loadGpxText(text, course.fileName, course.track).then((ok) => ok && applyPlanSettings(settings));
+      const { fileName, race } = course;
+      void loadGpxText(text, fileName, course.track).then((ok) => {
+        if (!ok) return;
+        if (typeof race === "string") restoreRace(race, fileName);
+        applyPlanSettings(settings);
+      });
       return;
     }
     if (course?.kind === "drawn") {
@@ -311,7 +318,12 @@ function savedCourse(state: AppState, route: DrawnRoute): SavedCourse | null | "
       return route.waypoints.length >= 2 ? { kind: "drawn", c: encodeSharedCourse({ kind: "drawn", route }) } : null;
     case "loaded": {
       if (!course.copy && course.file === storedFile) {
-        return { kind: "file", fileName: course.fileName, track: course.track };
+        return {
+          kind: "file",
+          fileName: course.fileName,
+          track: course.track,
+          ...(state.race ? { race: state.race.slug } : {}),
+        };
       }
       if (course.copy) {
         // A link's copy is already simplified.
@@ -376,10 +388,28 @@ export function startSession(): () => void {
     openShareFragment(fragment);
     return appStore.get().linkError === null;
   };
+  /**
+   * A race link (`/?race=<slug>`, from the race library): open that race, and take the query off
+   * the address so a reload does not undo later changes. Checked on every start, not once per
+   * page, since the library links here without reloading. True when there was one, even if the
+   * race has no course yet: its message then shows on its own, not over the saved session.
+   */
+  const takeRace = (): boolean => {
+    const params = new URLSearchParams(location.search);
+    const slug = params.get("race");
+    if (slug === null) return false;
+    params.delete("race");
+    const search = params.toString();
+    history.replaceState(history.state, "", `${location.pathname}${search ? `?${search}` : ""}${location.hash}`);
+    openRace(slug);
+    return true;
+  };
   // Once per page: React's development double effects must not restore over a link just opened.
+  const linked = !opened && takeFragment();
+  const raced = !linked && takeRace();
   if (!opened) {
     opened = true;
-    if (!takeFragment()) restoreSaved();
+    if (!linked && !raced) restoreSaved();
   }
 
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -402,7 +432,8 @@ export function startSession(): () => void {
       state.course !== previous.course ||
       state.goalTimeS !== previous.goalTimeS ||
       state.paceChanges !== previous.paceChanges ||
-      state.minSegmentM !== previous.minSegmentM
+      state.minSegmentM !== previous.minSegmentM ||
+      state.race !== previous.race
     ) {
       schedule();
     }

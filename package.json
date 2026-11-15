@@ -21,7 +21,8 @@
     "visual:update": "bash scripts/visual-update.sh",
     "rollback": "bash scripts/rollback.sh",
     "lighthouse": "pnpm --filter @pp/e2e lighthouse",
-    "icons": "node scripts/icons.mjs"
+    "icons": "node scripts/icons.mjs",
+    "races:add": "node --import ./scripts/ts-hooks.mjs scripts/races-add.mjs"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
