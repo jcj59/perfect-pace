@@ -15,3 +15,9 @@ export function useMediaQuery(query: string): boolean {
 
 /** Desktop layout (side panel) from this width up; below it, phones get the bottom sheet. */
 export const DESKTOP_QUERY = "(min-width: 768px)";
+
+/** For `useSyncExternalStore`: call `onChange` whenever the window resizes. */
+export function subscribeResize(onChange: () => void): () => void {
+  window.addEventListener("resize", onChange);
+  return () => window.removeEventListener("resize", onChange);
+}

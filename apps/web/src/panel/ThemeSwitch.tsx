@@ -30,12 +30,12 @@ export function ThemeSwitch() {
   const theme = useAppState((s) => s.theme);
   return (
     <fieldset className="flex items-center justify-between gap-4">
-      <legend className="float-left text-sm font-medium text-ink-muted">Appearance</legend>
-      <div className="flex rounded-full bg-surface-raised p-1 ring-1 ring-line ring-inset">
+      <legend className="float-left text-sm font-medium text-ink-muted @max-[360px]:sr-only">Appearance</legend>
+      <div className="flex rounded-full bg-surface-raised p-1 ring-1 ring-line ring-inset @max-[360px]:w-full">
         {OPTIONS.map(({ value, label, icon }) => (
           <label
             key={value}
-            className="relative flex cursor-pointer items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] font-medium text-ink-muted transition-colors select-none hover:text-ink has-checked:bg-surface has-checked:text-ink has-checked:shadow-sm has-focus-visible:ring-2 has-focus-visible:ring-accent"
+            className="relative flex cursor-pointer items-center justify-center gap-1.5 rounded-full px-3 py-1.5 @max-[360px]:flex-1 text-[13px] font-medium text-ink-muted transition-colors select-none hover:text-ink has-checked:bg-surface has-checked:text-ink has-checked:shadow-sm has-focus-visible:ring-2 has-focus-visible:ring-accent"
           >
             <input
               type="radio"
