@@ -451,7 +451,7 @@ function SegmentTable({ plan, units }: { plan: Plan; units: DistanceUnit }) {
 
   return (
     <table
-      className="w-full table-fixed border-separate border-spacing-0 text-sm tabular-nums"
+      className="w-full table-fixed border-separate border-spacing-0 text-sm tabular-nums @max-[360px]:text-[13px]"
       data-testid="segment-table"
     >
       <caption className="sr-only">
@@ -459,13 +459,13 @@ function SegmentTable({ plan, units }: { plan: Plan; units: DistanceUnit }) {
       </caption>
       <colgroup>
         <col />
-        <col className="w-[58px]" />
-        <col className="w-[58px]" />
-        <col className="w-[72px]" />
+        <col className="w-[58px] @max-[360px]:w-[50px]" />
+        <col className="w-[58px] @max-[360px]:w-[54px]" />
+        <col className="w-[72px] @max-[360px]:w-[66px]" />
       </colgroup>
       <thead>
-        <tr className="text-left text-[11px] font-semibold tracking-[0.04em] whitespace-nowrap text-ink-subtle uppercase">
-          <th scope="col" className="pb-2 pl-3 font-semibold">
+        <tr className="text-left align-bottom text-[11px] font-semibold tracking-[0.04em] whitespace-nowrap text-ink-subtle uppercase @max-[360px]:whitespace-normal">
+          <th scope="col" className="pb-2 pl-3 font-semibold @max-[360px]:pl-1.5">
             Segment ({units})
           </th>
           <th scope="col" className="pb-2 text-right font-semibold">
@@ -474,7 +474,7 @@ function SegmentTable({ plan, units }: { plan: Plan; units: DistanceUnit }) {
           <th scope="col" className="pb-2 text-right font-semibold">
             Grade
           </th>
-          <th scope="col" className="pr-3 pb-2 text-right font-semibold">
+          <th scope="col" className="pr-3 pb-2 text-right font-semibold @max-[360px]:pr-1.5">
             Time
           </th>
         </tr>
@@ -496,7 +496,7 @@ function SegmentTable({ plan, units }: { plan: Plan; units: DistanceUnit }) {
             data-tone={tone}
           >
             <tr>
-              <td className={`${cell} rounded-tl-xl pl-3`}>
+              <td className={`${cell} rounded-tl-xl pl-3 @max-[360px]:pl-1.5`}>
                 <button
                   type="button"
                   aria-pressed={isSelected}
@@ -519,12 +519,18 @@ function SegmentTable({ plan, units }: { plan: Plan; units: DistanceUnit }) {
                 {formatPace(segment.paceSPerM, units)}
               </td>
               <td className={`${cell} text-right text-ink-muted`}>{gradeText(segment.avgGrade)}</td>
-              <td className={`${cell} rounded-tr-xl pr-3 text-right text-ink`} data-testid="segment-time">
+              <td
+                className={`${cell} rounded-tr-xl pr-3 text-right text-ink @max-[360px]:pr-1.5`}
+                data-testid="segment-time"
+              >
                 {formatDuration(times[i] ?? 0)}
               </td>
             </tr>
             <tr>
-              <td colSpan={4} className={`${fill} rounded-b-xl pr-3 pb-2.5 pl-6.5 text-xs leading-snug text-ink-muted`}>
+              <td
+                colSpan={4}
+                className={`${fill} rounded-b-xl pr-3 pb-2.5 pl-6.5 text-xs leading-snug text-ink-muted @max-[360px]:pr-1.5 @max-[360px]:pl-5`}
+              >
                 {segment.reason}
               </td>
             </tr>
@@ -533,14 +539,14 @@ function SegmentTable({ plan, units }: { plan: Plan; units: DistanceUnit }) {
       })}
       <tfoot>
         <tr className="font-semibold text-ink">
-          <th scope="row" className="border-t-2 border-line pt-2.5 pl-3 text-left">
+          <th scope="row" className="border-t-2 border-line pt-2.5 pl-3 text-left @max-[360px]:pl-1.5">
             Finish
           </th>
           <td className="border-t-2 border-line pt-2.5 text-right">
             {formatPace(plan.goalTimeS / plan.lengthM, units)}
           </td>
           <td className="border-t-2 border-line pt-2.5" />
-          <td className="border-t-2 border-line pt-2.5 pr-3 text-right" data-testid="plan-total">
+          <td className="border-t-2 border-line pt-2.5 pr-3 text-right @max-[360px]:pr-1.5" data-testid="plan-total">
             {formatDuration(total)}
           </td>
         </tr>

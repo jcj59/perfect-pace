@@ -1,8 +1,9 @@
 import { Suspense, lazy, useEffect, useMemo, useSyncExternalStore } from "react";
 import { BottomSheet } from "./layout/BottomSheet.tsx";
-import { SIDE_PANEL_GAP_PX, SIDE_PANEL_WIDTH_PX, SidePanel } from "./layout/SidePanel.tsx";
+import { SIDE_PANEL_GAP_PX, SidePanel } from "./layout/SidePanel.tsx";
+import { usePanelWidth } from "./layout/usePanelWidth.ts";
 import { SHEET_PEEK_PX, snapHeights } from "./layout/sheet.ts";
-import { DESKTOP_QUERY, useMediaQuery } from "./layout/useMediaQuery.ts";
+import { DESKTOP_QUERY, subscribeResize, useMediaQuery } from "./layout/useMediaQuery.ts";
 import { DrawButton } from "./draw/DrawButton.tsx";
 import { DrawToolbar } from "./draw/DrawToolbar.tsx";
 import { RouteEditor } from "./draw/RouteEditor.tsx";
@@ -34,12 +35,6 @@ import { warmUpCoreWorker } from "./worker/client.ts";
 const MapView = lazy(() => import("./map/MapView.tsx"));
 
 const PANEL_LABEL = "Course panel";
-const DESKTOP_INSETS: Insets = { top: 0, right: 0, bottom: 0, left: SIDE_PANEL_WIDTH_PX + SIDE_PANEL_GAP_PX };
-
-function subscribeResize(onChange: () => void): () => void {
-  window.addEventListener("resize", onChange);
-  return () => window.removeEventListener("resize", onChange);
-}
 
 /** The phone map's insets: the sheet's footprint at `peek`, else at `half` (above that it covers most of the map). */
 function usePhoneInsets(sheet: SheetSnap): Insets {
@@ -197,16 +192,21 @@ function PhoneHeaderAction({ course }: { course: CourseState }) {
   );
 }
 
-/** Where the drawing toolbar sits: right of the desktop panel, or just above the phone sheet. */
-function useToolbarStyle(desktop: boolean, insets: Insets, sheet: SheetSnap) {
+/** The desktop map's insets: the panel at the width it rests at (a drag moves the camera once, at its end). */
+function useDesktopInsets(panelWidth: number): Insets {
+  return useMemo(() => ({ top: 0, right: 0, bottom: 0, left: panelWidth + SIDE_PANEL_GAP_PX }), [panelWidth]);
+}
+
+/** Where the drawing toolbar sits: right of the desktop panel (following a drag), or just above the phone sheet. */
+function useToolbarStyle(desktop: boolean, panelWidth: number, insets: Insets, sheet: SheetSnap) {
   return useMemo(
     () =>
       desktop
-        ? { top: SIDE_PANEL_GAP_PX, left: SIDE_PANEL_WIDTH_PX + SIDE_PANEL_GAP_PX * 2, right: SIDE_PANEL_GAP_PX }
+        ? { top: SIDE_PANEL_GAP_PX, left: panelWidth + SIDE_PANEL_GAP_PX * 2, right: SIDE_PANEL_GAP_PX }
         : sheet === "full"
           ? null
           : { bottom: insets.bottom + 12, left: 12, right: 12 },
-    [desktop, insets.bottom, sheet],
+    [desktop, panelWidth, insets.bottom, sheet],
   );
 }
 
@@ -218,8 +218,10 @@ export function App() {
   const sheet = useAppState((s) => s.sheet);
   const course = useAppState((s) => s.course);
   const phoneInsets = usePhoneInsets(sheet);
+  const panel = usePanelWidth();
+  const desktopInsets = useDesktopInsets(panel.settledWidth);
   const editing = useDrawState((s) => s.editing);
-  const toolbarStyle = useToolbarStyle(desktop, phoneInsets, sheet);
+  const toolbarStyle = useToolbarStyle(desktop, panel.width, phoneInsets, sheet);
 
   useEffect(() => startPlanner(), []);
   useEffect(() => startSession(), []);
@@ -235,7 +237,8 @@ export function App() {
         <Suspense fallback={<div className="absolute inset-0 bg-map" data-testid="map" data-map-state="loading" />}>
           <CourseMap
             theme={theme}
-            insets={desktop ? DESKTOP_INSETS : phoneInsets}
+            insets={desktop ? desktopInsets : phoneInsets}
+            reframeOnInsets={desktop}
             compact={!desktop}
             onRouteDrawn={markRouteDrawn}
           />
@@ -249,7 +252,15 @@ export function App() {
           </div>
         )}
         {desktop ? (
-          <SidePanel label={PANEL_LABEL} header={<PanelHeader />} footer={<ThemeSwitch />}>
+          <SidePanel
+            label={PANEL_LABEL}
+            header={<PanelHeader />}
+            footer={<ThemeSwitch />}
+            width={panel.width}
+            range={panel.range}
+            onPreview={panel.preview}
+            onCommit={panel.commit}
+          >
             <PanelContent course={course} />
           </SidePanel>
         ) : (

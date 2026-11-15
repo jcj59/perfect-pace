@@ -92,6 +92,13 @@ body {
   text-rendering: optimizeLegibility;
 }
 
+/* While the panel's handle is dragged: the resize cursor everywhere, and no text selection. */
+.pp-resizing,
+.pp-resizing * {
+  cursor: col-resize !important;
+  user-select: none !important;
+}
+
 /* MapLibre controls, restyled to sit with the panel. Scoped under .maplibregl-map to win over its stylesheet. */
 .maplibregl-map .maplibregl-ctrl-group,
 .maplibregl-map .maplibregl-ctrl.maplibregl-ctrl-attrib {

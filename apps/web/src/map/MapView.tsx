@@ -63,6 +63,8 @@ const VIEW_MARGIN_PX = 24;
 const COURSE_MAX_ZOOM = 16;
 /** Room around a framed course, so its start and finish dots sit clear of the edges and controls. */
 const COURSE_MARGIN_PX = 56;
+/** How long the camera takes to follow the panel to a new width. */
+const INSETS_MOVE_MS = 300;
 /**
  * Drawing: zoomed out further than this, a click zooms in to `DRAW_ZOOM_IN` there instead of
  * adding a waypoint (a click on a whole-country view can't be meant as one, and its legs would be
@@ -82,6 +84,12 @@ export interface MapViewProps {
   theme: Theme;
   /** Where the panel sits: the camera frames the initial view and each new course clear of it. */
   insets: Insets;
+  /**
+   * Whether the camera follows a change of `insets` (the desktop panel resized): a course still
+   * framed as it was loaded is framed again clear of the panel, and any other view keeps what was
+   * in the middle of the visible map there. Without it (the phone sheet) the camera stays put.
+   */
+  reframeOnInsets?: boolean;
   /** Desktop gets zoom buttons; phones pinch. */
   compact: boolean;
   /** The course to draw, or null for none. A new array draws it and frames the camera on it. */
@@ -114,6 +122,9 @@ export interface MapViewProps {
  * map, not yet confirmed) or `drawn` (the map has rendered route features in view).
  */
 export type CourseDrawState = "none" | "drawing" | "drawn";
+
+const sameInsets = (a: Insets, b: Insets) =>
+  a.top === b.top && a.right === b.right && a.bottom === b.bottom && a.left === b.left;
 
 function padding(insets: Insets, margin = VIEW_MARGIN_PX) {
   return {
@@ -148,6 +159,7 @@ function markerElement(): HTMLElement {
 export default function MapView({
   theme,
   insets,
+  reframeOnInsets = false,
   compact,
   route,
   onRouteDrawn,
@@ -182,8 +194,17 @@ export default function MapView({
   const latestDrawing = useRef(drawing);
   const courseMarker = useRef<Marker | null>(null);
   const [drawnRoute, setDrawnRoute] = useState<readonly CoursePoint[] | null>(null);
+  const latestRoute = useRef(route);
+  /** The route the camera framed, until the user moves the map; then null. */
+  const framedRoute = useRef<readonly CoursePoint[] | null>(null);
+  /**
+   * The route's bounding box on screen (`left top right bottom`, CSS pixels) once the camera
+   * rests, as the `data-route-box` attribute, so tests can check it sits clear of the panel.
+   */
+  const [routeBox, setRouteBox] = useState<{ of: readonly CoursePoint[] | null; box: string }>({ of: null, box: "" });
   useLayoutEffect(() => {
     latestInsets.current = insets;
+    latestRoute.current = route;
     onDrawn.current = onRouteDrawn;
     onHover.current = onRouteHover;
     onEdit.current = onDrawEdit;
@@ -217,6 +238,19 @@ export default function MapView({
     }
     instance.touchZoomRotate.disableRotation();
     instance.once("idle", () => setState("ready"));
+    // A pan or zoom by the user (it carries the input event) leaves the framed view behind.
+    instance.on("movestart", (event) => {
+      if (event.originalEvent) framedRoute.current = null;
+    });
+    instance.on("moveend", () => {
+      const shown = latestRoute.current;
+      const bounds = shown && courseBounds(shown);
+      if (!bounds) return;
+      const [west, south, east, north] = bounds;
+      const a = instance.project([west, north]);
+      const b = instance.project([east, south]);
+      setRouteBox({ of: shown, box: [a.x, a.y, b.x, b.y].map(Math.round).join(" ") });
+    });
     // Layer events are matched by layer id, so they keep working across theme (style) switches.
     const hover = (event: MapLayerMouseEvent) => onHover.current?.({ lat: event.lngLat.lat, lon: event.lngLat.lng });
     const leave = () => onHover.current?.(null);
@@ -280,6 +314,7 @@ export default function MapView({
   useEffect(() => {
     const data = route ? courseFeatures(route) : NO_COURSE;
     courseData.current = data;
+    framedRoute.current = null;
     const instance = map.current;
     if (!instance) return;
     let cancelled = false;
@@ -308,6 +343,7 @@ export default function MapView({
         maxZoom: COURSE_MAX_ZOOM,
         duration: reducedMotion() ? 0 : 700,
       });
+      framedRoute.current = route;
       instance.on("render", confirm);
     };
     apply();
@@ -426,6 +462,7 @@ export default function MapView({
     const camera = latestCamera.current;
     if (!instance || !camera || cameraId === undefined) return;
     const done = () => setCameraDone(cameraId);
+    framedRoute.current = null;
     instance.once("moveend", done);
     instance.flyTo({
       center: [camera.center.lon, camera.center.lat],
@@ -437,6 +474,29 @@ export default function MapView({
       instance.off("moveend", done);
     };
   }, [cameraId]);
+
+  // Follow the panel to a new width (once it settles: the app passes the width a drag ends at).
+  const placedInsets = useRef(insets);
+  useEffect(() => {
+    const previous = placedInsets.current;
+    placedInsets.current = insets;
+    const instance = map.current;
+    if (!instance || !reframeOnInsets || sameInsets(previous, insets)) return;
+    // A smaller window can be what moved the panel: measure the map first (its own resize
+    // observer runs later), so the camera is worked out for the size it now is.
+    instance.resize();
+    const duration = reducedMotion() ? 0 : INSETS_MOVE_MS;
+    const framed = framedRoute.current;
+    const bounds = framed && courseBounds(framed);
+    if (bounds) {
+      instance.fitBounds(bounds, { padding: padding(insets, COURSE_MARGIN_PX), maxZoom: COURSE_MAX_ZOOM, duration });
+      return;
+    }
+    // Keep the middle of the visible map where it was: it moves by half the change on each axis.
+    const dx = insets.left - previous.left - (insets.right - previous.right);
+    const dy = insets.top - previous.top - (insets.bottom - previous.bottom);
+    instance.panBy([-dx / 2, -dy / 2], { duration });
+  }, [insets, reframeOnInsets]);
 
   // The marker is a DOM element over the map, so moving it costs no map redraw.
   const markerLat = marker?.lat;
@@ -468,6 +528,7 @@ export default function MapView({
       data-selected-segment={selectedSegment ?? undefined}
       data-drawing={drawing ? "on" : undefined}
       data-camera={cameraDone ?? undefined}
+      data-route-box={route && routeBox.of === route ? routeBox.box : undefined}
     >
       <div ref={container} className="size-full" />
       {state === "unavailable" && (
