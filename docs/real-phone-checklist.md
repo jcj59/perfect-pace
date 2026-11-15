@@ -39,3 +39,5 @@ and browser version for each run.
       status bar color matches the app.
 - [ ] VoiceOver (iOS) or TalkBack (Android): the panel, sheet handle, chart and plan read sensibly.
 - [ ] With Reduce Motion on, the sheet and map move without animation.
+
+Throwaway docs-only change (CI probe, do not merge).
