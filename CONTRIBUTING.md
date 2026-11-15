@@ -14,18 +14,20 @@ pnpm build          # web app, then a dry-run bundle of the Worker
 pnpm dev            # Vite on :5173 with /api proxied to wrangler dev on :8787
 ```
 
-| Command                | What it does                                                               |
-| ---------------------- | -------------------------------------------------------------------------- |
-| `pnpm lint`            | ESLint plus repo policy checks (no em dashes, Playwright image in sync)    |
-| `pnpm format`          | Prettier (`pnpm format:check` in CI)                                       |
-| `pnpm typecheck`       | `tsc` in every package (`@pp/core` src is checked with no DOM or Node)     |
-| `pnpm test`            | Vitest: `@pp/core` unit, property and golden (with coverage); web; Worker  |
-| `pnpm perf`            | Vitest benchmarks checked against `packages/core/bench/budgets.json`       |
-| `pnpm e2e`             | Playwright against local `wrangler dev` (run `pnpm build` first)           |
-| `pnpm golden:update`   | Rewrite golden snapshots and `golden-summary.md`                           |
-| `pnpm fixtures:record` | Re-record the ORS fixtures with a real key (`ORS_API_KEY` in the env)      |
-| `pnpm visual:update`   | Regenerate screenshot baselines in the Linux Playwright container          |
-| `pnpm rollback`        | Roll production back to the previous Worker version (`--dry-run` to check) |
+| Command                | What it does                                                                |
+| ---------------------- | --------------------------------------------------------------------------- |
+| `pnpm lint`            | ESLint plus repo policy checks (no em dashes, Playwright image in sync)     |
+| `pnpm format`          | Prettier (`pnpm format:check` in CI)                                        |
+| `pnpm typecheck`       | `tsc` in every package (`@pp/core` src is checked with no DOM or Node)      |
+| `pnpm test`            | Vitest: `@pp/core` unit, property and golden (with coverage); web; Worker   |
+| `pnpm perf`            | Vitest benchmarks checked against `packages/core/bench/budgets.json`        |
+| `pnpm e2e`             | Playwright against local `wrangler dev` (run `pnpm build` first)            |
+| `pnpm golden:update`   | Rewrite golden snapshots and `golden-summary.md`                            |
+| `pnpm fixtures:record` | Re-record the ORS fixtures with a real key (`ORS_API_KEY` in the env)       |
+| `pnpm visual:update`   | Regenerate screenshot baselines in the Linux Playwright container           |
+| `pnpm lighthouse`      | Lighthouse accessibility, phone and desktop (run `pnpm build` first)        |
+| `pnpm icons`           | Render the app icons in `apps/web/public/icons` from `apps/web/icons/*.svg` |
+| `pnpm rollback`        | Roll production back to the previous Worker version (`--dry-run` to check)  |
 
 ## Workspace
 
@@ -51,6 +53,8 @@ rerun it after changing `wrangler.jsonc` (CI checks it is current).
 | E2E                 | Playwright (desktop, iPhone, Pixel)    | `e2e/tests`                                     | Every PR, against the preview   |
 | Visual regression   | Playwright `toHaveScreenshot`          | `e2e/tests/visual.spec.ts`                      | Every PR                        |
 | Accessibility       | axe in Playwright                      | `e2e/tests/a11y.spec.ts`                        | Every PR                        |
+| Accessibility score | Lighthouse (at least 95)               | `e2e/scripts/lighthouse.mjs`                    | Every PR                        |
+| PWA                 | Playwright, service worker on          | `e2e/tests/pwa.spec.ts`                         | Every PR                        |
 | Live smoke          | Playwright `@smoke` and `@live`        | `e2e/tests`                                     | Nightly and after each deploy   |
 
 Rules of thumb:
@@ -117,17 +121,20 @@ issue. Quarantined tests still run in CI in a separate, non-blocking step.
 
 | Workflow           | Trigger                          | What it does                                                                                                          |
 | ------------------ | -------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `CI`               | every PR                         | `verify`, `perf`, `preview` (Worker version with alias `pr-<n>`), `e2e`                                               |
+| `CI`               | every PR                         | `verify`, `perf`, `preview` (Worker version with alias `pr-<n>`), `e2e`, `lighthouse`                                 |
 | `Deploy`           | push to `main`                   | deploy production, smoke test it, roll back and open an issue on failure                                              |
 | `Nightly`          | 07:17 UTC daily                  | live smoke against production, full E2E on Chromium, Firefox and WebKit                                               |
 | `Visual baselines` | `visual-update` PR label, manual | regenerate screenshot baselines, one runner per project, merged into one artifact (used by `pnpm visual:update --ci`) |
 
-The required checks on `main` are `verify`, `perf`, `preview` and `e2e`, with an up-to-date
-branch. Playwright traces, videos and screenshot diffs are uploaded as artifacts when a test fails.
+The required checks on `main` are `verify`, `perf`, `preview`, `e2e` and `lighthouse`, with an
+up-to-date branch. `e2e` includes the axe checks (`a11y.spec.ts`, every key screen in both themes,
+including offline and keyboard drawing) and the PWA suite; `lighthouse` fails below an
+accessibility score of 95. Branch protection needs GitHub Pro on a private repository, so until
+then these are required by convention: every job hard-fails, and nothing merges red. Playwright traces, videos and screenshot diffs are uploaded as artifacts when a test fails.
 
 ### How a CI run is laid out
 
-Every job starts at once except E2E, which waits only for `preview` (seconds) and `changes`:
+Every job starts at once except E2E and `lighthouse`, which wait only for `preview` (seconds) and `changes`:
 
 | Job             | What it does                                                                                      |
 | --------------- | ------------------------------------------------------------------------------------------------- |
@@ -139,6 +146,7 @@ Every job starts at once except E2E, which waits only for `preview` (seconds) an
 | `e2e-perf`      | the `load-perf` and `plan-perf` budgets, one at a time on a runner of their own                   |
 | `e2e`           | the required check: passes only if every shard and `e2e-perf` passed (or E2E was skipped)         |
 | `e2e-report`    | merges the shards' blob reports into one HTML report (artifact `playwright-report-<attempt>`)     |
+| `lighthouse`    | Lighthouse accessibility (at least 95, phone and desktop) on the preview; reports as an artifact  |
 
 Each shard is a full Playwright run in the Playwright container, with one worker (the 2-vCPU
 runner's default; two workers were only 1.4x faster and stretched each test by 40%) and the same
@@ -177,6 +185,38 @@ hand with "force smoke failure" and "dry run" checked, or locally:
 ```sh
 DRY_RUN=1 PP_FORCE_SMOKE_FAIL=1 bash scripts/post-deploy-smoke.sh <production-url> <live-version> <previous-version>
 ```
+
+## PWA and offline
+
+The app is installable and works offline for uploaded GPX courses. The pieces:
+
+- **Manifest and icons:** `apps/web/public/manifest.webmanifest`, and PNG icons rendered from the
+  SVG sources in `apps/web/icons` (`pnpm icons`, which uses the E2E suite's Chromium; commit the
+  PNGs). `favicon.svg` is a copy of `icons/icon.svg`.
+- **Service worker:** `apps/web/src/sw/sw.ts`, built to `/sw.js` by `precachePlugin`
+  (`apps/web/precache-plugin.ts`), which fills in the precache list (every built and public file,
+  plus `/`) and a version hash of their contents. The routing rules are in `src/sw/policy.ts`
+  (unit tested in `apps/web/test/sw-policy.test.ts`):
+  - Hashed files and icons: from the version's precache first.
+  - Navigations: network first, so an online reload always gets the latest build; the cached shell
+    answers when offline or after 4 s. Share links live in the hash, so they are navigations to `/`.
+  - Terrarium DEM tiles: a least recently used cache of at most 256 tiles (about 25 MB).
+  - Never cached: `/api/*`, non-GET requests, the basemap, and files not in the precache (the
+    Worker answers a missing `/assets/` file with the app's HTML, which must never be kept).
+- **Updates:** a new version installs, takes over at once, and keeps the previous build's cache so
+  an open page can still load its lazy chunks. The page's status line (under the name) then offers
+  a reload. Long-open pages check for a new version at most hourly when they come back into view.
+- **Offline:** the status line says "Offline", drawing is off (legs need the routing service, and
+  the basemap is not cached) and the panel says why, while uploads, plans and exports still work.
+- **Headers:** `apps/web/public/_headers` (read by Workers static assets) serves `sw.js` and the
+  manifest with `Cache-Control: no-cache` and hashed assets as immutable.
+- **Tests:** E2E runs with service workers blocked (`playwright.config.ts`), since one would answer
+  requests the tests stub. `e2e/tests/pwa.spec.ts` turns them on: manifest and icons, Chrome's
+  installability check (`Page.getInstallabilityErrors`; Lighthouse 12 removed its PWA audits),
+  precache contents, network-first reloads, the update prompt, an offline reload of an uploaded
+  course with terrain tiles from the cache (`context.setOffline` with every stub removed), and the
+  tile cache's bound. Safe-area insets are simulated with `Emulation.setSafeAreaInsetsOverride`.
+- **Real phone:** see [docs/real-phone-checklist.md](docs/real-phone-checklist.md).
 
 ## Routing
 

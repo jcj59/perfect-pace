@@ -175,3 +175,60 @@ test.describe("drawing", () => {
     });
   }
 });
+
+// B7: offline. The status line under the name says so, and the draw card (in the full sheet on
+// phones) says drawing needs a connection, with its button off.
+for (const scheme of ["light", "dark"] satisfies ColorScheme[]) {
+  test(`offline, ${scheme} @visual`, async ({ page }) => {
+    await openApp(page, scheme);
+    await page.context().setOffline(true);
+    await expect(page.getByTestId("status-line")).toHaveAttribute("data-state", "offline");
+    if (isPhone(page)) {
+      const handle = page.getByTestId("sheet-handle");
+      await handle.click();
+      await handle.click();
+      await expect(page.getByTestId("sheet")).toHaveAttribute("data-snap", "full");
+      await scrollPanelTo(page, "sheet-content", "draw-card");
+    }
+    await expect(page).toHaveScreenshot(`offline-${scheme}.png`);
+  });
+
+  // Drawing when the connection drops: the notice by the toolbar.
+  test.describe(() => {
+    test.use({ geolocation: ITHACA, permissions: ["geolocation"] });
+    test(`drawing offline, ${scheme} @visual`, async ({ page }) => {
+      await startDrawing(page, scheme);
+      await addPoints(page, [
+        [0.3, 0.4],
+        [0.7, 0.45],
+      ]);
+      await expectLegsSettled(page, 1);
+      await page.context().setOffline(true);
+      await expect(page.getByTestId("draw-offline")).toBeVisible();
+      if (!isPhone(page)) await page.mouse.move(page.viewportSize()!.width - 2, page.viewportSize()!.height - 2);
+      await expect(page).toHaveScreenshot(`drawing-offline-${scheme}.png`);
+    });
+  });
+
+  // A newer build took over: the status line offers a reload. Needs the service worker.
+  test.describe(() => {
+    test.use({ serviceWorkers: "allow" });
+    test(`update ready, ${scheme} @visual`, async ({ page }) => {
+      await openApp(page, scheme);
+      await page.evaluate(() => navigator.serviceWorker.ready);
+      await expect.poll(() => page.evaluate(() => navigator.serviceWorker.controller !== null)).toBe(true);
+      await page.evaluate(() => navigator.serviceWorker.register("/sw.js?next", { scope: "/" }));
+      await expect(page.getByTestId("status-line")).toHaveAttribute("data-state", "update");
+      await expect(page).toHaveScreenshot(`update-ready-${scheme}.png`);
+    });
+  });
+
+  // An iPhone's home indicator inset (simulated): the sheet's header rests above it at peek.
+  test(`phone sheet above the home indicator, ${scheme} @visual`, async ({ page }) => {
+    test.skip(!isPhone(page), "phones only");
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send("Emulation.setSafeAreaInsetsOverride", { insets: { top: 59, bottom: 34, left: 0, right: 0 } });
+    await openApp(page, scheme);
+    await expect(page).toHaveScreenshot(`safe-area-peek-${scheme}.png`);
+  });
+}
