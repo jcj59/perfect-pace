@@ -50,7 +50,8 @@ jobs:
 
   cross-browser:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # Every project in one job, on 2 workers: about 30 minutes when everything passes.
+    timeout-minutes: 45
     container:
       image: mcr.microsoft.com/playwright:v1.65.0-noble
       options: --ipc=host
