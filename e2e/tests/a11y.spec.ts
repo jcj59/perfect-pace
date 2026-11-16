@@ -5,6 +5,19 @@ import { corpusPath, expectRouteDrawn, invalidPath, uploadGpx } from "../support
 import { ITHACA, addPoints, expectLegsSettled, startDrawing, tabToMap } from "../support/draw.ts";
 import { enterGoal, planBoston } from "../support/plan.ts";
 
+// Playwright's Firefox crashes its page when axe reads ARIA element reflection
+// (`ariaLabelledByElements` and the like) on some of the panel's sections; a fresh copy of the
+// same markup does not. Without the properties axe reads the attributes instead, which is the same
+// check: https://github.com/jcj59/perfect-pace/issues/42
+test.beforeEach(async ({ page, browserName }) => {
+  if (browserName !== "firefox") return;
+  await page.addInitScript(() => {
+    for (const name of Object.getOwnPropertyNames(Element.prototype)) {
+      if (/^aria\w+Elements?$/.test(name)) delete (Element.prototype as unknown as Record<string, unknown>)[name];
+    }
+  });
+});
+
 for (const scheme of ["light", "dark"] satisfies ColorScheme[]) {
   test(`empty state has no axe violations, ${scheme}`, async ({ page }) => {
     await openApp(page, scheme);
