@@ -63,8 +63,8 @@ export interface CacheLike {
 
 /**
  * A bounded, least recently used cache of DEM tiles on the Cache API. The Cache API keeps entries
- * in insertion order, so a hit is put back at the end, and once there are more than `maxTiles`
- * the oldest go. Failed and opaque responses are never kept.
+ * in insertion order, so a hit is deleted and put back at the end, and once there are more than
+ * `maxTiles` the oldest go. Failed and opaque responses are never kept.
  */
 export class DemCache {
   constructor(
@@ -91,8 +91,12 @@ export class DemCache {
     return response;
   }
 
-  /** Move a hit to the most recently used end: `put` replaces the entry and appends it. */
+  /**
+   * Move a hit to the most recently used end. A `put` alone appends it in Chromium and Firefox,
+   * but WebKit replaces the entry where it is, so delete it first.
+   */
   private async touch(cache: CacheLike, request: Request, response: Response): Promise<void> {
+    await cache.delete(request);
     await cache.put(request, response);
   }
 

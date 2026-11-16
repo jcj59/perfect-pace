@@ -69,7 +69,11 @@ test.describe("phone", () => {
 
   // An iPhone's status bar and home indicator, as env(safe-area-inset-*) reports them with
   // viewport-fit=cover. Chromium's DevTools protocol can simulate them.
-  test("the sheet clears the home indicator at peek and the status bar at full", async ({ page }) => {
+  test("the sheet clears the home indicator at peek and the status bar at full", async ({ page, browserName }) => {
+    test.skip(
+      browserName !== "chromium",
+      "safe-area insets are emulated over CDP, Chromium only: https://github.com/jcj59/perfect-pace/issues/42",
+    );
     const insets = { top: 59, bottom: 34, left: 0, right: 0 };
     const cdp = await page.context().newCDPSession(page);
     await cdp.send("Emulation.setSafeAreaInsetsOverride", { insets });

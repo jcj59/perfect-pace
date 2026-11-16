@@ -2,7 +2,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 import { openApp, type ColorScheme } from "../support/app.ts";
 import { corpusPath, expectRouteDrawn, invalidPath, uploadGpx } from "../support/course.ts";
-import { ITHACA, addPoints, expectLegsSettled, startDrawing } from "../support/draw.ts";
+import { ITHACA, addPoints, expectLegsSettled, startDrawing, tabToMap } from "../support/draw.ts";
 import { enterGoal, planBoston } from "../support/plan.ts";
 
 for (const scheme of ["light", "dark"] satisfies ColorScheme[]) {
@@ -103,8 +103,7 @@ test.describe("drawing", () => {
     // From the keyboard: the focused map shows its crosshair; offline, the toolbar's notice shows.
     test(`keyboard drawing, then offline, has no axe violations, ${scheme}`, async ({ page }) => {
       await startDrawing(page, scheme);
-      await page.keyboard.press("Shift");
-      await page.locator("canvas.maplibregl-canvas").focus();
+      await tabToMap(page);
       await page.keyboard.press("Enter");
       await expect(page.getByTestId("draw-crosshair")).toBeVisible();
       await expect(page.getByTestId("waypoint")).toHaveCount(1);

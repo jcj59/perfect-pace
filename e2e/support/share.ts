@@ -18,26 +18,45 @@ export interface PlanSnapshot {
 
 export async function planSnapshot(page: Page): Promise<PlanSnapshot> {
   await expectPlanSettled(page);
+  // Text content, not innerText: on a phone the sheet may be at peek, and WebKit's innerText is
+  // empty for anything clipped out of sight in its scroll area.
+  const text = async (testId: string) => (await page.getByTestId(testId).textContent()) ?? "";
   return {
-    title: await page.getByTestId("course-title").innerText(),
+    title: await text("course-title"),
     goal: await page.getByLabel("Goal time").inputValue(),
     paceChanges: await page.getByLabel("Pace changes").inputValue(),
     minSegment: await page.getByTestId("min-segment").inputValue(),
-    distance: await page.getByTestId("stat-distance").innerText(),
-    paces: await page.getByTestId("segment-pace").allInnerTexts(),
-    times: await page.getByTestId("segment-time").allInnerTexts(),
-    total: await page.getByTestId("plan-total").innerText(),
+    distance: await text("stat-distance"),
+    paces: await page.getByTestId("segment-pace").allTextContents(),
+    times: await page.getByTestId("segment-time").allTextContents(),
+    total: await text("plan-total"),
   };
 }
 
-/** Press Copy link as a person does, see it confirm, and return the link from the clipboard. */
+/**
+ * Press Copy link as a person does, see it confirm, and return the link it put on the clipboard.
+ * Chromium and Firefox read the clipboard back. Headless WebKit refuses every `readText()` (it
+ * has no paste prompt to show), so there the link is the one the app handed to `writeText`.
+ */
 export async function copyShareLink(page: Page): Promise<string> {
+  await page.evaluate(() => {
+    const clipboard = navigator.clipboard;
+    const writeText = clipboard.writeText.bind(clipboard);
+    clipboard.writeText = (text: string) => {
+      (window as unknown as { ppCopied: string }).ppCopied = text;
+      return writeText(text);
+    };
+  });
   const button = page.getByTestId("copy-link");
   await button.scrollIntoViewIfNeeded();
   await button.click();
   await expect(button).toHaveText("Copied");
   await expect(page.getByRole("status").filter({ hasText: "Link copied to the clipboard." })).toBeAttached();
-  return page.evaluate(() => navigator.clipboard.readText());
+  const copied = await page.evaluate(() => (window as unknown as { ppCopied: string }).ppCopied);
+  if (page.context().browser()?.browserType().name() !== "webkit") {
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(copied);
+  }
+  return copied;
 }
 
 /** A new browser context like the test's own (same device), with nothing in its storage. */
