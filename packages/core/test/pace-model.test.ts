@@ -92,3 +92,39 @@ describe("additivePaceModel", () => {
     expect(steep.assumption).toBe("Twice Daniels.");
   });
 });
+
+describe("pace factor multipliers", () => {
+  const lengths = [400, 300, 300];
+  const grades = [0.03, 0, -0.05];
+
+  it("scale the grade-adjusted pace, (b + g_i) * m_i, and still add up to the goal", () => {
+    const m = [1.05, 1, 0.97];
+    const { paces, flatPaceSPerM } = danielsPaceModel.idealPaces(lengths, grades, 400, m);
+    expect(time(lengths, paces)).toBeCloseTo(400, 9);
+    grades.forEach((g, i) => expect(paces[i]).toBeCloseTo((flatPaceSPerM + danielsAdjustment(g)) * m[i]!, 12));
+    // The closed form: b = (goal - sum w g m) / sum w m.
+    const sumWM = lengths.reduce((s, w, i) => s + w * m[i]!, 0);
+    const sumWGM = lengths.reduce((s, w, i) => s + w * danielsAdjustment(grades[i]!) * m[i]!, 0);
+    expect(flatPaceSPerM).toBeCloseTo((400 - sumWGM) / sumWM, 12);
+  });
+
+  it("change nothing, to the bit, when every one is 1", () => {
+    const next = mulberry32(31);
+    const n = 300;
+    const w = Array.from({ length: n }, () => 1 + 20 * next());
+    const g = Array.from({ length: n }, () => (next() - 0.5) * 0.2);
+    const plain = danielsPaceModel.idealPaces(w, g, 3600);
+    const ones = danielsPaceModel.idealPaces(w, g, 3600, new Float64Array(n).fill(1));
+    expect(ones.flatPaceSPerM).toBe(plain.flatPaceSPerM);
+    expect(Array.from(ones.paces)).toStrictEqual(Array.from(plain.paces));
+  });
+
+  it.each([
+    ["too few", [1, 1], /3 lengths but 2 multipliers/],
+    ["a zero", [1, 0, 1], /interval 1 has invalid multiplier 0/],
+    ["a negative", [1, 1, -2], /interval 2 has invalid multiplier -2/],
+    ["a NaN", [Number.NaN, 1, 1], /interval 0 has invalid multiplier NaN/],
+  ])("reject %s multiplier", (_name, m, message) => {
+    expect(() => danielsPaceModel.idealPaces(lengths, grades, 400, m)).toThrow(message);
+  });
+});

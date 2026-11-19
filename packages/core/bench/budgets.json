@@ -6,5 +6,11 @@
   "bench/elevation.bench.ts > elevation > buildElevationProfile marathon with GPS elevation": { "maxMedianMs": 25 },
   "bench/plan.bench.ts > plan > computePlan marathon at 10 m, 6 changes, 0.2 mi minimum": { "maxMedianMs": 50 },
   "bench/plan.bench.ts > plan > computePlan marathon at 10 m, 20 changes, no minimum": { "maxMedianMs": 50 },
-  "bench/plan.bench.ts > plan > computePlan marathon at 10 m, 100 m splits": { "maxMedianMs": 50 }
+  "bench/plan.bench.ts > plan > computePlan marathon at 10 m, 100 m splits": { "maxMedianMs": 50 },
+  "bench/plan.bench.ts > plan > computePlan marathon at 10 m, 6 changes, time-dependent factor (2 rounds)": {
+    "maxMedianMs": 100
+  },
+  "bench/plan.bench.ts > plan > computePlan marathon at 10 m, 6 changes, non-converging factor (6 rounds, the cap)": {
+    "maxMedianMs": 300
+  }
 }
