@@ -8,7 +8,13 @@ import { copyShareLink, downloadFrom, freshContext, openLink, planSnapshot } fro
 
 // B6: share links, the saved session, and the exports. `/api/route` is stubbed from the ORS
 // fixture (support/draw.ts) in every page, so a drawn route routes the same everywhere.
-test.use({ geolocation: ITHACA, permissions: ["geolocation", "clipboard-read", "clipboard-write"] });
+// Only Chromium has clipboard permissions (Playwright rejects them elsewhere); Firefox and WebKit let
+// a click write the clipboard, and the page read back what it wrote, without one.
+test.use({
+  geolocation: ITHACA,
+  permissions: async ({ browserName }, use) =>
+    use(["geolocation", ...(browserName === "chromium" ? ["clipboard-read", "clipboard-write"] : [])]),
+});
 
 const FOUR: [number, number][] = [
   [0.25, 0.3],

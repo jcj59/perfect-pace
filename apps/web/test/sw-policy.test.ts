@@ -53,9 +53,13 @@ describe("shell cache cleanup", () => {
   });
 });
 
-/** An in-memory Cache with the Cache API's ordering: `put` replaces an entry and appends it. */
+/**
+ * An in-memory Cache with the Cache API's ordering: `put` replaces an entry and appends it. With
+ * `inPlace`, it replaces the entry where it is, as WebKit (Safari) does.
+ */
 class MemoryCache implements CacheLike {
   readonly entries = new Map<string, Response>();
+  constructor(private readonly inPlace = false) {}
   private static key(r: Request | string): string {
     return typeof r === "string" ? r : r.url;
   }
@@ -63,7 +67,7 @@ class MemoryCache implements CacheLike {
     return Promise.resolve(this.entries.get(MemoryCache.key(r))?.clone());
   }
   put(r: Request | string, response: Response) {
-    this.entries.delete(MemoryCache.key(r));
+    if (!this.inPlace) this.entries.delete(MemoryCache.key(r));
     this.entries.set(MemoryCache.key(r), response);
     return Promise.resolve();
   }
@@ -77,8 +81,8 @@ class MemoryCache implements CacheLike {
 
 const tile = (i: number) => new Request(`https://s3.amazonaws.com/elevation-tiles-prod/terrarium/12/${i}/1.png`);
 
-function setup(maxTiles: number, respond: (r: Request) => Response = () => new Response("png")) {
-  const cache = new MemoryCache();
+function setup(maxTiles: number, respond: (r: Request) => Response = () => new Response("png"), inPlace = false) {
+  const cache = new MemoryCache(inPlace);
   const fetched: string[] = [];
   const work: Promise<unknown>[] = [];
   const dem = new DemCache(
@@ -105,8 +109,11 @@ describe("DEM tile cache", () => {
     expect(fetched).toHaveLength(1);
   });
 
-  it("keeps at most maxTiles, evicting the least recently used", async () => {
-    const { get, urls, fetched } = setup(3);
+  it.each([
+    ["appends a replaced entry", false],
+    ["replaces an entry in place, like WebKit", true],
+  ])("keeps at most maxTiles, evicting the least recently used, when put %s", async (_, inPlace) => {
+    const { get, urls, fetched } = setup(3, undefined, inPlace);
     for (const i of [1, 2, 3]) await get(i);
     await get(1); // 1 is now the most recent
     await get(4); // evicts 2, the least recently used

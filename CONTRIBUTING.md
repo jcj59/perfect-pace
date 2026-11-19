@@ -69,6 +69,11 @@ Rules of thumb:
   `e2e/fixtures/openfreemap` and answers every tile and glyph request with an empty response.
 - Every bug fix starts with a failing E2E or golden test that reproduces it.
 - Tag tests that are safe against production `@smoke`, tests that need real third-party services `@live`.
+- With `PP_BROWSERS=all` the suite also runs on Firefox and WebKit (nightly). Headless Firefox has
+  WebGL for the map only with an X display, so on Linux run it as `xvfb-run pnpm e2e`. A test that
+  needs Chromium-only tooling (the DevTools protocol: touch drags, safe-area insets, Chrome's
+  installability check) skips elsewhere with its reason and a link to
+  [#42](https://github.com/jcj59/perfect-pace/issues/42).
 
 ## Golden snapshots
 

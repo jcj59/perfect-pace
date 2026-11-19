@@ -2,9 +2,22 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 import { openApp, type ColorScheme } from "../support/app.ts";
 import { corpusPath, expectRouteDrawn, invalidPath, uploadGpx } from "../support/course.ts";
-import { ITHACA, addPoints, expectLegsSettled, startDrawing } from "../support/draw.ts";
+import { ITHACA, addPoints, expectLegsSettled, startDrawing, tabToMap } from "../support/draw.ts";
 import { enterGoal, planBoston } from "../support/plan.ts";
 import { openReportDialog, stubReport } from "../support/report.ts";
+
+// Playwright's Firefox crashes its page when axe reads ARIA element reflection
+// (`ariaLabelledByElements` and the like) on some of the panel's sections; a fresh copy of the
+// same markup does not. Without the properties axe reads the attributes instead, which is the same
+// check: https://github.com/jcj59/perfect-pace/issues/42
+test.beforeEach(async ({ page, browserName }) => {
+  if (browserName !== "firefox") return;
+  await page.addInitScript(() => {
+    for (const name of Object.getOwnPropertyNames(Element.prototype)) {
+      if (/^aria\w+Elements?$/.test(name)) delete (Element.prototype as unknown as Record<string, unknown>)[name];
+    }
+  });
+});
 
 for (const scheme of ["light", "dark"] satisfies ColorScheme[]) {
   test(`empty state has no axe violations, ${scheme}`, async ({ page }) => {
@@ -132,8 +145,7 @@ test.describe("drawing", () => {
     // From the keyboard: the focused map shows its crosshair; offline, the toolbar's notice shows.
     test(`keyboard drawing, then offline, has no axe violations, ${scheme}`, async ({ page }) => {
       await startDrawing(page, scheme);
-      await page.keyboard.press("Shift");
-      await page.locator("canvas.maplibregl-canvas").focus();
+      await tabToMap(page);
       await page.keyboard.press("Enter");
       await expect(page.getByTestId("draw-crosshair")).toBeVisible();
       await expect(page.getByTestId("waypoint")).toHaveCount(1);

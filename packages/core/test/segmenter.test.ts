@@ -71,6 +71,18 @@ function naiveDp(values: number[], weights: number[], maxPieces: number, minW: n
   return out;
 }
 
+/**
+ * Fails with `message()` when `ok` is false. The loops below check hundreds of thousands of facts, and an
+ * `expect` costs microseconds each even when it passes (about 98% of the exhaustive case's time),
+ * so they test plain conditions and build a message only for a failure.
+ */
+function check(ok: boolean, message: () => string): void {
+  if (!ok) expect.fail(message());
+}
+
+/** `toBeCloseTo(expected, 9)`: within half of 1e-9. */
+const closeTo9 = (actual: number, expected: number): boolean => Math.abs(actual - expected) < 5e-10;
+
 /** Everything a valid result must satisfy, whatever the input. */
 function checkValid(result: Segmentation[], values: number[], weights: number[], minW: number, label: string): void {
   const n = values.length;
@@ -78,30 +90,33 @@ function checkValid(result: Segmentation[], values: number[], weights: number[],
   const totalWO = weights.reduce((s, w, i) => s + w * values[i]!, 0);
   result.forEach((r, idx) => {
     const k = idx + 1;
-    expect(r.maxPieces, label).toBe(k);
+    const at = (what: string) => () => `${label}, k = ${k}: ${what} (bounds ${r.bounds.join()})`;
+    check(r.maxPieces === k, at(`maxPieces is ${r.maxPieces}`));
     const { bounds } = r;
-    expect(bounds[0], label).toBe(0);
-    expect(bounds.at(-1), label).toBe(n);
-    for (let p = 1; p < bounds.length; p++) expect(bounds[p]!, label).toBeGreaterThan(bounds[p - 1]!);
-    expect(bounds.length - 1, label).toBeLessThanOrEqual(k);
-    expect(r.values.length, label).toBe(bounds.length - 1);
+    check(bounds[0] === 0, at("does not start at 0"));
+    check(bounds.at(-1) === n, at(`does not end at ${n}`));
+    for (let p = 1; p < bounds.length; p++) check(bounds[p]! > bounds[p - 1]!, at("bounds not increasing"));
+    check(bounds.length - 1 <= k, at("too many pieces"));
+    check(r.values.length === bounds.length - 1, at(`${r.values.length} values`));
     if (bounds.length > 2) {
-      for (const w of pieceWeights(weights, bounds)) expect(w, label).toBeGreaterThanOrEqual(minW - 1e-9);
+      for (const w of pieceWeights(weights, bounds)) check(w >= minW - 1e-9, at(`a piece weighs ${w} < ${minW}`));
     }
-    expect(r.error, label).toBeCloseTo(directError(values, weights, bounds), 9);
+    const direct = directError(values, weights, bounds);
+    check(closeTo9(r.error, direct), at(`error ${r.error}, recomputed ${direct}`));
     // The pieces' total "time" is the input's: the reason the plan meets the goal for free.
     const time = pieceWeights(weights, bounds).reduce((s, w, p) => s + w * r.values[p]!, 0);
-    expect(time, label).toBeCloseTo(totalWO, 9);
-    if (idx > 0) expect(r.error, label).toBeLessThanOrEqual(result[idx - 1]!.error + 1e-12 * scale);
+    check(closeTo9(time, totalWO), at(`total time ${time}, input ${totalWO}`));
+    if (idx > 0) {
+      const previous = result[idx - 1]!.error;
+      check(r.error <= previous + 1e-12 * scale, at(`error ${r.error} above k - 1's ${previous}`));
+    }
   });
 }
 
 function expectMatches(actual: number[], expected: number[], scale: number, label: string): void {
   expect(actual.length, label).toBe(expected.length);
   actual.forEach((e, k) => {
-    expect(Math.abs(e - expected[k]!), `${label}, k = ${k + 1}: ${e} vs ${expected[k]}`).toBeLessThanOrEqual(
-      1e-9 * (1 + scale),
-    );
+    check(Math.abs(e - expected[k]!) <= 1e-9 * (1 + scale), () => `${label}, k = ${k + 1}: ${e} vs ${expected[k]}`);
   });
 }
 
