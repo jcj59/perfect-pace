@@ -27,6 +27,7 @@ pnpm dev            # Vite on :5173 with /api proxied to wrangler dev on :8787
 | `pnpm visual:update`   | Regenerate screenshot baselines in the Linux Playwright container           |
 | `pnpm lighthouse`      | Lighthouse accessibility, phone and desktop (run `pnpm build` first)        |
 | `pnpm icons`           | Render the app icons in `apps/web/public/icons` from `apps/web/icons/*.svg` |
+| `pnpm races:add`       | Add a race's course to the race library (see [Race library](#race-library)) |
 | `pnpm rollback`        | Roll production back to the previous Worker version (`--dry-run` to check)  |
 
 ## Workspace
@@ -265,6 +266,29 @@ contract in `packages/core/src/routing.ts`, with the `RoutingProvider` interface
 - **Fixtures:** the Worker tests replay `apps/worker/test/fixtures/ors/` and never call ORS. The
   committed files are synthetic until someone runs `ORS_API_KEY=... pnpm fixtures:record` (see the
   README there).
+
+## Race library
+
+`/races` (B13) lists the races in `apps/web/src/races/catalog.json`, seeded from
+[docs/race-catalog.md](docs/race-catalog.md). Every fact (usual month, the main field's local start
+time, time zone, distance, website) was checked on the race's own website; `verified` is the month
+that happened, and a race with a fact that could not be confirmed has `verified: null` and names
+it in `unverified`. The page is a route of the single-page app (`apps/web/src/router.tsx`): the
+Worker's single-page fallback serves it online, and the service worker's cached shell offline.
+
+A race with a course links to `/?race=<slug>`, which downloads `/races/<slug>.gpx` and loads it
+like a picked file, then keeps the race in `AppState.race` (and the saved session) for race-day
+conditions. To add a course, export the GPX (from Strava, say) and run:
+
+```sh
+pnpm races:add <slug> <file.gpx>   # --force to accept a length more than 1.5% off
+```
+
+It simplifies the track to within 2 m, checks its length against `distanceM`, writes
+`apps/web/public/races/<slug>.gpx` and sets the race's `gpx`. `apps/web/test/races.test.ts`
+checks the catalog and that every course parses and measures within 1.5%. E2E tests give a race a
+fixture course with `window.__PP_RACE_CATALOG__` (an init script), so the shipped catalog needs
+none.
 
 ## Reports
 

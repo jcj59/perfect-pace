@@ -10,6 +10,7 @@ import {
   metersPerUnit,
 } from "@pp/core";
 import { defaultMinSegmentM, snapMinSegmentM } from "../plan/inputs.ts";
+import type { Race } from "../races/catalog.ts";
 import { createStore, useStore } from "./store.ts";
 
 /** The user's theme choice. `system` follows `prefers-color-scheme`. */
@@ -99,6 +100,12 @@ export interface AppState {
   selectedSegment: number | null;
   /** Why the share link the page was opened with could not be used, until dismissed or a course loads. */
   linkError: string | null;
+  /**
+   * The race-library race whose course is on screen (opened with `/?race=<slug>`), carrying its
+   * usual month, local start time and time zone for race-day conditions. Null for any other
+   * course; a different course clears it.
+   */
+  race: Race | null;
 }
 
 export const THEME_STORAGE_KEY = "pp:theme";
@@ -160,6 +167,7 @@ export function initialAppState(storage?: Pick<Storage, "getItem">, language?: s
     tableView: "segments",
     selectedSegment: null,
     linkError: null,
+    race: null,
   };
 }
 
@@ -211,7 +219,9 @@ export function setCourse(course: CourseState, fresh = false): void {
     course,
     focusDistM: null,
     selectedSegment: null,
-    ...(fresh ? { goalTimeS: null, breakpointsM: [], ...(course.status !== "empty" ? { linkError: null } : {}) } : {}),
+    ...(fresh
+      ? { goalTimeS: null, race: null, breakpointsM: [], ...(course.status !== "empty" ? { linkError: null } : {}) }
+      : {}),
   });
 }
 
@@ -254,6 +264,11 @@ export function applyPlanSettings(settings: PlanSettings): void {
         : metersPerUnit(settings.units),
     breakpointsM: cleanBreakpoints(settings.breakpointsM),
   });
+}
+
+/** Mark the course on screen as a race-library race's (after `setCourse`, which clears it). */
+export function setRace(race: Race | null): void {
+  appStore.set({ race });
 }
 
 export function setLinkError(linkError: string | null): void {

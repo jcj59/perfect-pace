@@ -102,6 +102,7 @@ describe("app state", () => {
       tableView: "segments",
       selectedSegment: null,
       linkError: null,
+      race: null,
     });
     expect(initialAppState(storage("light")).theme).toBe("light");
     // Kilometer users start at half a kilometer, and kilometer splits.

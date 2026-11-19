@@ -167,6 +167,20 @@ test("an uploaded course reloads offline, with its elevation from cached terrain
   await expect(page.getByTestId("draw-route").locator("visible=true").first()).toBeEnabled();
 });
 
+test("the race library opens offline, from the cached app", async ({ page }) => {
+  await openApp(page);
+  await expectControlled(page);
+  await page.context().unrouteAll({ behavior: "ignoreErrors" });
+  await page.unrouteAll({ behavior: "ignoreErrors" });
+  await page.context().setOffline(true);
+  await page.goto("/races");
+  await expect(page.getByRole("heading", { level: 1, name: "Race library" })).toBeVisible();
+  await expect(page.getByTestId("race-row").first()).toBeVisible();
+  await page.getByTestId("races-back").click();
+  await expect(page.getByRole("heading", { level: 1, name: "Perfect Pace" })).toBeVisible();
+  await expect(page.getByTestId("status-line")).toHaveAttribute("data-state", "offline");
+});
+
 test("offline with nothing loaded, the panel says drawing needs a connection", async ({ page }) => {
   await openApp(page);
   await expectControlled(page);

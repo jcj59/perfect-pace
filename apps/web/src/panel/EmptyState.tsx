@@ -1,6 +1,8 @@
 import { DrawButton } from "../draw/DrawButton.tsx";
 import { DRAW, Icon } from "../draw/icons.tsx";
 import { usePwaState } from "../pwa/pwa.ts";
+import { Link } from "../router.tsx";
+import { BUTTON_BASE, BUTTON_VARIANTS } from "./FileButton.tsx";
 import { UploadCard } from "./UploadCard.tsx";
 
 const STEPS = [
@@ -38,6 +40,7 @@ export function EmptyState({ upload = true }: EmptyStateProps) {
       <div className="mt-6 space-y-3">
         {upload && <UploadCard />}
         <DrawCard />
+        <RacesCard />
       </div>
       <h3 className="mt-7 text-xs font-semibold tracking-[0.08em] text-ink-subtle uppercase">How it works</h3>
       <ol className="mt-3 space-y-4">
@@ -83,6 +86,49 @@ function DrawCard() {
         </DrawButton>
       </div>
     </div>
+  );
+}
+
+/** A third way in: a famous race's course from the race library. */
+function RacesCard() {
+  return (
+    <div
+      data-testid="races-card"
+      className="flex gap-3.5 rounded-2xl bg-surface-raised px-4 py-4 ring-1 ring-line ring-inset"
+    >
+      <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-accent-soft text-accent">
+        <RaceIcon className="size-5" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <h3 className="text-[15px] font-semibold text-ink">Or pick a famous race</h3>
+        <p className="mt-0.5 text-[13px] leading-snug text-pretty text-ink-muted">
+          The Majors, the big US marathons and classic road races.
+        </p>
+        <Link to="/races" className={`${BUTTON_BASE} ${BUTTON_VARIANTS.secondary} mt-3`} data-testid="browse-races">
+          Browse races
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+/** A finisher's medal: the race library. */
+function RaceIcon({ className }: { className: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M7.5 2.5 10 9M16.5 2.5 14 9" />
+      <circle cx="12" cy="15" r="6" />
+      <path d="m12 12.4.8 1.6 1.7.2-1.2 1.2.3 1.7-1.6-.8-1.6.8.3-1.7-1.2-1.2 1.7-.2z" />
+    </svg>
   );
 }
 
