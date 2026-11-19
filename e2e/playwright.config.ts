@@ -5,6 +5,8 @@ import { defineConfig, devices, type Project } from "@playwright/test";
  * - PP_BASE_URL: test a deployed URL (PR preview or production). Unset, Playwright starts the
  *   real Worker locally with `wrangler dev` (build the web app first: `pnpm build`).
  * - PP_BROWSERS=all: add Firefox and WebKit projects (nightly). Visual baselines are Chromium only.
+ *   Headless Firefox has WebGL, which the map needs, only with an X display: on Linux without one,
+ *   run under `xvfb-run` as the nightly job does.
  * - PP_QUARANTINE=1: run only `@quarantine` tests (CI runs them in a non-blocking step).
  * - PP_BLOB_REPORT=1: in CI, write a blob report (`blob-report/`) instead of the HTML one, for
  *   `playwright merge-reports` to combine across shards.

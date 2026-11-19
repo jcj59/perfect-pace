@@ -50,7 +50,8 @@ jobs:
 
   cross-browser:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # Every project in one job, on 2 workers: about 30 minutes when everything passes.
+    timeout-minutes: 45
     container:
       image: mcr.microsoft.com/playwright:v1.65.0-noble
       options: --ipc=host
@@ -62,8 +63,10 @@ jobs:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
       - run: pnpm build
+      # Headless Firefox only gets WebGL (for the map) from an X display: under Xvfb it draws with
+      # Mesa's software renderer. Without one the map is "unavailable" and every test fails.
       - name: Full E2E on Chromium, Firefox and WebKit (local wrangler dev)
-        run: pnpm e2e
+        run: xvfb-run --auto-servernum pnpm e2e
       - uses: actions/upload-artifact@v7
         if: failure()
         with:

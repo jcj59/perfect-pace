@@ -156,7 +156,14 @@ test.describe("hovering the chart", () => {
 test.describe("touch", () => {
   test.skip(({ page }) => !isPhone(page), "phone touch scrub");
 
-  test("dragging along the chart moves the marker, which stays until the next tap elsewhere", async ({ page }) => {
+  test("dragging along the chart moves the marker, which stays until the next tap elsewhere", async ({
+    page,
+    browserName,
+  }) => {
+    test.skip(
+      browserName !== "chromium",
+      "touch drags go through CDP, Chromium only: https://github.com/jcj59/perfect-pace/issues/42",
+    );
     const course = courseOf("boston.gpx");
     const length = course.points.at(-1)!.distM;
     const chart = await loadCourse(page, "boston.gpx");
