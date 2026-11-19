@@ -353,3 +353,256 @@ Parsed course from `test/fixtures/gpx/zero-elevation.gpx`.
 - plan goal (8:00/mi): 1:39
 - plan paces, up to 6 segments (per mi): 7:58
 - plan paces, up to 6 segments (per km): 4:57
+
+## plan-types-fh-fox
+
+Even, Splits and Custom plans for `test/fixtures/gpx/FH-Fox.gpx`.
+
+- even per mi: segments, rms gap, slowest / fastest pace (s): 1, 32.3, 480.1 / 480.1
+- splits per mi: segments, rms gap, slowest / fastest pace (s): 6, 30, 499.5 / 463.5
+- custom per mi: segments, rms gap, slowest / fastest pace (s): 4, 30.3, 493.9 / 464.1
+- even per km: segments, rms gap, slowest / fastest pace (s): 1, 20, 298.3 / 298.3
+- splits per km: segments, rms gap, slowest / fastest pace (s): 9, 17.8, 312.8 / 279
+- custom per km: segments, rms gap, slowest / fastest pace (s): 4, 18.8, 306.9 / 288.4
+
+## plan-types-freeville-fly-in
+
+Even, Splits and Custom plans for `test/fixtures/gpx/Freeville-Fly-In.gpx`.
+
+- even per mi: segments, rms gap, slowest / fastest pace (s): 1, 16.3, 480 / 480
+- splits per mi: segments, rms gap, slowest / fastest pace (s): 14, 14.6, 496 / 470.8
+- custom per mi: segments, rms gap, slowest / fastest pace (s): 4, 15.6, 487.6 / 474.5
+- even per km: segments, rms gap, slowest / fastest pace (s): 1, 10.1, 298.3 / 298.3
+- splits per km: segments, rms gap, slowest / fastest pace (s): 22, 8.9, 310.5 / 289.3
+- custom per km: segments, rms gap, slowest / fastest pace (s): 4, 9.7, 303 / 294.8
+
+## plan-types-lakefront-loops-5k
+
+Even, Splits and Custom plans for `test/fixtures/gpx/Lakefront-Loops-5K.gpx`.
+
+- even per mi: segments, rms gap, slowest / fastest pace (s): 1, 8.8, 480 / 480
+- splits per mi: segments, rms gap, slowest / fastest pace (s): 4, 8.8, 480.4 / 479.3
+- custom per mi: segments, rms gap, slowest / fastest pace (s): 4, 8.8, 480.6 / 479.7
+- even per km: segments, rms gap, slowest / fastest pace (s): 1, 5.4, 298.3 / 298.3
+- splits per km: segments, rms gap, slowest / fastest pace (s): 5, 5.4, 299.1 / 297.4
+- custom per km: segments, rms gap, slowest / fastest pace (s): 4, 5.4, 298.6 / 298.1
+
+## plan-types-apple-health-route
+
+Even, Splits and Custom plans for `test/fixtures/gpx/apple-health-route.gpx`.
+
+- even per mi: segments, rms gap, slowest / fastest pace (s): 1, 8.9, 479.7 / 479.7
+- splits per mi: segments, rms gap, slowest / fastest pace (s): 2, 8.7, 481.1 / 477.8
+- custom per mi: segments, rms gap, slowest / fastest pace (s): 4, 8.3, 485.1 / 477
+- even per km: segments, rms gap, slowest / fastest pace (s): 1, 5.5, 298.1 / 298.1
+- splits per km: segments, rms gap, slowest / fastest pace (s): 3, 5.4, 299.4 / 296.8
+- custom per km: segments, rms gap, slowest / fastest pace (s): 4, 5.2, 301.4 / 296.4
+
+## plan-types-bom-crlf-cdata
+
+Even, Splits and Custom plans for `test/fixtures/gpx/bom-crlf-cdata.gpx`.
+
+- even per mi: segments, rms gap, slowest / fastest pace (s): 1, 2.3, 477.6 / 477.6
+- splits per mi: segments, rms gap, slowest / fastest pace (s): 1, 2.3, 477.6 / 477.6
+- custom per mi: segments, rms gap, slowest / fastest pace (s): 4, 1.3, 479.6 / 475.6
+- even per km: segments, rms gap, slowest / fastest pace (s): 1, 1.4, 296.8 / 296.8
+- splits per km: segments, rms gap, slowest / fastest pace (s): 1, 1.4, 296.8 / 296.8
+- custom per km: segments, rms gap, slowest / fastest pace (s): 4, 0.8, 298 / 295.5
+
+## plan-types-boston
+
+Even, Splits and Custom plans for `test/fixtures/gpx/boston.gpx`.
+
+- even per mi: segments, rms gap, slowest / fastest pace (s): 1, 23.2, 480 / 480
+- splits per mi: segments, rms gap, slowest / fastest pace (s): 27, 22.3, 497.9 / 464.8
+- custom per mi: segments, rms gap, slowest / fastest pace (s): 4, 23.1, 482 / 476
+- even per km: segments, rms gap, slowest / fastest pace (s): 1, 14.4, 298.2 / 298.2
+- splits per km: segments, rms gap, slowest / fastest pace (s): 43, 13.1, 316.7 / 281
+- custom per km: segments, rms gap, slowest / fastest pace (s): 4, 14.4, 299.5 / 295.8
+
+## plan-types-dodge
+
+Even, Splits and Custom plans for `test/fixtures/gpx/dodge.gpx`.
+
+- even per mi: segments, rms gap, slowest / fastest pace (s): 1, 24.4, 480 / 480
+- splits per mi: segments, rms gap, slowest / fastest pace (s): 7, 17.8, 504 / 454.2
+- custom per mi: segments, rms gap, slowest / fastest pace (s): 4, 22.5, 492.2 / 470.1
+- even per km: segments, rms gap, slowest / fastest pace (s): 1, 15.1, 298.2 / 298.2
+- splits per km: segments, rms gap, slowest / fastest pace (s): 11, 10.6, 320.5 / 281.5
+- custom per km: segments, rms gap, slowest / fastest pace (s): 4, 14, 305.8 / 292.1
+
+## plan-types-duplicates-and-noise
+
+Even, Splits and Custom plans for `test/fixtures/gpx/duplicates-and-noise.gpx`.
+
+- even per mi: segments, rms gap, slowest / fastest pace (s): 1, 1.8, 480.5 / 480.5
+- splits per mi: segments, rms gap, slowest / fastest pace (s): 1, 1.8, 480.5 / 480.5
+- custom per mi: segments, rms gap, slowest / fastest pace (s): 4, 1.6, 481.4 / 479.5
+- even per km: segments, rms gap, slowest / fastest pace (s): 1, 1.1, 298.6 / 298.6
+- splits per km: segments, rms gap, slowest / fastest pace (s): 1, 1.1, 298.6 / 298.6
+- custom per km: segments, rms gap, slowest / fastest pace (s): 4, 1, 299.1 / 298
+
+## plan-types-forest-home
+
+Even, Splits and Custom plans for `test/fixtures/gpx/forest_home.gpx`.
+
+- even per mi: segments, rms gap, slowest / fastest pace (s): 1, 24.7, 480 / 480
+- splits per mi: segments, rms gap, slowest / fastest pace (s): 6, 21.8, 495.7 / 460.2
+- custom per mi: segments, rms gap, slowest / fastest pace (s): 4, 22.7, 489.8 / 464.4
+- even per km: segments, rms gap, slowest / fastest pace (s): 1, 15.3, 298.3 / 298.3
+- splits per km: segments, rms gap, slowest / fastest pace (s): 10, 13.2, 312.7 / 284.9
+- custom per km: segments, rms gap, slowest / fastest pace (s): 4, 14.1, 304.3 / 288.6
+
+## plan-types-garmin-connect-activity
+
+Even, Splits and Custom plans for `test/fixtures/gpx/garmin-connect-activity.gpx`.
+
+- even per mi: segments, rms gap, slowest / fastest pace (s): 1, 9.7, 479.8 / 479.8
+- splits per mi: segments, rms gap, slowest / fastest pace (s): 3, 9.3, 482.2 / 476.9
+- custom per mi: segments, rms gap, slowest / fastest pace (s): 4, 8.1, 484.8 / 470.9
+- even per km: segments, rms gap, slowest / fastest pace (s): 1, 6, 298.1 / 298.1
+- splits per km: segments, rms gap, slowest / fastest pace (s): 4, 5.7, 301 / 295.8
+- custom per km: segments, rms gap, slowest / fastest pace (s): 4, 5, 301.2 / 292.6
+
+## plan-types-gpx-1-0
+
+Even, Splits and Custom plans for `test/fixtures/gpx/gpx-1.0.gpx`.
+
+- even per mi: segments, rms gap, slowest / fastest pace (s): 1, 2.3, 477.6 / 477.6
+- splits per mi: segments, rms gap, slowest / fastest pace (s): 1, 2.3, 477.6 / 477.6
+- custom per mi: segments, rms gap, slowest / fastest pace (s): 4, 1.3, 479.6 / 475.6
+- even per km: segments, rms gap, slowest / fastest pace (s): 1, 1.4, 296.8 / 296.8
+- splits per km: segments, rms gap, slowest / fastest pace (s): 1, 1.4, 296.8 / 296.8
+- custom per km: segments, rms gap, slowest / fastest pace (s): 4, 0.8, 298 / 295.5
+
+## plan-types-multi-segment
+
+Even, Splits and Custom plans for `test/fixtures/gpx/multi-segment.gpx`.
+
+- even per mi: segments, rms gap, slowest / fastest pace (s): 1, 1.7, 480 / 480
+- splits per mi: segments, rms gap, slowest / fastest pace (s): 1, 1.7, 480 / 480
+- custom per mi: segments, rms gap, slowest / fastest pace (s): 4, 1.5, 480.8 / 479.2
+- even per km: segments, rms gap, slowest / fastest pace (s): 1, 1.1, 298.3 / 298.3
+- splits per km: segments, rms gap, slowest / fastest pace (s): 1, 1.1, 298.3 / 298.3
+- custom per km: segments, rms gap, slowest / fastest pace (s): 4, 1, 298.7 / 297.8
+
+## plan-types-multi-track
+
+Even, Splits and Custom plans for `test/fixtures/gpx/multi-track.gpx`.
+
+- even per mi: segments, rms gap, slowest / fastest pace (s): 1, 8.7, 479.5 / 479.5
+- splits per mi: segments, rms gap, slowest / fastest pace (s): 1, 8.7, 479.5 / 479.5
+- custom per mi: segments, rms gap, slowest / fastest pace (s): 4, 4.8, 486.8 / 467.7
+- even per km: segments, rms gap, slowest / fastest pace (s): 1, 5.4, 298 / 298
+- splits per km: segments, rms gap, slowest / fastest pace (s): 2, 2, 301.9 / 291.4
+- custom per km: segments, rms gap, slowest / fastest pace (s): 4, 3, 302.5 / 290.6
+
+## plan-types-newyork
+
+Even, Splits and Custom plans for `test/fixtures/gpx/newyork.gpx`.
+
+- even per mi: segments, rms gap, slowest / fastest pace (s): 1, 9.2, 480 / 480
+- splits per mi: segments, rms gap, slowest / fastest pace (s): 27, 8, 491.9 / 467.8
+- custom per mi: segments, rms gap, slowest / fastest pace (s): 4, 9.1, 482.2 / 477.7
+- even per km: segments, rms gap, slowest / fastest pace (s): 1, 5.7, 298.3 / 298.3
+- splits per km: segments, rms gap, slowest / fastest pace (s): 43, 4.7, 304.3 / 290.9
+- custom per km: segments, rms gap, slowest / fastest pace (s): 4, 5.6, 299.6 / 296.9
+
+## plan-types-no-elevation
+
+Even, Splits and Custom plans for `test/fixtures/gpx/no-elevation.gpx`.
+
+- even per mi: segments, rms gap, slowest / fastest pace (s): 1, 2.5, 477.6 / 477.6
+- splits per mi: segments, rms gap, slowest / fastest pace (s): 1, 2.5, 477.6 / 477.6
+- custom per mi: segments, rms gap, slowest / fastest pace (s): 4, 0.9, 480.8 / 474.8
+- even per km: segments, rms gap, slowest / fastest pace (s): 1, 1.6, 296.8 / 296.8
+- splits per km: segments, rms gap, slowest / fastest pace (s): 1, 1.6, 296.8 / 296.8
+- custom per km: segments, rms gap, slowest / fastest pace (s): 4, 0.6, 298.8 / 295
+
+## plan-types-partial-elevation
+
+Even, Splits and Custom plans for `test/fixtures/gpx/partial-elevation.gpx`.
+
+- even per mi: segments, rms gap, slowest / fastest pace (s): 1, 2.1, 480.5 / 480.5
+- splits per mi: segments, rms gap, slowest / fastest pace (s): 1, 2.1, 480.5 / 480.5
+- custom per mi: segments, rms gap, slowest / fastest pace (s): 4, 1, 483.7 / 479
+- even per km: segments, rms gap, slowest / fastest pace (s): 1, 1.3, 298.6 / 298.6
+- splits per km: segments, rms gap, slowest / fastest pace (s): 1, 1.3, 298.6 / 298.6
+- custom per km: segments, rms gap, slowest / fastest pace (s): 4, 0.6, 300.6 / 297.6
+
+## plan-types-prefixed-namespace
+
+Even, Splits and Custom plans for `test/fixtures/gpx/prefixed-namespace.gpx`.
+
+- even per mi: segments, rms gap, slowest / fastest pace (s): 1, 2.3, 477.6 / 477.6
+- splits per mi: segments, rms gap, slowest / fastest pace (s): 1, 2.3, 477.6 / 477.6
+- custom per mi: segments, rms gap, slowest / fastest pace (s): 4, 1.3, 479.6 / 475.6
+- even per km: segments, rms gap, slowest / fastest pace (s): 1, 1.4, 296.8 / 296.8
+- splits per km: segments, rms gap, slowest / fastest pace (s): 1, 1.4, 296.8 / 296.8
+- custom per km: segments, rms gap, slowest / fastest pace (s): 4, 0.8, 298 / 295.5
+
+## plan-types-ridewithgps-route
+
+Even, Splits and Custom plans for `test/fixtures/gpx/ridewithgps-route.gpx`.
+
+- even per mi: segments, rms gap, slowest / fastest pace (s): 1, 13.5, 480 / 480
+- splits per mi: segments, rms gap, slowest / fastest pace (s): 4, 12.3, 489 / 474.2
+- custom per mi: segments, rms gap, slowest / fastest pace (s): 4, 11.9, 488.9 / 472.8
+- even per km: segments, rms gap, slowest / fastest pace (s): 1, 8.4, 298.3 / 298.3
+- splits per km: segments, rms gap, slowest / fastest pace (s): 6, 6.2, 308.6 / 292.2
+- custom per km: segments, rms gap, slowest / fastest pace (s): 4, 7.4, 303.8 / 293.8
+
+## plan-types-ridewithgps-track
+
+Even, Splits and Custom plans for `test/fixtures/gpx/ridewithgps-track.gpx`.
+
+- even per mi: segments, rms gap, slowest / fastest pace (s): 1, 13.5, 480 / 480
+- splits per mi: segments, rms gap, slowest / fastest pace (s): 4, 12.3, 489 / 474.2
+- custom per mi: segments, rms gap, slowest / fastest pace (s): 4, 11.9, 488.9 / 472.8
+- even per km: segments, rms gap, slowest / fastest pace (s): 1, 8.4, 298.3 / 298.3
+- splits per km: segments, rms gap, slowest / fastest pace (s): 6, 6.2, 308.6 / 292.2
+- custom per km: segments, rms gap, slowest / fastest pace (s): 4, 7.4, 303.8 / 293.8
+
+## plan-types-scurve
+
+Even, Splits and Custom plans for `test/fixtures/gpx/scurve.gpx`.
+
+- even per mi: segments, rms gap, slowest / fastest pace (s): 1, 28.4, 480.1 / 480.1
+- splits per mi: segments, rms gap, slowest / fastest pace (s): 3, 22.7, 500.8 / 463.2
+- custom per mi: segments, rms gap, slowest / fastest pace (s): 4, 19.4, 515.5 / 462.4
+- even per km: segments, rms gap, slowest / fastest pace (s): 1, 17.7, 298.3 / 298.3
+- splits per km: segments, rms gap, slowest / fastest pace (s): 5, 12, 320.6 / 288.5
+- custom per km: segments, rms gap, slowest / fastest pace (s): 4, 12, 320.3 / 287.3
+
+## plan-types-strava-activity
+
+Even, Splits and Custom plans for `test/fixtures/gpx/strava-activity.gpx`.
+
+- even per mi: segments, rms gap, slowest / fastest pace (s): 1, 10.6, 480.1 / 480.1
+- splits per mi: segments, rms gap, slowest / fastest pace (s): 2, 10.5, 482 / 479
+- custom per mi: segments, rms gap, slowest / fastest pace (s): 4, 9.7, 485.3 / 475.1
+- even per km: segments, rms gap, slowest / fastest pace (s): 1, 6.6, 298.3 / 298.3
+- splits per km: segments, rms gap, slowest / fastest pace (s): 3, 5.7, 301.8 / 294.3
+- custom per km: segments, rms gap, slowest / fastest pace (s): 4, 6, 301.6 / 295.2
+
+## plan-types-wineglass
+
+Even, Splits and Custom plans for `test/fixtures/gpx/wineglass.gpx`.
+
+- even per mi: segments, rms gap, slowest / fastest pace (s): 1, 9.5, 480 / 480
+- splits per mi: segments, rms gap, slowest / fastest pace (s): 27, 9.1, 486.5 / 471.6
+- custom per mi: segments, rms gap, slowest / fastest pace (s): 4, 9.4, 480.8 / 479
+- even per km: segments, rms gap, slowest / fastest pace (s): 1, 5.9, 298.3 / 298.3
+- splits per km: segments, rms gap, slowest / fastest pace (s): 43, 5.4, 306 / 290.4
+- custom per km: segments, rms gap, slowest / fastest pace (s): 4, 5.9, 298.8 / 297.6
+
+## plan-types-zero-elevation
+
+Even, Splits and Custom plans for `test/fixtures/gpx/zero-elevation.gpx`.
+
+- even per mi: segments, rms gap, slowest / fastest pace (s): 1, 2.5, 477.6 / 477.6
+- splits per mi: segments, rms gap, slowest / fastest pace (s): 1, 2.5, 477.6 / 477.6
+- custom per mi: segments, rms gap, slowest / fastest pace (s): 4, 0.9, 480.8 / 474.8
+- even per km: segments, rms gap, slowest / fastest pace (s): 1, 1.6, 296.8 / 296.8
+- splits per km: segments, rms gap, slowest / fastest pace (s): 1, 1.6, 296.8 / 296.8
+- custom per km: segments, rms gap, slowest / fastest pace (s): 4, 0.6, 298.8 / 295

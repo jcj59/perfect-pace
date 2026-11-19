@@ -15,6 +15,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 // MapLibre finds its worker next to its own module, which a bundle moves; point it at the built file.
 import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url";
 import type { Theme } from "../state/app.ts";
+import type { MapCamera } from "../state/camera.ts";
 import { ROUTE_SET_MARK, mapCannotDraw } from "../state/course.ts";
 import {
   COURSE_HIT_LAYER,
@@ -116,6 +117,18 @@ export interface MapViewProps {
   onDrawEdit?: (edit: MapDrawEdit) => void;
   /** Move the camera here, once per `id` (for example to where the user is, to start drawing). */
   camera?: CameraRequest | null;
+  /**
+   * Where the map starts (read on the first render only), or null for the whole-US view. Its
+   * center is the middle of the whole map, as `onCameraChange` reports it.
+   */
+  initialCamera?: MapCamera | null;
+  /**
+   * Asked for each new route: true draws it without moving the camera, instead of framing it
+   * (the restored course, when the map starts at the saved camera).
+   */
+  keepCamera?: (route: readonly CoursePoint[]) => boolean;
+  /** Called with the camera each time the map comes to rest. */
+  onCameraChange?: (camera: MapCamera) => void;
 }
 
 /**
@@ -171,13 +184,16 @@ export default function MapView({
   drawing = null,
   onDrawEdit,
   camera = null,
+  initialCamera = null,
+  keepCamera,
+  onCameraChange,
 }: MapViewProps) {
   const container = useRef<HTMLDivElement>(null);
   const map = useRef<MapLibreMap | null>(null);
   const [webgl] = useState(hasWebGL);
   const [state, setState] = useState<MapState>(webgl ? "loading" : "unavailable");
   // The first render's props frame the initial view; later changes go through the effects below.
-  const initial = useRef({ theme, insets });
+  const initial = useRef({ theme, insets, initialCamera });
   // The latest insets and route, read when framing a course and when rebuilding the style.
   const latestInsets = useRef(insets);
   const courseData = useRef<CourseFeatures>(NO_COURSE);
@@ -191,11 +207,15 @@ export default function MapView({
   const onDrawn = useRef(onRouteDrawn);
   const onHover = useRef(onRouteHover);
   const onEdit = useRef(onDrawEdit);
+  const keep = useRef(keepCamera);
+  const onCamera = useRef(onCameraChange);
   const drawData = useRef<DrawFeatures>(NO_DRAWING);
   const latestDrawing = useRef(drawing);
   const courseMarker = useRef<Marker | null>(null);
   const [drawnRoute, setDrawnRoute] = useState<readonly CoursePoint[] | null>(null);
   const latestRoute = useRef(route);
+  /** Write the route's on-screen box (`data-route-box`) for the camera as it is now. */
+  const measureRoute = useRef(() => {});
   /** The route the camera framed, until the user moves the map; then null. */
   const framedRoute = useRef<readonly CoursePoint[] | null>(null);
   /**
@@ -203,6 +223,11 @@ export default function MapView({
    * rests, as the `data-route-box` attribute, so tests can check it sits clear of the panel.
    */
   const [routeBox, setRouteBox] = useState<{ of: readonly CoursePoint[] | null; box: string }>({ of: null, box: "" });
+  /**
+   * The camera once it rests (`lat lon zoom`, its center being the middle of the whole map), as
+   * the `data-view` attribute, so tests can check a reload brings it back.
+   */
+  const [view, setView] = useState("");
   const crosshair = useRef<HTMLDivElement>(null);
   const [keyboardFocus, setKeyboardFocus] = useState(false);
   useLayoutEffect(() => {
@@ -211,6 +236,8 @@ export default function MapView({
     onDrawn.current = onRouteDrawn;
     onHover.current = onRouteHover;
     onEdit.current = onDrawEdit;
+    keep.current = keepCamera;
+    onCamera.current = onCameraChange;
     latestDrawing.current = drawing;
   });
 
@@ -218,7 +245,11 @@ export default function MapView({
     const element = container.current;
     if (!webgl) mapCannotDraw();
     if (!element || !webgl) return;
-    const { theme, insets } = initial.current;
+    const { theme, insets, initialCamera } = initial.current;
+    // Start right at the saved view (no move from the whole US), or fit the whole US clear of the panel.
+    const start = initialCamera
+      ? { center: [initialCamera.center.lon, initialCamera.center.lat] as [number, number], zoom: initialCamera.zoom }
+      : { bounds: INITIAL_BOUNDS, fitBoundsOptions: { padding: padding(insets) } };
     let instance: MapLibreMap;
     try {
       instance = new MapLibreMap({
@@ -228,8 +259,7 @@ export default function MapView({
           theme,
           drawData.current,
         ),
-        bounds: INITIAL_BOUNDS,
-        fitBoundsOptions: { padding: padding(insets) },
+        ...start,
         attributionControl: false,
         dragRotate: false,
         pitchWithRotate: false,
@@ -247,7 +277,17 @@ export default function MapView({
     instance.on("movestart", (event) => {
       if (event.originalEvent) framedRoute.current = null;
     });
-    instance.on("moveend", () => {
+    const rest = (report: boolean) => {
+      // The middle of the whole map, not of the part clear of the panel: a camera request moves
+      // with padding, which `getCenter` would count.
+      const { clientWidth, clientHeight } = instance.getContainer();
+      const middle = instance.unproject([clientWidth / 2, clientHeight / 2]).wrap();
+      const zoom = instance.getZoom();
+      setView(`${middle.lat.toFixed(6)} ${middle.lng.toFixed(6)} ${zoom.toFixed(3)}`);
+      if (report) onCamera.current?.({ center: { lat: middle.lat, lon: middle.lng }, zoom });
+      measureRoute.current();
+    };
+    measureRoute.current = () => {
       const shown = latestRoute.current;
       const bounds = shown && courseBounds(shown);
       if (!bounds) return;
@@ -255,7 +295,11 @@ export default function MapView({
       const a = instance.project([west, north]);
       const b = instance.project([east, south]);
       setRouteBox({ of: shown, box: [a.x, a.y, b.x, b.y].map(Math.round).join(" ") });
-    });
+    };
+    instance.on("moveend", () => rest(true));
+    // The first view shows in `data-view` too, but only a move is kept: a start at the whole-US
+    // view must never be saved over the course the session is about to frame.
+    instance.once("load", () => rest(false));
     // Layer events are matched by layer id, so they keep working across theme (style) switches.
     const hover = (event: MapLayerMouseEvent) => onHover.current?.({ lat: event.lngLat.lat, lon: event.lngLat.lng });
     const leave = () => onHover.current?.(null);
@@ -350,12 +394,16 @@ export default function MapView({
     const instance = map.current;
     if (!instance) return;
     let cancelled = false;
+    // The restored course at the saved camera is drawn where it is; any other is framed.
+    const kept = route !== null && (keep.current?.(route) ?? false);
     // Checked after each frame: the camera has settled on the course, the new data is tiled, and
-    // the frame drew route features. Basemap tiles are not waited for.
+    // the frame drew route features. Basemap tiles are not waited for. A course left where the
+    // saved camera is may be out of view, so it only needs to be tiled.
     const confirm = () => {
       if (cancelled || !route || instance.isMoving() || !instance.isSourceLoaded(COURSE_SOURCE)) return;
-      if (instance.queryRenderedFeatures({ layers: [COURSE_LINE_LAYER] }).length === 0) return;
+      if (!kept && instance.queryRenderedFeatures({ layers: [COURSE_LINE_LAYER] }).length === 0) return;
       instance.off("render", confirm);
+      if (kept) measureRoute.current();
       setDrawnRoute(route);
       onDrawn.current?.();
     };
@@ -371,6 +419,10 @@ export default function MapView({
       if (route) performance.mark(ROUTE_SET_MARK);
       const bounds = route && courseBounds(route);
       if (!bounds) return;
+      if (kept) {
+        instance.on("render", confirm);
+        return;
+      }
       instance.fitBounds(bounds, {
         padding: padding(latestInsets.current, COURSE_MARGIN_PX),
         maxZoom: COURSE_MAX_ZOOM,
@@ -569,6 +621,7 @@ export default function MapView({
       data-drawing={drawing ? "on" : undefined}
       data-camera={cameraDone ?? undefined}
       data-route-box={route && routeBox.of === route ? routeBox.box : undefined}
+      data-view={view || undefined}
     >
       <div ref={container} className="size-full" />
       {drawing && keyboardFocus && (

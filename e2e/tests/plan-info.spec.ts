@@ -105,13 +105,13 @@ test.describe("the plan explanation", () => {
     await expectClosed(page);
     await expect(button).toBeFocused();
 
-    // Tabbing out of it closes it and moves on to the goal time, as if it had not been there.
+    // Tabbing out of it closes it and moves on to the plan type, as if it had not been there.
     await page.keyboard.press("Enter");
     await expectOpen(page);
     await page.keyboard.press("Tab");
     await page.keyboard.press("Tab");
     await expectClosed(page);
-    await expect(page.getByLabel("Goal time")).toBeFocused();
+    await expect(page.getByRole("radio", { name: "Optimal" })).toBeFocused();
     await page.keyboard.press("Shift+Tab");
     await expect(button).toBeFocused();
   });

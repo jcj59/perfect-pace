@@ -15,7 +15,7 @@ import type {
 } from "@pp/core";
 
 /** Bumped when an op's input or output changes shape, so a stale cached worker is detectable. */
-export const CORE_PROTOCOL_VERSION = 3;
+export const CORE_PROTOCOL_VERSION = 4;
 
 /** `computePlan` inputs that can be cloned: the pace model is fixed to the default inside the worker. */
 export type PlanRequest = Omit<PlanInputs, "model">;

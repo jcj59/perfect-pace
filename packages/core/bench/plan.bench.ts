@@ -24,4 +24,9 @@ describe("plan", () => {
   bench("computePlan marathon at 10 m, 20 changes, no minimum", () => {
     computePlan(course, { goalTimeS, paceChanges: 20, unit: "km" });
   });
+
+  // B11: a fixed partition (here a split every 100 m, far finer than any runner picks) on the same course.
+  bench("computePlan marathon at 10 m, 100 m splits", () => {
+    computePlan(course, { goalTimeS, paceChanges: 0, unit: "km", type: "splits", splitM: 100 });
+  });
 });

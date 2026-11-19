@@ -4,6 +4,10 @@ import {
   type DistanceUnit,
   type ElevationProfile,
   type GpxFile,
+  MAX_CUSTOM_BREAKPOINTS,
+  PLAN_TYPES,
+  type PlanType,
+  metersPerUnit,
 } from "@pp/core";
 import { defaultMinSegmentM, snapMinSegmentM } from "../plan/inputs.ts";
 import { createStore, useStore } from "./store.ts";
@@ -50,6 +54,10 @@ export type CourseState =
 /** The pace changes a plan starts with, before the user moves the slider. */
 export const DEFAULT_PACE_CHANGES = 4;
 
+/** How the plan table shows the plan: one row per segment, or one per mile or kilometer. */
+export const TABLE_VIEWS = ["segments", "splits"] as const;
+export type TableView = (typeof TABLE_VIEWS)[number];
+
 /**
  * App-wide UI state, including the plan inputs. Derived values (the resolved theme, the plan for
  * the current inputs, which `plan.ts` computes in the worker) stay out of it.
@@ -76,6 +84,17 @@ export interface AppState {
   paceChanges: number;
   /** Every plan segment is at least this long, meters (one of `minSegmentOptions(units)`). */
   minSegmentM: number;
+  /** How the plan cuts the course: `optimal` (pace changes and shortest segment), `even`, `splits` or `custom`. */
+  planType: PlanType;
+  /** For `splits`: the split length, meters (a mile, a kilometer, or one the user typed). */
+  splitM: number;
+  /**
+   * For `custom`: where the pace changes, meters from the start, in order, each on a course point
+   * of the profile (snapped where it was placed). A new course clears them.
+   */
+  breakpointsM: number[];
+  /** How the plan table shows the plan; the CSV and the pace band follow it. */
+  tableView: TableView;
   /** The plan segment picked in the table, highlighted on the map and the chart, or null. */
   selectedSegment: number | null;
   /** Why the share link the page was opened with could not be used, until dismissed or a course loads. */
@@ -135,6 +154,10 @@ export function initialAppState(storage?: Pick<Storage, "getItem">, language?: s
     goalTimeS: null,
     paceChanges: DEFAULT_PACE_CHANGES,
     minSegmentM: defaultMinSegmentM(units),
+    planType: "optimal",
+    splitM: metersPerUnit(units),
+    breakpointsM: [],
+    tableView: "segments",
     selectedSegment: null,
     linkError: null,
   };
@@ -188,16 +211,29 @@ export function setCourse(course: CourseState, fresh = false): void {
     course,
     focusDistM: null,
     selectedSegment: null,
-    ...(fresh ? { goalTimeS: null, ...(course.status !== "empty" ? { linkError: null } : {}) } : {}),
+    ...(fresh ? { goalTimeS: null, breakpointsM: [], ...(course.status !== "empty" ? { linkError: null } : {}) } : {}),
   });
 }
 
 /** The plan inputs, as a share link or the saved session carries them. */
 export interface PlanSettings {
   goalTimeS: number | null;
+  planType: PlanType;
   paceChanges: number;
   minSegmentM: number;
+  splitM: number;
+  breakpointsM: readonly number[];
   units: DistanceUnit;
+}
+
+/** The shortest split the app plans with, meters (a tenth of a mile is 161 m). */
+export const MIN_SPLIT_M = 100;
+
+/** Breakpoints as the app keeps them: finite, past the start, in order, unique, and at most `MAX_CUSTOM_BREAKPOINTS`. */
+export function cleanBreakpoints(breakpointsM: readonly number[]): number[] {
+  return [...new Set(breakpointsM.filter((b) => Number.isFinite(b) && b > 0))]
+    .sort((a, b) => a - b)
+    .slice(0, MAX_CUSTOM_BREAKPOINTS);
 }
 
 /**
@@ -209,8 +245,14 @@ export function applyPlanSettings(settings: PlanSettings): void {
   appStore.set({
     units: settings.units,
     goalTimeS: settings.goalTimeS,
+    planType: PLAN_TYPES.includes(settings.planType) ? settings.planType : "optimal",
     paceChanges: Math.max(0, Math.min(DEFAULT_CURVE_MAX_PACE_CHANGES, Math.round(settings.paceChanges))),
     minSegmentM: snapMinSegmentM(settings.minSegmentM, settings.units),
+    splitM:
+      Number.isFinite(settings.splitM) && settings.splitM >= MIN_SPLIT_M
+        ? settings.splitM
+        : metersPerUnit(settings.units),
+    breakpointsM: cleanBreakpoints(settings.breakpointsM),
   });
 }
 
@@ -229,6 +271,25 @@ export function setPaceChanges(paceChanges: number): void {
 
 export function setMinSegmentM(minSegmentM: number): void {
   appStore.set({ minSegmentM });
+}
+
+export function setPlanType(planType: PlanType): void {
+  appStore.set({ planType });
+}
+
+/** Set the split length in meters (a checked one, at least `MIN_SPLIT_M`). */
+export function setSplitM(splitM: number): void {
+  appStore.set({ splitM });
+}
+
+/** Set the custom breakpoints (cleaned up: see `cleanBreakpoints`). */
+export function setBreakpointsM(breakpointsM: readonly number[]): void {
+  appStore.set({ breakpointsM: cleanBreakpoints(breakpointsM) });
+}
+
+/** Show the plan by segment or by split. A segment picked in the table is let go, since splits have no picking. */
+export function setTableView(tableView: TableView): void {
+  appStore.set((s) => ({ tableView, selectedSegment: tableView === "splits" ? null : s.selectedSegment }));
 }
 
 /** Pick a plan segment to highlight on the map and chart, or clear the pick with null. */
