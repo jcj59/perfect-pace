@@ -1,0 +1,117 @@
+{
+  "goalTimeS": 199,
+  "units": [
+    {
+      "unit": "mi",
+      "types": [
+        {
+          "type": "even",
+          "totalTimeS": 199,
+          "rmsPaceGap": 1.7,
+          "segments": [
+            {
+              "endM": 667,
+              "pace": 480,
+              "reason": "gentle climb: +0.8% over 0.4 mi"
+            }
+          ]
+        },
+        {
+          "type": "splits",
+          "totalTimeS": 199,
+          "rmsPaceGap": 1.7,
+          "segments": [
+            {
+              "endM": 667,
+              "pace": 480,
+              "reason": "gentle climb: +0.8% over 0.4 mi"
+            }
+          ]
+        },
+        {
+          "type": "custom",
+          "totalTimeS": 199,
+          "rmsPaceGap": 1.5,
+          "segments": [
+            {
+              "endM": 170,
+              "pace": 479.2,
+              "reason": "gentle climb: +0.8% over 0.1 mi"
+            },
+            {
+              "endM": 330,
+              "pace": 480.8,
+              "reason": "gentle climb: +0.9% over 0.1 mi"
+            },
+            {
+              "endM": 500,
+              "pace": 480.8,
+              "reason": "gentle climb: +0.9% over 0.1 mi"
+            },
+            {
+              "endM": 667,
+              "pace": 479.3,
+              "reason": "gentle climb: +0.8% over 0.1 mi"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "unit": "km",
+      "types": [
+        {
+          "type": "even",
+          "totalTimeS": 199,
+          "rmsPaceGap": 1.1,
+          "segments": [
+            {
+              "endM": 667,
+              "pace": 298.3,
+              "reason": "gentle climb: +0.8% over 0.7 km"
+            }
+          ]
+        },
+        {
+          "type": "splits",
+          "totalTimeS": 199,
+          "rmsPaceGap": 1.1,
+          "segments": [
+            {
+              "endM": 667,
+              "pace": 298.3,
+              "reason": "gentle climb: +0.8% over 0.7 km"
+            }
+          ]
+        },
+        {
+          "type": "custom",
+          "totalTimeS": 199,
+          "rmsPaceGap": 1,
+          "segments": [
+            {
+              "endM": 170,
+              "pace": 297.8,
+              "reason": "gentle climb: +0.8% over 0.2 km"
+            },
+            {
+              "endM": 330,
+              "pace": 298.7,
+              "reason": "gentle climb: +0.9% over 0.2 km"
+            },
+            {
+              "endM": 500,
+              "pace": 298.7,
+              "reason": "gentle climb: +0.9% over 0.2 km"
+            },
+            {
+              "endM": 667,
+              "pace": 297.8,
+              "reason": "gentle climb: +0.8% over 0.2 km"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

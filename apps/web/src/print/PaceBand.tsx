@@ -1,7 +1,9 @@
 import { type DistanceUnit, type Plan, formatDuration, formatPace, metersToUnit } from "@pp/core";
-import { paceBand } from "../plan/export.ts";
+import type { ReactNode } from "react";
+import { type BandRow, type SegmentBandRow, paceBand, segmentBand } from "../plan/export.ts";
 import { roundPreservingSum } from "../plan/inputs.ts";
 import { TONE_COLORS, segmentTone } from "../plan/tones.ts";
+import type { TableView } from "../state/app.ts";
 
 /** Rows per strip: a strip stays short enough to wrap around a wrist and fit the page. */
 const MAX_ROWS_PER_STRIP = 30;
@@ -13,12 +15,24 @@ const RULE = "#d6d3ce";
 
 /**
  * The printed pace band, shown only when printing (the app hides itself in print; see
- * `styles.css`). One or more strips of the time to reach each mile or kilometer marker, with each
- * split and a stripe in the segment's color (where the pace changes is marked), then the plan's
- * segments with their paces and reasons. Colors are the light theme's, since paper is white.
+ * `styles.css`). One or more strips that follow the table's view: in Splits, the time to reach
+ * each mile or kilometer marker with each split; in Segments, each segment's pace and the time to
+ * reach its end. Each row has a stripe in its segment's color (in Splits, where the pace changes
+ * is marked). Then the plan's segments with their paces and reasons. Colors are the light theme's,
+ * since paper is white.
  */
-export function PaceBand({ plan, units, title }: { plan: Plan; units: DistanceUnit; title: string }) {
-  const rows = paceBand(plan, units);
+export function PaceBand({
+  plan,
+  units,
+  view,
+  title,
+}: {
+  plan: Plan;
+  units: DistanceUnit;
+  view: TableView;
+  title: string;
+}) {
+  const rows: (BandRow | SegmentBandRow)[] = view === "splits" ? paceBand(plan, units) : segmentBand(plan);
   const strips = Math.ceil(rows.length / MAX_ROWS_PER_STRIP);
   const perStrip = Math.ceil(rows.length / strips);
   const chunks = Array.from({ length: strips }, (_, i) => rows.slice(i * perStrip, (i + 1) * perStrip));
@@ -59,43 +73,38 @@ export function PaceBand({ plan, units, title }: { plan: Plan; units: DistanceUn
             key={i}
             className="pp-band-strip border-separate border-spacing-0 text-[10pt] tabular-nums"
             style={{ width: "62mm", border: `1.5px solid ${INK}`, borderRadius: "3mm" }}
+            data-view={view}
           >
             <thead>
               <tr className="text-left text-[7.5pt] font-semibold tracking-[0.06em] uppercase" style={{ color: MUTED }}>
                 <th className="w-[3mm] p-0" aria-label="Pace color" />
-                <th className="py-[1.2mm] pl-[2mm] font-semibold">{unitWord}</th>
-                <th className="py-[1.2mm] text-right font-semibold">Split</th>
+                <th className="py-[1.2mm] pl-[2mm] font-semibold">{view === "splits" ? unitWord : `To ${units}`}</th>
+                <th className="py-[1.2mm] text-right font-semibold">{view === "splits" ? "Split" : "Pace"}</th>
                 <th className="py-[1.2mm] pr-[2.5mm] pl-[3mm] text-right font-semibold">Time</th>
               </tr>
             </thead>
             <tbody>
-              {chunk.map((row) => (
-                <tr key={row.at} data-testid="band-row" data-change={row.change || undefined}>
-                  <td
-                    className="p-0"
-                    style={{ background: tones[row.tone], borderTop: `1px solid ${RULE}`, printColorAdjust: "exact" }}
+              {chunk.map((row) =>
+                "at" in row ? (
+                  <StripRow
+                    key={row.at}
+                    color={tones[row.tone]}
+                    change={row.change}
+                    label={row.finish ? "Finish" : row.at}
+                    middle={formatDuration(row.splitS)}
+                    elapsedS={row.elapsedS}
                   />
-                  <td
-                    className="py-[0.9mm] pl-[2mm] font-semibold whitespace-nowrap"
-                    style={{ borderTop: row.change ? `1.5px solid ${INK}` : `1px solid ${RULE}` }}
-                  >
-                    {row.finish ? "Finish" : row.at}
-                  </td>
-                  <td
-                    className="py-[0.9mm] text-right"
-                    style={{ color: MUTED, borderTop: row.change ? `1.5px solid ${INK}` : `1px solid ${RULE}` }}
-                  >
-                    {formatDuration(row.splitS)}
-                  </td>
-                  <td
-                    className="py-[0.9mm] pr-[2.5mm] pl-[3mm] text-right text-[11pt] font-bold whitespace-nowrap"
-                    style={{ borderTop: row.change ? `1.5px solid ${INK}` : `1px solid ${RULE}` }}
-                    data-testid="band-elapsed"
-                  >
-                    {formatDuration(row.elapsedS)}
-                  </td>
-                </tr>
-              ))}
+                ) : (
+                  <StripRow
+                    key={row.index}
+                    color={tones[row.tone]}
+                    change={false}
+                    label={row.index === plan.segments.length - 1 ? "Finish" : distance(row.endM)}
+                    middle={formatPace(row.paceSPerM, units)}
+                    elapsedS={row.elapsedS}
+                  />
+                ),
+              )}
             </tbody>
           </table>
         ))}
@@ -132,11 +141,48 @@ export function PaceBand({ plan, units, title }: { plan: Plan; units: DistanceUn
             ))}
           </ol>
           <p className="mt-3 text-[8.5pt] leading-snug" style={{ color: MUTED }}>
-            Time is the clock time to reach each marker; a heavy line marks where the pace changes. Cut out a strip and
-            tape it around your wrist. Made with Perfect Pace.
+            {view === "splits"
+              ? "Time is the clock time to reach each marker; a heavy line marks where the pace changes."
+              : "Hold each pace to the distance beside it; time is the clock time to reach it."}{" "}
+            Cut out a strip and tape it around your wrist. Made with Perfect Pace.
           </p>
         </section>
       </div>
     </div>
+  );
+}
+
+/** One row of a strip: a color stripe, the marker, the split or pace, and the clock time there. */
+function StripRow({
+  color,
+  change,
+  label,
+  middle,
+  elapsedS,
+}: {
+  color: string;
+  change: boolean;
+  label: ReactNode;
+  middle: string;
+  elapsedS: number;
+}) {
+  const rule = change ? `1.5px solid ${INK}` : `1px solid ${RULE}`;
+  return (
+    <tr data-testid="band-row" data-change={change || undefined}>
+      <td className="p-0" style={{ background: color, borderTop: `1px solid ${RULE}`, printColorAdjust: "exact" }} />
+      <td className="py-[0.9mm] pl-[2mm] font-semibold whitespace-nowrap" style={{ borderTop: rule }}>
+        {label}
+      </td>
+      <td className="py-[0.9mm] text-right" style={{ color: MUTED, borderTop: rule }}>
+        {middle}
+      </td>
+      <td
+        className="py-[0.9mm] pr-[2.5mm] pl-[3mm] text-right text-[11pt] font-bold whitespace-nowrap"
+        style={{ borderTop: rule }}
+        data-testid="band-elapsed"
+      >
+        {formatDuration(elapsedS)}
+      </td>
+    </tr>
   );
 }

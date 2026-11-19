@@ -27,6 +27,7 @@ pnpm dev            # Vite on :5173 with /api proxied to wrangler dev on :8787
 | `pnpm visual:update`   | Regenerate screenshot baselines in the Linux Playwright container           |
 | `pnpm lighthouse`      | Lighthouse accessibility, phone and desktop (run `pnpm build` first)        |
 | `pnpm icons`           | Render the app icons in `apps/web/public/icons` from `apps/web/icons/*.svg` |
+| `pnpm races:add`       | Add a race's course to the race library (see [Race library](#race-library)) |
 | `pnpm rollback`        | Roll production back to the previous Worker version (`--dry-run` to check)  |
 
 ## Workspace
@@ -71,6 +72,11 @@ Rules of thumb:
   `e2e/fixtures/openfreemap` and answers every tile and glyph request with an empty response.
 - Every bug fix starts with a failing E2E or golden test that reproduces it.
 - Tag tests that are safe against production `@smoke`, tests that need real third-party services `@live`.
+- With `PP_BROWSERS=all` the suite also runs on Firefox and WebKit (nightly). Headless Firefox has
+  WebGL for the map only with an X display, so on Linux run it as `xvfb-run pnpm e2e`. A test that
+  needs Chromium-only tooling (the DevTools protocol: touch drags, safe-area insets, Chrome's
+  installability check) skips elsewhere with its reason and a link to
+  [#42](https://github.com/jcj59/perfect-pace/issues/42).
 
 ## Golden snapshots
 
@@ -263,6 +269,10 @@ A third, optional secret, `ORS_API_KEY`, is the OpenRouteService key `/api/route
 inherit it, and `Nightly` runs the live routing test only when it is set. Without it nothing fails:
 `/api/route` answers `503 not_configured` and the live routing test is skipped with a warning.
 
+Two more optional secrets, `GITHUB_REPORT_TOKEN` and `TURNSTILE_SECRET`, are what `/api/report`
+needs (see [Reports](#reports)). `Deploy` uploads each one that is set, the same way; without them
+nothing fails, and the app's report dialog says reporting is unavailable.
+
 To exercise the rollback path without touching production traffic, run the `Deploy` workflow by
 hand with "force smoke failure" and "dry run" checked, or locally:
 
@@ -325,6 +335,74 @@ contract in `packages/core/src/routing.ts`, with the `RoutingProvider` interface
 - **Fixtures:** the Worker tests replay `apps/worker/test/fixtures/ors/` and never call ORS. The
   committed files are synthetic until someone runs `ORS_API_KEY=... pnpm fixtures:record` (see the
   README there).
+
+## Race library
+
+`/races` (B13) lists the races in `apps/web/src/races/catalog.json`, seeded from
+[docs/race-catalog.md](docs/race-catalog.md). Every fact (usual month, the main field's local start
+time, time zone, distance, website) was checked on the race's own website; `verified` is the month
+that happened, and a race with a fact that could not be confirmed has `verified: null` and names
+it in `unverified`. The page is a route of the single-page app (`apps/web/src/router.tsx`): the
+Worker's single-page fallback serves it online, and the service worker's cached shell offline.
+
+A race with a course links to `/?race=<slug>`, which downloads `/races/<slug>.gpx` and loads it
+like a picked file, then keeps the race in `AppState.race` (and the saved session) for race-day
+conditions. To add a course, export the GPX (from Strava, say) and run:
+
+```sh
+pnpm races:add <slug> <file.gpx>   # --force to accept a length more than 1.5% off
+```
+
+It simplifies the track to within 2 m, checks its length against `distanceM`, writes
+`apps/web/public/races/<slug>.gpx` and sets the race's `gpx`. `apps/web/test/races.test.ts`
+checks the catalog and that every course parses and measures within 1.5%. E2E tests give a race a
+fixture course with `window.__PP_RACE_CATALOG__` (an init script), so the shipped catalog needs
+none.
+
+## Reports
+
+"Report a problem" (B12) is in the panel header's menu (on a phone, the sheet's top corner). It
+files a bug or an idea as a GitHub issue in this repository, labeled `user-report` plus `bug` or
+`idea`, through `/api/report` (`apps/worker/src/report.ts`; the wire contract is
+`packages/core/src/report.ts`).
+
+- **What a report holds:** the kind, the description (up to 4,000 characters), and an email only
+  if the user checks "Show my email in the issue" (issues can be public, so it is never sent
+  otherwise). "Include diagnostics" (on by default, with a preview) adds the app version (the git
+  commit, set at build time in `apps/web/vite.config.ts`), browser, viewport, units, theme, plan
+  inputs and the last 20 uncaught errors and unhandled rejections (`apps/web/src/report/errors.ts`,
+  installed in `main.tsx`). "Include my course" (off by default) adds a share link.
+- **Untrusted text:** everything the user wrote goes into the issue inside fenced code blocks no
+  text can close, so it cannot mention anyone, load images or break the template; the title breaks
+  every `@` (`apps/worker/src/issue.ts`).
+- **Human check:** Cloudflare Turnstile, invisible unless Cloudflare wants an interaction. The
+  site key is public: `vars.TURNSTILE_SITE_KEY` in `apps/worker/wrangler.jsonc`, which the app reads
+  from `GET /api/report`. The secret is `TURNSTILE_SECRET`.
+- **Rate limit:** 5 reports per client IP per hour, a sliding window kept in the `REPORT_LIMITS` KV
+  namespace under a hash of the IP. The Rate Limiting binding `/api/route` uses only has 10 and 60
+  second windows, and Durable Objects would rule out preview URLs; KV is eventually consistent
+  across locations, so the `REPORT_RATE_LIMITER` binding (5 attempts per IP per minute) sits in
+  front to bound what that could let through.
+- **Until it is set up,** `/api/report` answers `503 not_configured` and the dialog says reporting
+  is unavailable. To set it up:
+  1. **GitHub token:** Settings, Developer settings, Fine-grained tokens, Generate new token.
+     Repository access: only `jcj59/perfect-pace`. Permissions: Issues, read and write (nothing
+     else). Then `gh secret set GITHUB_REPORT_TOKEN` (the next deploy uploads it), or
+     `pnpm --filter @pp/worker exec wrangler secret put GITHUB_REPORT_TOKEN`.
+  2. **Turnstile widget:** Cloudflare dashboard, Turnstile, Add widget. Hostname
+     `hf-worker.workers.dev` (it covers the production and preview subdomains) and any custom
+     domain; mode Managed. Put its site key in `vars.TURNSTILE_SITE_KEY` in
+     `apps/worker/wrangler.jsonc` and merge that, and set its secret key with
+     `gh secret set TURNSTILE_SECRET` (or `wrangler secret put TURNSTILE_SECRET`).
+  3. The labels `user-report`, `bug` and `idea` already exist in the repository; issues need them.
+- **Locally:** put Cloudflare's always-pass test keys in `apps/worker/.dev.vars` (gitignored):
+  `TURNSTILE_SITE_KEY=1x00000000000000000000AA` and
+  `TURNSTILE_SECRET=1x0000000000000000000000000000000AA`, plus a `GITHUB_REPORT_TOKEN` if you
+  want real issues (they go to `REPORT_REPO`, a var in `wrangler.jsonc`).
+- **Tests:** `apps/worker/test/report.test.ts` (Miniflare, with GitHub and Turnstile mocked:
+  success, invalid and oversized payloads, both rate limits, upstream failures, `not_configured`
+  and sanitization); `e2e/tests/report.spec.ts` against a stubbed `/api/report` and a stubbed
+  Turnstile script (`e2e/support/report.ts`), plus axe and visual baselines.
 
 ## Dependencies
 

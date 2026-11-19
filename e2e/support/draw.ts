@@ -159,6 +159,20 @@ export async function dragFromTo(
   await page.mouse.up();
 }
 
+/**
+ * Give the map keyboard focus the way a person does, with Tab (back out, then in again), so it
+ * matches `:focus-visible` and shows the crosshair in every browser. A script's `focus()` after a
+ * key press only counts as keyboard focus in Chromium.
+ */
+export async function tabToMap(page: Page): Promise<void> {
+  const canvas = page.locator("canvas.maplibregl-canvas");
+  await canvas.focus();
+  await page.keyboard.press("Shift+Tab");
+  await expect(canvas).not.toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(canvas).toBeFocused();
+}
+
 /** The center of a handle (waypoint or leg midpoint) on screen. */
 export async function handleCenter(page: Page, testId: "waypoint" | "leg-midpoint", index: number) {
   const box = (await page.getByTestId(testId).nth(index).boundingBox())!;
@@ -236,7 +250,8 @@ export const METERS_PER_MILE = 1609.344;
 
 /** The distance the panel shows while drawing, in its units. */
 export async function shownDistance(page: Page): Promise<number> {
-  const text = (await page.getByTestId("draw-distance").innerText()).replace(/,/g, "");
+  // Text content: WebKit's innerText is empty while a phone's sheet at peek clips the editor.
+  const text = ((await page.getByTestId("draw-distance").textContent()) ?? "").replace(/,/g, "");
   return Number.parseFloat(text);
 }
 

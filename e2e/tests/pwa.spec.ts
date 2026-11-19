@@ -28,7 +28,11 @@ function cachedUrls(page: Page): Promise<Record<string, string[]>> {
   });
 }
 
-test("the manifest and icons are served, and Chrome finds the app installable", async ({ page, request }) => {
+test("the manifest and icons are served, and Chrome finds the app installable", async ({
+  page,
+  request,
+  browserName,
+}) => {
   await openApp(page);
   const manifestUrl = await page.locator('link[rel="manifest"]').getAttribute("href");
   expect(manifestUrl).toBe("/manifest.webmanifest");
@@ -51,7 +55,9 @@ test("the manifest and icons are served, and Chrome finds the app installable", 
     expect(icon.headers()["content-type"], src).toBe("image/png");
   }
   await expectControlled(page);
-  // What Chrome checks before it offers to install (Lighthouse's former installability audit).
+  // What Chrome checks before it offers to install (Lighthouse's former installability audit),
+  // through the DevTools protocol, which only Chromium has (https://github.com/jcj59/perfect-pace/issues/42).
+  if (browserName !== "chromium") return;
   const cdp = await page.context().newCDPSession(page);
   const { installabilityErrors } = (await cdp.send("Page.getInstallabilityErrors")) as {
     installabilityErrors: { errorId: string }[];
@@ -87,7 +93,11 @@ test("the service worker precaches the build, and never caches the API", async (
   ).toEqual([]);
 });
 
-test("an online reload gets the latest build from the server, not the cached one", async ({ page }) => {
+test("an online reload gets the latest build from the server, not the cached one", async ({ page, browserName }) => {
+  test.skip(
+    browserName === "firefox",
+    "Firefox's Playwright cannot route a service worker's own fetches: https://github.com/jcj59/perfect-pace/issues/42",
+  );
   await openApp(page);
   await expectControlled(page);
   // A "new deploy": the server's page now carries a marker the cached shell does not.
@@ -119,7 +129,10 @@ test("a newer service worker takes over, and the page offers a reload", async ({
   await expectControlled(page);
 });
 
-test("an uploaded course reloads offline, with its elevation from cached terrain tiles", async ({ page }) => {
+test("an uploaded course reloads offline, with its elevation from cached terrain tiles", async ({
+  page,
+  browserName,
+}) => {
   await openApp(page);
   await expectControlled(page);
   // This file has no elevation of its own, so its profile comes from the DEM tiles.
@@ -145,15 +158,36 @@ test("an uploaded course reloads offline, with its elevation from cached terrain
   // Drawing needs the network, and the panel says so.
   await expect(page.getByTestId("draw-route").locator("visible=true").first()).toBeDisabled();
 
-  // Back online: the status line returns to the tagline, and drawing comes back.
+  // Back online: the status line returns to the tagline, and drawing comes back. In Firefox,
+  // Playwright's emulated network coming back fires no `online` in a page reloaded while
+  // offline (navigator.onLine turns true silently), so the page cannot notice: https://github.com/jcj59/perfect-pace/issues/42
+  if (browserName === "firefox") return;
   await page.context().setOffline(false);
   await expect(page.getByTestId("status-line")).toHaveAttribute("data-state", "idle");
   await expect(page.getByTestId("draw-route").locator("visible=true").first()).toBeEnabled();
 });
 
+test("the race library opens offline, from the cached app", async ({ page }) => {
+  await openApp(page);
+  await expectControlled(page);
+  await page.context().unrouteAll({ behavior: "ignoreErrors" });
+  await page.unrouteAll({ behavior: "ignoreErrors" });
+  await page.context().setOffline(true);
+  await page.goto("/races");
+  await expect(page.getByRole("heading", { level: 1, name: "Race library" })).toBeVisible();
+  await expect(page.getByTestId("race-row").first()).toBeVisible();
+  await page.getByTestId("races-back").click();
+  await expect(page.getByRole("heading", { level: 1, name: "Perfect Pace" })).toBeVisible();
+  await expect(page.getByTestId("status-line")).toHaveAttribute("data-state", "offline");
+});
+
 test("offline with nothing loaded, the panel says drawing needs a connection", async ({ page }) => {
   await openApp(page);
   await expectControlled(page);
+  // Offline for real, with no stubs left (Firefox fails a routed reload while offline before the
+  // service worker can answer it).
+  await page.context().unrouteAll({ behavior: "ignoreErrors" });
+  await page.unrouteAll({ behavior: "ignoreErrors" });
   await page.context().setOffline(true);
   await page.reload();
   await expect(page.getByTestId("status-line")).toHaveAttribute("data-state", "offline");

@@ -1,5 +1,8 @@
 import type { ReactNode } from "react";
+import { DESKTOP_QUERY, useMediaQuery } from "../layout/useMediaQuery.ts";
 import { usePwaState } from "../pwa/pwa.ts";
+import { Link } from "../router.tsx";
+import { HeaderMenu } from "./HeaderMenu.tsx";
 
 export interface PanelHeaderProps {
   action?: ReactNode;
@@ -9,8 +12,9 @@ export interface PanelHeaderProps {
 
 /** The app's name and mark, at the top of the panel (and all that shows of the sheet at `peek`). */
 export function PanelHeader({ action, brief = false }: PanelHeaderProps) {
+  const desktop = useMediaQuery(DESKTOP_QUERY);
   return (
-    <header className="flex h-[72px] items-center gap-3 px-6">
+    <header className="relative flex h-[72px] items-center gap-3 px-6">
       <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-accent-soft text-accent">
         <svg
           viewBox="0 0 24 24"
@@ -31,7 +35,25 @@ export function PanelHeader({ action, brief = false }: PanelHeaderProps) {
         </h1>
         <StatusLine brief={brief} />
       </div>
+      {/* Beside the phone header's own buttons (`brief`) there is no room; the empty state links there. */}
+      {!brief && (
+        <Link
+          to="/races"
+          className="inline-flex h-9 shrink-0 items-center rounded-full px-3 text-[13px] font-medium text-ink ring-1 ring-line ring-inset transition-colors hover:bg-surface-raised focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
+          data-testid="header-races"
+        >
+          Races
+        </Link>
+      )}
       {action}
+      {/* The phone header has no room left beside its buttons, so the menu sits in the sheet's top corner. */}
+      {desktop ? (
+        <HeaderMenu />
+      ) : (
+        <div className="absolute -top-[17px] right-3.5">
+          <HeaderMenu corner />
+        </div>
+      )}
     </header>
   );
 }

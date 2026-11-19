@@ -1,6 +1,8 @@
 /**
  * What the Share and export controls produce, as pure functions: the plan as CSV, the pace band's
- * rows, and the course as GPX. Unit tested apart from the DOM.
+ * rows, and the course as GPX. The CSV and the band follow the table's view: one row per segment,
+ * or one per mile or kilometer (the splits, also what the table's Splits view shows). Unit tested
+ * apart from the DOM.
  */
 import {
   type DistanceUnit,
@@ -14,7 +16,7 @@ import {
   pointAtDistance,
   writeGpx,
 } from "@pp/core";
-import type { CourseState } from "../state/app.ts";
+import type { CourseState, TableView } from "../state/app.ts";
 import { trackTitle } from "../state/course.ts";
 import { roundPreservingSum } from "./inputs.ts";
 import { type Tone, segmentTone } from "./tones.ts";
@@ -79,13 +81,18 @@ export function planCsv(plan: Plan, units: DistanceUnit): string {
   return [header, ...rows, finish].map((row) => row.map(csvField).join(",")).join("\r\n") + "\r\n";
 }
 
-/** One row of the pace band: a mile (or kilometer) marker, or the finish. */
+/** One split: from one mile (or kilometer) marker to the next, or to the finish. */
 export interface BandRow {
   /** The marker's distance in the units: 1, 2, ... then the finish (26.22). */
   at: number;
   finish: boolean;
+  /** Where the split starts and ends, meters. */
+  startM: number;
+  endM: number;
   /** Seconds from the previous marker, rounded so the splits add up to the elapsed times. */
   splitS: number;
+  /** The same, unrounded: the plan's own time over the split. */
+  exactSplitS: number;
   /** Seconds from the start, to the second. */
   elapsedS: number;
   /** The tone of the segment the runner spends most of this split in. */
@@ -134,18 +141,24 @@ export function paceBand(plan: Plan, units: DistanceUnit): BandRow[] {
   for (let k = 1; k * unitM < total - 1; k++) marks.push(k * unitM);
   marks.push(total);
   const finishS = roundPreservingSum(plan.segments.map((s) => s.timeS)).reduce((a, b) => a + b, 0);
+  const totalS = plan.segments.reduce((a, s) => a + s.timeS, 0);
   let previousM = 0;
   let previousS = 0;
+  let previousExactS = 0;
   let previousSegment = -1;
   return marks.map((m, i) => {
     const finish = i === marks.length - 1;
-    const elapsedS = finish ? finishS : Math.round(elapsedAt(plan, m));
+    const exactS = finish ? totalS : elapsedAt(plan, m);
+    const elapsedS = finish ? finishS : Math.round(exactS);
     const segment = mainSegment(plan, previousM, m);
     const s = plan.segments[segment]!;
     const row: BandRow = {
       at: finish ? Number(metersToUnit(total, units).toFixed(2)) : i + 1,
       finish,
+      startM: previousM,
+      endM: m,
       splitS: elapsedS - previousS,
+      exactSplitS: exactS - previousExactS,
       elapsedS,
       tone: segmentTone(s.paceSPerM, plan.flatPaceSPerM),
       segment,
@@ -153,8 +166,78 @@ export function paceBand(plan: Plan, units: DistanceUnit): BandRow[] {
     };
     previousM = m;
     previousS = elapsedS;
+    previousExactS = exactS;
     previousSegment = segment;
     return row;
+  });
+}
+
+/**
+ * A split's average pace, seconds per meter, from the plan's own time over it (not the rounded
+ * split, which can be a second off: an even pace must read the same every mile).
+ */
+export const splitPace = (row: BandRow): number => row.exactSplitS / (row.endM - row.startM);
+
+/**
+ * The splits as CSV: one row per mile or kilometer (where it runs, its length, average pace, split
+ * time and elapsed time), the last one ending at the finish. Splits add up to the elapsed times,
+ * and the last elapsed time is the plan's finish, as in the table.
+ */
+export function splitsCsv(plan: Plan, units: DistanceUnit): string {
+  const header = [
+    units === "mi" ? "Mile" : "Km",
+    `Start (${units})`,
+    `End (${units})`,
+    `Distance (${units})`,
+    `Pace (/${units})`,
+    "Split",
+    "Elapsed",
+  ];
+  const rows = paceBand(plan, units).map((r) => [
+    r.finish ? "Finish" : String(r.at),
+    fixed2(r.startM, units),
+    fixed2(r.endM, units),
+    fixed2(r.endM - r.startM, units),
+    formatPace(splitPace(r), units),
+    formatDuration(r.splitS),
+    formatDuration(r.elapsedS),
+  ]);
+  return [header, ...rows].map((row) => row.map(csvField).join(",")).join("\r\n") + "\r\n";
+}
+
+/** The plan as CSV in the table's view. */
+export function exportCsv(plan: Plan, units: DistanceUnit, view: TableView): string {
+  return view === "splits" ? splitsCsv(plan, units) : planCsv(plan, units);
+}
+
+/** One row of the pace band in the Segments view: a segment, and the clock time at its end. */
+export interface SegmentBandRow {
+  index: number;
+  startM: number;
+  endM: number;
+  paceSPerM: number;
+  /** The segment's time, rounded so the segments add up to the finish. */
+  timeS: number;
+  elapsedS: number;
+  tone: Tone;
+}
+
+/** The pace band's rows in the Segments view: every segment with its pace and the time to reach its end. */
+export function segmentBand(plan: Plan): SegmentBandRow[] {
+  const times = roundPreservingSum(plan.segments.map((s) => s.timeS));
+  let elapsedS = 0;
+  return plan.segments.map((s, index) => {
+    const timeS = times[index] ?? 0;
+    elapsedS += timeS;
+    return {
+      index,
+      startM: s.startM,
+      endM: s.endM,
+      paceSPerM: s.paceSPerM,
+      timeS,
+      elapsedS,
+      tone: segmentTone(s.paceSPerM, plan.flatPaceSPerM),
+    };
   });
 }
 

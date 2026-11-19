@@ -67,6 +67,7 @@ export async function expectRouteDrawn(page: Page): Promise<void> {
 
 /** The number in a stat tile, such as 26.28 from "26.28 mi". */
 export async function statNumber(page: Page, testId: string): Promise<number> {
-  const text = (await page.getByTestId(testId).innerText()).replace(/,/g, "");
+  // Text content: WebKit's innerText is empty while a phone's sheet at peek clips the tile.
+  const text = ((await page.getByTestId(testId).textContent()) ?? "").replace(/,/g, "");
   return Number.parseFloat(text);
 }

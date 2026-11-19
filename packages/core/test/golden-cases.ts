@@ -110,6 +110,64 @@ function planGolden(profile: ElevationProfile) {
   return { output: { goalTimeS, units }, summary };
 }
 
+/**
+ * The fixed custom breakpoints every course's custom plan is snapshotted with, as fractions of its
+ * length: a quarter, a half (twice, to check repeats are dropped) and three quarters.
+ */
+const CUSTOM_BREAKPOINT_FRACTIONS = [0.25, 0.5, 0.5, 0.75];
+
+/**
+ * The default track's plans of every fixed type (B11) for the same goal as `planGolden`: Even,
+ * Splits of one unit, and Custom at `CUSTOM_BREAKPOINT_FRACTIONS`, each in both unit systems, with
+ * the root mean square gap from the ideal pace so the types compare at a glance.
+ */
+function planTypesGolden(profile: ElevationProfile) {
+  const lengthM = courseLengthM(profile.course);
+  if (profile.course.points.length < 2 || lengthM === 0) return null;
+  const goalTimeS = Math.round((lengthM / METERS_PER_MILE) * PLAN_GOAL_S_PER_MI);
+  const units = (["mi", "km"] as const).map((unit) => {
+    const pace = (sPerM: number) => roundTo(paceToUnit(sPerM, unit), PRECISION.paceS);
+    const types = (["even", "splits", "custom"] as const).map((type) => {
+      const breakpointsM = CUSTOM_BREAKPOINT_FRACTIONS.map((f) => f * lengthM);
+      const plan = computePlan(profile.course, { goalTimeS, paceChanges: 0, unit, type, breakpointsM });
+      return {
+        type,
+        totalTimeS: roundTo(plan.totalTimeS, PRECISION.paceS),
+        rmsPaceGap: pace(Math.sqrt(plan.error / lengthM)),
+        segments: plan.segments.map((s) => ({
+          endM: roundTo(s.endM, PRECISION.distanceM),
+          pace: pace(s.paceSPerM),
+          reason: s.reason,
+        })),
+      };
+    });
+    return { unit, types };
+  });
+  const summary: Record<string, string> = {};
+  for (const { unit, types } of units) {
+    for (const t of types) {
+      const paces = t.segments.map((s) => s.pace);
+      summary[`${t.type} per ${unit}: segments, rms gap, slowest / fastest pace (s)`] =
+        `${t.segments.length}, ${t.rmsPaceGap}, ${Math.max(...paces)} / ${Math.min(...paces)}`;
+    }
+  }
+  return { output: { goalTimeS, units }, summary };
+}
+
+function planTypesCase(file: string): GoldenCase {
+  return {
+    name: `plan-types-${courseName(file)}`,
+    description: `Even, Splits and Custom plans for \`test/fixtures/gpx/${file}\`.`,
+    compute: async () => {
+      const gpx = parseGpx(readFileSync(join(GPX_DIR, file), "utf8"));
+      const track = gpx.tracks[gpx.defaultTrack]!;
+      const profile = await buildElevationProfile(track.course, { provider: fixtureDemProvider() });
+      const result = planTypesGolden(profile);
+      return { output: result?.output ?? null, summary: result?.summary ?? { plan: "none" } };
+    },
+  };
+}
+
 /** The default track's elevation profile and plans, every number rounded. */
 async function elevationGolden(gpx: ReturnType<typeof parseGpx>) {
   const track = gpx.tracks[gpx.defaultTrack]!;
@@ -194,4 +252,8 @@ export const goldenCases: GoldenCase[] = [
     .filter((f) => f.endsWith(".gpx"))
     .sort()
     .map(gpxCase),
+  ...readdirSync(GPX_DIR)
+    .filter((f) => f.endsWith(".gpx"))
+    .sort()
+    .map(planTypesCase),
 ];

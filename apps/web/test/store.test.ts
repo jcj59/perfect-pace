@@ -96,12 +96,18 @@ describe("app state", () => {
       goalTimeS: null,
       paceChanges: 4,
       minSegmentM: 0.25 * 1609.344,
+      planType: "optimal",
+      splitM: 1609.344,
+      breakpointsM: [],
+      tableView: "segments",
       selectedSegment: null,
       linkError: null,
+      race: null,
     });
     expect(initialAppState(storage("light")).theme).toBe("light");
-    // Kilometer users start at half a kilometer.
+    // Kilometer users start at half a kilometer, and kilometer splits.
     expect(initialAppState(storage(null), "de-DE").minSegmentM).toBe(500);
+    expect(initialAppState(storage(null), "de-DE").splitM).toBe(1000);
   });
 
   it("falls back to the system theme for missing, unknown or unreadable values", () => {

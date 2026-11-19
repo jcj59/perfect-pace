@@ -13,6 +13,7 @@ import {
   routeLengthM,
   shownDistance,
   startDrawing,
+  tabToMap,
   tapAt,
   waypointAt,
   waypoints,
@@ -78,7 +79,11 @@ test("draw 4 points: 3 routed legs, the live distance, and the course in the cha
   expect(stub.calls).toHaveLength(3);
 });
 
-test("dragging a waypoint re-routes only its two legs; undo and redo use the cache", async ({ page }) => {
+test("dragging a waypoint re-routes only its two legs; undo and redo use the cache", async ({ page, browserName }) => {
+  test.skip(
+    isPhone(page) && browserName !== "chromium",
+    "touch drags go through CDP, Chromium only: https://github.com/jcj59/perfect-pace/issues/42",
+  );
   const stub = await drawFour(page);
   const before = await waypoints(page);
   const lengthBefore = routeLengthM(stub, before);
@@ -123,7 +128,11 @@ test("dragging a waypoint re-routes only its two legs; undo and redo use the cac
   await expect(page.getByTestId("draw-summary")).toHaveText("0 points, 0 legs");
 });
 
-test("dragging a leg's midpoint inserts a point; tapping a point removes it", async ({ page }) => {
+test("dragging a leg's midpoint inserts a point; tapping a point removes it", async ({ page, browserName }) => {
+  test.skip(
+    isPhone(page) && browserName !== "chromium",
+    "touch drags go through CDP, Chromium only: https://github.com/jcj59/perfect-pace/issues/42",
+  );
   const stub = await drawFour(page);
   const before = await waypoints(page);
   await dragFromTo(page, await handleCenter(page, "leg-midpoint", 0), await mapPoint(page, 0.45, 0.1));
@@ -238,9 +247,8 @@ test("starting to draw replaces nothing until there is a route, and Cancel goes 
 // arrow keys move a focused point (routing once the key is let go), and Enter removes it.
 test("drawing with the keyboard alone: add, move and remove points", async ({ page }) => {
   const stub = await startDrawing(page);
-  await page.keyboard.press("Shift"); // the last input was a key, so focus shows the crosshair
+  await tabToMap(page);
   const canvas = page.locator("canvas.maplibregl-canvas");
-  await canvas.focus();
   await expect(canvas).toHaveAttribute("aria-label", /Enter adds a point at the center/);
   await expect(page.getByTestId("draw-crosshair")).toBeVisible();
   await page.keyboard.press("Enter");

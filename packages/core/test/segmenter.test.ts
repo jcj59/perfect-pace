@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type Segmentation, segmentLeastSquares } from "../src/index.ts";
+import { type Segmentation, segmentLeastSquares, segmentPartition } from "../src/index.ts";
 import { mulberry32 } from "./support/rng.ts";
 
 /** The weighted squared error of `bounds` at each piece's weighted mean, summed term by term. */
@@ -71,6 +71,18 @@ function naiveDp(values: number[], weights: number[], maxPieces: number, minW: n
   return out;
 }
 
+/**
+ * Fails with `message()` when `ok` is false. The loops below check hundreds of thousands of facts, and an
+ * `expect` costs microseconds each even when it passes (about 98% of the exhaustive case's time),
+ * so they test plain conditions and build a message only for a failure.
+ */
+function check(ok: boolean, message: () => string): void {
+  if (!ok) expect.fail(message());
+}
+
+/** `toBeCloseTo(expected, 9)`: within half of 1e-9. */
+const closeTo9 = (actual: number, expected: number): boolean => Math.abs(actual - expected) < 5e-10;
+
 /** Everything a valid result must satisfy, whatever the input. */
 function checkValid(result: Segmentation[], values: number[], weights: number[], minW: number, label: string): void {
   const n = values.length;
@@ -78,30 +90,33 @@ function checkValid(result: Segmentation[], values: number[], weights: number[],
   const totalWO = weights.reduce((s, w, i) => s + w * values[i]!, 0);
   result.forEach((r, idx) => {
     const k = idx + 1;
-    expect(r.maxPieces, label).toBe(k);
+    const at = (what: string) => () => `${label}, k = ${k}: ${what} (bounds ${r.bounds.join()})`;
+    check(r.maxPieces === k, at(`maxPieces is ${r.maxPieces}`));
     const { bounds } = r;
-    expect(bounds[0], label).toBe(0);
-    expect(bounds.at(-1), label).toBe(n);
-    for (let p = 1; p < bounds.length; p++) expect(bounds[p]!, label).toBeGreaterThan(bounds[p - 1]!);
-    expect(bounds.length - 1, label).toBeLessThanOrEqual(k);
-    expect(r.values.length, label).toBe(bounds.length - 1);
+    check(bounds[0] === 0, at("does not start at 0"));
+    check(bounds.at(-1) === n, at(`does not end at ${n}`));
+    for (let p = 1; p < bounds.length; p++) check(bounds[p]! > bounds[p - 1]!, at("bounds not increasing"));
+    check(bounds.length - 1 <= k, at("too many pieces"));
+    check(r.values.length === bounds.length - 1, at(`${r.values.length} values`));
     if (bounds.length > 2) {
-      for (const w of pieceWeights(weights, bounds)) expect(w, label).toBeGreaterThanOrEqual(minW - 1e-9);
+      for (const w of pieceWeights(weights, bounds)) check(w >= minW - 1e-9, at(`a piece weighs ${w} < ${minW}`));
     }
-    expect(r.error, label).toBeCloseTo(directError(values, weights, bounds), 9);
+    const direct = directError(values, weights, bounds);
+    check(closeTo9(r.error, direct), at(`error ${r.error}, recomputed ${direct}`));
     // The pieces' total "time" is the input's: the reason the plan meets the goal for free.
     const time = pieceWeights(weights, bounds).reduce((s, w, p) => s + w * r.values[p]!, 0);
-    expect(time, label).toBeCloseTo(totalWO, 9);
-    if (idx > 0) expect(r.error, label).toBeLessThanOrEqual(result[idx - 1]!.error + 1e-12 * scale);
+    check(closeTo9(time, totalWO), at(`total time ${time}, input ${totalWO}`));
+    if (idx > 0) {
+      const previous = result[idx - 1]!.error;
+      check(r.error <= previous + 1e-12 * scale, at(`error ${r.error} above k - 1's ${previous}`));
+    }
   });
 }
 
 function expectMatches(actual: number[], expected: number[], scale: number, label: string): void {
   expect(actual.length, label).toBe(expected.length);
   actual.forEach((e, k) => {
-    expect(Math.abs(e - expected[k]!), `${label}, k = ${k + 1}: ${e} vs ${expected[k]}`).toBeLessThanOrEqual(
-      1e-9 * (1 + scale),
-    );
+    check(Math.abs(e - expected[k]!) <= 1e-9 * (1 + scale), () => `${label}, k = ${k + 1}: ${e} vs ${expected[k]}`);
   });
 }
 
@@ -245,5 +260,30 @@ describe("segmentLeastSquares", () => {
     [[1], [Infinity], { maxPieces: 1 }, /weight 0/],
   ])("rejects invalid input %#", (values, weights, options, message) => {
     expect(() => segmentLeastSquares(values, weights, options)).toThrow(message);
+  });
+});
+
+describe("segmentPartition", () => {
+  const values = [1, 1, 5, 5, 5, 2];
+  const weights = [1, 2, 1, 1, 2, 4];
+
+  it("gives each piece its weighted mean and the error the DP would give that partition", () => {
+    const fixed = segmentPartition(values, weights, [0, 2, 5, 6]);
+    expect(fixed.values).toEqual([1, 5, 2]);
+    expect(fixed.error).toBeCloseTo(0, 9);
+    expect(fixed.maxPieces).toBe(3);
+    const one = segmentPartition(values, weights, [0, 6]);
+    const dp = segmentLeastSquares(values, weights, { maxPieces: 1 })[0]!;
+    expect(one).toEqual(dp);
+    const two = segmentPartition(values, weights, [0, 3, 6]);
+    expect(two.values[0]).toBeCloseTo((1 + 2 + 5) / 4, 12);
+    expect(two.values[1]).toBeCloseTo((5 + 10 + 8) / 7, 12);
+    expect(two.error).toBeCloseTo(directError(values, weights, [0, 3, 6]), 9);
+  });
+
+  it("rejects bounds that do not cover the values in increasing order", () => {
+    for (const bounds of [[0, 5], [1, 6], [0], [0, 3, 3, 6], [0, 2.5, 6]]) {
+      expect(() => segmentPartition(values, weights, bounds), String(bounds)).toThrow(RangeError);
+    }
   });
 });
