@@ -1,0 +1,52 @@
+name: Full CI
+
+# Adding the `full-ci` label to a PR makes CI run the full suite on its head commit (every E2E
+# project, the timing budgets and Lighthouse), which is what reports the required `e2e` and
+# `lighthouse` checks. A label event cannot start a CI run by itself, so this re-runs the head
+# commit's CI run (cancelling it first if it is still going); the re-run's `changes` job reads the
+# PR's labels again and picks a full run. A re-run keeps the run's pull_request event, so its
+# checks belong to the PR like any other. Later pushes to a labeled PR run in full on their own.
+
+on:
+  pull_request:
+    types: [labeled]
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  rerun:
+    if: github.event.label.name == 'full-ci'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Re-run CI on the PR head as a full run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          latest() {
+            gh run list --workflow ci.yml --event pull_request --commit "$SHA" --limit 1 \
+              --json databaseId,status --jq '.[0] | "\(.databaseId) \(.status)"'
+          }
+          # A run that has not been created yet reads the label itself.
+          for _ in $(seq 1 6); do
+            read -r id status <<<"$(latest)"
+            [ -n "$id" ] && break
+            sleep 10
+          done
+          if [ -z "$id" ]; then
+            echo "No CI run for $SHA yet; it will see the label and run in full."
+            exit 0
+          fi
+          if [ "$status" != completed ]; then
+            gh run cancel "$id" || true
+            for _ in $(seq 1 30); do
+              [ "$(gh run view "$id" --json status --jq .status)" = completed ] && break
+              sleep 10
+            done
+          fi
+          gh run rerun "$id"
+          echo "### Full CI started: re-ran run $id on \`${SHA::7}\`" >> "$GITHUB_STEP_SUMMARY"

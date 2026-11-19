@@ -1,21 +1,30 @@
 name: CI
 
-# Every PR: static checks, unit/golden/integration tests, performance budgets, a Cloudflare
-# preview deploy, and Playwright E2E, visual and axe checks (and Lighthouse) against that preview. The E2E suite
-# starts as soon as the preview is up (in parallel with verify and perf) and is split across
-# shards; the `e2e` job at the end gathers them into one result.
-# Required checks on main: verify, perf, preview, e2e, lighthouse.
+# Every PR gets one of three kinds of run (decided by the `changes` job):
+# - quick (every push by default): verify, perf, preview, and the desktop E2E project on 3 shards.
+#   The required `e2e` and `lighthouse` checks are NOT reported (those jobs get other names), so
+#   branch protection keeps the PR unmergeable until a full run passes on the head commit.
+# - full: verify, perf, preview, every E2E project (desktop, iPhone, Pixel) on 8 shards, the
+#   timing budgets (`e2e-perf`) and Lighthouse; the `e2e` and `lighthouse` jobs gather them into
+#   the required checks. Runs when the PR has the `full-ci` label (adding it re-runs the head
+#   commit's run, see ci-full.yml), when it is marked ready for review, and on a manual run.
+# - docs: only documentation changed. verify runs; the rest is skipped, `e2e` and `lighthouse` pass.
+# Required checks on main: verify, perf, preview, e2e, lighthouse. See CONTRIBUTING.md.
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
   workflow_dispatch:
 
 concurrency:
+  # One run per PR at a time: a new push cancels the run it supersedes.
   group: ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 permissions:
   contents: read
+  # `changes` reads the PR's current labels (a re-run keeps the original event's).
+  pull-requests: read
 
 env:
   WRANGLER_SEND_METRICS: "false"
@@ -38,6 +47,8 @@ jobs:
       - run: pnpm build
 
   perf:
+    needs: changes
+    if: needs.changes.outputs.mode != 'docs'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -46,31 +57,67 @@ jobs:
       - name: Benchmarks within budget
         run: pnpm perf
 
-  # Whether the E2E suite has anything to test: it is skipped (and `e2e` passes) only when every
-  # changed file is documentation the app and the tests never read. verify still runs on those.
+  # Picks the kind of run (see the top of this file): `mode` is docs, quick or full, plus the
+  # Playwright projects and shard list the `e2e-shard` matrix uses for it.
   changes:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
-      e2e: ${{ steps.filter.outputs.e2e }}
+      mode: ${{ steps.mode.outputs.mode }}
+      projects: ${{ steps.mode.outputs.projects }}
+      shards: ${{ steps.mode.outputs.shards }}
     steps:
       - uses: actions/checkout@v7
+        if: github.event_name == 'pull_request'
         with:
           # The PR merge commit and its first parent (the base branch), to diff the two.
           fetch-depth: 2
-      - id: filter
+      - id: mode
+        env:
+          ACTION: ${{ github.event.action }}
+          PR: ${{ github.event.pull_request.number }}
+          GH_TOKEN: ${{ github.token }}
         run: |
-          e2e=true
-          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+          mode=quick
+          why="a push without the full-ci label"
+          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
+            mode=full why="a manual run"
+          else
             git diff --name-only HEAD^1 HEAD | tee changed.txt
+            # The labels now, not the event's: adding full-ci re-runs this run (ci-full.yml).
+            labels=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR" --jq '.labels[].name')
             if [ -s changed.txt ] && ! grep -qvE '^(docs/.+|[^/]+\.md)$' changed.txt; then
-              e2e=false
-              echo "### E2E skipped: only documentation changed" >> "$GITHUB_STEP_SUMMARY"
+              mode=docs why="only documentation changed"
+            elif grep -qx full-ci <<<"$labels"; then
+              mode=full why="the PR has the full-ci label"
+            elif [ "$ACTION" = ready_for_review ]; then
+              mode=full why="the PR was marked ready for review"
             fi
           fi
-          echo "e2e=$e2e" >> "$GITHUB_OUTPUT"
+          if [ "$mode" = full ]; then
+            projects="--project desktop --project iphone --project pixel"
+            shards="[1, 2, 3, 4, 5, 6, 7, 8]"
+          else
+            projects="--project desktop"
+            shards="[1, 2, 3]"
+          fi
+          {
+            echo "mode=$mode"
+            echo "projects=$projects"
+            echo "shards=$shards"
+          } >> "$GITHUB_OUTPUT"
+          echo "### $mode run: $why" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$mode" = quick ]; then
+            {
+              echo
+              echo "Desktop E2E only. The required \`e2e\` and \`lighthouse\` checks report only from a full run."
+              echo "Add the \`full-ci\` label (\`gh pr edit ${PR:-<n>} --add-label full-ci\`) when the PR is ready."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
 
   preview:
+    needs: changes
+    if: needs.changes.outputs.mode != 'docs'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     outputs:
@@ -117,13 +164,13 @@ jobs:
             echo "- Version: \`$version\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
-  # The desktop, iPhone and Pixel projects, split evenly by test count. Each shard is a full
-  # Playwright run on its own runner, in the same image `pnpm visual:update` uses, so screenshots
-  # match the committed baselines.
+  # A full run: the desktop, iPhone and Pixel projects on 8 shards. A quick run: desktop only, on
+  # 3. Split evenly by test count. Each shard is a full Playwright run on its own runner, in the
+  # same image `pnpm visual:update` uses, so screenshots match the committed baselines.
   e2e-shard:
     name: e2e shard ${{ matrix.shard }}/${{ strategy.job-total }}
     needs: [changes, preview]
-    if: needs.changes.outputs.e2e == 'true'
+    if: needs.changes.outputs.mode == 'full' || needs.changes.outputs.mode == 'quick'
     runs-on: ubuntu-latest
     # A shard takes 3 to 5 minutes; the headroom covers a slow runner and the suite growing until
     # the shard count is raised (see CONTRIBUTING.md).
@@ -131,7 +178,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4, 5, 6, 7, 8]
+        shard: ${{ fromJSON(needs.changes.outputs.shards) }}
     container:
       image: mcr.microsoft.com/playwright:v1.65.0-noble
       options: --ipc=host
@@ -139,6 +186,7 @@ jobs:
       PP_BASE_URL: ${{ needs.preview.outputs.url }}
       PP_EXPECT_VERSION: ${{ needs.preview.outputs.version }}
       SHARD: ${{ matrix.shard }}/${{ strategy.job-total }}
+      PROJECTS: ${{ needs.changes.outputs.projects }}
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
@@ -148,12 +196,12 @@ jobs:
       - name: E2E, visual and axe
         env:
           PP_BLOB_REPORT: "1"
-        run: pnpm e2e --project desktop --project iphone --project pixel --shard "$SHARD"
+        run: pnpm e2e $PROJECTS --shard "$SHARD"
       - name: Quarantined tests (non-blocking)
         continue-on-error: true
         env:
           PP_QUARANTINE: "1"
-        run: pnpm e2e --project desktop --project iphone --project pixel --shard "$SHARD" --pass-with-no-tests --reporter=list
+        run: pnpm e2e $PROJECTS --shard "$SHARD" --pass-with-no-tests --reporter=list
       - uses: actions/upload-artifact@v7
         if: success() || failure()
         with:
@@ -170,9 +218,10 @@ jobs:
           retention-days: 14
 
   # The timing budgets that must not share the CPU, on a runner of their own, one at a time.
+  # Full runs only.
   e2e-perf:
     needs: [changes, preview]
-    if: needs.changes.outputs.e2e == 'true'
+    if: needs.changes.outputs.mode == 'full'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     container:
@@ -209,9 +258,13 @@ jobs:
           path: e2e/test-results
           retention-days: 14
 
-  # The required check: passes only when every shard and the perf budgets passed (or E2E was
-  # skipped because only documentation changed).
+  # The required check, reported only by a full or docs run. In a full run it passes only when
+  # every shard and the timing budgets passed; in a docs run, when `changes` did. In a quick run
+  # this job is named `e2e (quick)` instead and reports the desktop subset, so the required `e2e`
+  # stays "expected" (merge blocked) until a full run passes on the head commit. (A job's name is
+  # only evaluated when it runs, hence `always()`: a skipped job shows its raw expression.)
   e2e:
+    name: ${{ needs.changes.outputs.mode == 'quick' && 'e2e (quick)' || 'e2e' }}
     needs: [changes, preview, e2e-shard, e2e-perf]
     if: always()
     runs-on: ubuntu-latest
@@ -219,24 +272,39 @@ jobs:
     steps:
       - name: Every E2E job passed
         env:
-          RUN_E2E: ${{ needs.changes.outputs.e2e }}
+          MODE: ${{ needs.changes.outputs.mode }}
           CHANGES: ${{ needs.changes.result }}
           PREVIEW: ${{ needs.preview.result }}
           SHARDS: ${{ needs.e2e-shard.result }}
           PERF: ${{ needs.e2e-perf.result }}
+          PR: ${{ github.event.pull_request.number }}
         run: |
-          echo "changes=$CHANGES preview=$PREVIEW e2e-shard=$SHARDS e2e-perf=$PERF (run e2e: $RUN_E2E)"
-          if [ "$CHANGES" = success ] && [ "$PREVIEW" = success ] && [ "$RUN_E2E" = false ]; then
-            echo "Only documentation changed: E2E skipped."
-            exit 0
-          fi
-          [ "$CHANGES" = success ] && [ "$PREVIEW" = success ] && [ "$SHARDS" = success ] && [ "$PERF" = success ]
+          echo "mode=$MODE changes=$CHANGES preview=$PREVIEW e2e-shard=$SHARDS e2e-perf=$PERF"
+          [ "$CHANGES" = success ] || exit 1
+          case "$MODE" in
+            docs)
+              echo "Only documentation changed: E2E skipped."
+              ;;
+            full)
+              [ "$PREVIEW" = success ] && [ "$SHARDS" = success ] && [ "$PERF" = success ]
+              ;;
+            quick)
+              [ "$PREVIEW" = success ] && [ "$SHARDS" = success ] || exit 1
+              msg="Desktop E2E subset passed. This is not the required e2e check: it reports only from a full run. Add the full-ci label (gh pr edit ${PR:-<n>} --add-label full-ci) to run the full suite on this commit."
+              echo "::notice title=Full run needed before merge::$msg"
+              echo "$msg" >> "$GITHUB_STEP_SUMMARY"
+              ;;
+            *) exit 1 ;;
+          esac
 
   # One HTML report for the whole run, merged from every shard's blob report. Not a required
-  # check: it only packages what the shards already decided.
+  # check: it only packages what the shards already decided. Every full run; a quick run only
+  # when something failed.
   e2e-report:
     needs: [changes, e2e-shard, e2e-perf]
-    if: always() && needs.changes.outputs.e2e == 'true'
+    if: >-
+      always() && (needs.changes.outputs.mode == 'full' ||
+      (needs.changes.outputs.mode == 'quick' && needs.e2e-shard.result == 'failure'))
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -256,9 +324,10 @@ jobs:
           retention-days: 14
 
   # Lighthouse accessibility (at least 95, phone and desktop) against the preview. Installability
-  # and the service worker are asserted in the E2E suite (e2e/tests/pwa.spec.ts).
-  lighthouse:
-    needs: preview
+  # and the service worker are asserted in the E2E suite (e2e/tests/pwa.spec.ts). Full runs only.
+  lighthouse-run:
+    needs: [changes, preview]
+    if: needs.changes.outputs.mode == 'full'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     container:
@@ -280,3 +349,27 @@ jobs:
           name: lighthouse-${{ github.run_attempt }}
           path: e2e/lighthouse-report
           retention-days: 14
+
+  # The required check: Lighthouse's result in a full run, a pass in a docs run. In a quick run it
+  # is named `lighthouse (full run only)`, so the required `lighthouse` stays expected.
+  lighthouse:
+    name: ${{ needs.changes.outputs.mode == 'quick' && 'lighthouse (full run only)' || 'lighthouse' }}
+    needs: [changes, lighthouse-run]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Lighthouse passed
+        env:
+          MODE: ${{ needs.changes.outputs.mode }}
+          CHANGES: ${{ needs.changes.result }}
+          RUN: ${{ needs.lighthouse-run.result }}
+        run: |
+          echo "mode=$MODE changes=$CHANGES lighthouse-run=$RUN"
+          [ "$CHANGES" = success ] || exit 1
+          case "$MODE" in
+            docs) echo "Only documentation changed: Lighthouse skipped." ;;
+            full) [ "$RUN" = success ] ;;
+            quick) echo "::notice title=Full run needed before merge::Lighthouse runs only in a full run (add the full-ci label)." ;;
+            *) exit 1 ;;
+          esac
