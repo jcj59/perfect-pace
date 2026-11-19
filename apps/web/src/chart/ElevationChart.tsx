@@ -8,8 +8,10 @@ import {
   useLayoutEffect,
   useMemo,
   useRef,
+  useState,
 } from "react";
 import { useWidth } from "../layout/useWidth.ts";
+import { movedBreakpoints, withBreakpoint } from "../plan/breakpoints.ts";
 import { type Quantity, elevationInUnits, formatDistance, formatElevation, quantityText } from "../panel/format.ts";
 import { type Tone, toneVar } from "../plan/tones.ts";
 import { appStore, setFocusDistM, useAppState } from "../state/app.ts";
@@ -37,6 +39,18 @@ export interface ChartSegment {
   tone: Tone;
 }
 
+/** Custom breakpoints to show and edit on the chart (see `ElevationChart`). */
+export interface BreakpointEditor {
+  /** Where the pace changes, meters from the start, in order. */
+  valuesM: readonly number[];
+  onChange: (valuesM: number[]) => void;
+}
+
+/** How far from a breakpoint's line, in CSS pixels, a press picks it up: a fingertip needs more than a mouse. */
+const GRAB_PX = { mouse: 8, touch: 18 } as const;
+/** A press that moves farther than this is a scrub, not a tap that places a breakpoint. */
+const TAP_SLOP_PX = 8;
+
 export interface ElevationChartProps {
   profile: ElevationProfile;
   units: DistanceUnit;
@@ -45,6 +59,11 @@ export interface ElevationChartProps {
    * drawn in the accent color. The store's `selectedSegment` is highlighted and the rest dimmed.
    */
   segments?: readonly ChartSegment[] | undefined;
+  /**
+   * Custom breakpoints. With them, a click or tap places one, pressing on one drags it, and
+   * Enter places one at the cursor.
+   */
+  breakpoints?: BreakpointEditor | undefined;
 }
 
 interface Geometry {
@@ -125,8 +144,13 @@ function layout(profile: ElevationProfile, units: DistanceUnit, width: number): 
  * it by touch, or the arrow keys once focused) points at a spot on the course: the map shows a
  * marker there, and hovering the route on the map moves this chart's cursor in turn. A slider to
  * assistive technology, with the distance and elevation as its value.
+ *
+ * With `breakpoints` (a Custom plan) it also edits them: a click or tap places one on the nearest
+ * course point, pressing on one's line drags it (never past its neighbors), and Enter places one at
+ * the cursor for the keyboard. A press that moves is still a scrub, so pointing at the course
+ * works as before.
  */
-export function ElevationChart({ profile, units, segments }: ElevationChartProps) {
+export function ElevationChart({ profile, units, segments, breakpoints }: ElevationChartProps) {
   const [root, width] = useWidth<HTMLDivElement>();
   const readout = useRef<HTMLDivElement>(null);
   const gradient = useId();
@@ -177,26 +201,107 @@ export function ElevationChart({ profile, units, segments }: ElevationChartProps
     return () => document.removeEventListener("pointerdown", clear, true);
   }, [root]);
 
-  const onPointerDown = (event: PointerEvent) => {
+  // Breakpoint editing: the press that may become a tap, the breakpoint being dragged, and
+  // whether the mouse is over one (for the cursor).
+  const tap = useRef<{ id: number; x: number; y: number } | null>(null);
+  const drag = useRef<{ id: number; index: number } | null>(null);
+  const [overHandle, setOverHandle] = useState(false);
+  const [dragging, setDragging] = useState<number | null>(null);
+  const clientDistM = (clientX: number): number | undefined => {
+    const element = root.current;
+    if (!element || !geometry) return undefined;
+    return unitToMeters(geometry.x.invert(clientX - element.getBoundingClientRect().left), units);
+  };
+  /** The breakpoint whose line is within reach of `clientX`, nearest first. */
+  const handleAt = (clientX: number, pointerType: string): number | undefined => {
+    const element = root.current;
+    if (!breakpoints || !element || !geometry) return undefined;
+    const x = clientX - element.getBoundingClientRect().left;
+    const reach = pointerType === "mouse" ? GRAB_PX.mouse : GRAB_PX.touch;
+    let best: number | undefined;
+    let bestGap: number = reach;
+    breakpoints.valuesM.forEach((m, i) => {
+      const gap = Math.abs(geometry.x(metersToUnit(m, units)) - x);
+      if (gap <= bestGap) {
+        bestGap = gap;
+        best = i;
+      }
+    });
+    return best;
+  };
+
+  const onPointerDown = (event: PointerEvent<HTMLDivElement>) => {
     if (event.pointerType !== "mouse") touched.current = true;
+    if (breakpoints && event.button === 0) {
+      const index = handleAt(event.clientX, event.pointerType);
+      if (index !== undefined) {
+        drag.current = { id: event.pointerId, index };
+        setDragging(index);
+        event.currentTarget.setPointerCapture?.(event.pointerId);
+        event.preventDefault();
+      } else tap.current = { id: event.pointerId, x: event.clientX, y: event.clientY };
+    }
     focusAtClientX(event.clientX);
   };
   const onPointerMove = (event: PointerEvent) => {
+    const held = drag.current;
+    if (breakpoints && held?.id === event.pointerId) {
+      const distM = clientDistM(event.clientX);
+      if (distM === undefined) return;
+      const next = movedBreakpoints(profile.course, breakpoints.valuesM, held.index, distM);
+      if (next[held.index] !== breakpoints.valuesM[held.index]) breakpoints.onChange(next);
+      focusAt(next[held.index]!);
+      return;
+    }
+    const pressed = tap.current;
+    if (
+      pressed?.id === event.pointerId &&
+      Math.hypot(event.clientX - pressed.x, event.clientY - pressed.y) > TAP_SLOP_PX
+    ) {
+      tap.current = null;
+    }
+    if (breakpoints && event.pointerType === "mouse") {
+      setOverHandle(handleAt(event.clientX, "mouse") !== undefined);
+    }
     // A touch moves only while pressed, and the browser captures it to this element.
     focusAtClientX(event.clientX);
   };
+  const onPointerUp = (event: PointerEvent) => {
+    if (drag.current?.id === event.pointerId) {
+      drag.current = null;
+      setDragging(null);
+      return;
+    }
+    const pressed = tap.current;
+    tap.current = null;
+    if (!breakpoints || pressed?.id !== event.pointerId) return;
+    const distM = clientDistM(event.clientX);
+    const next = distM === undefined ? undefined : withBreakpoint(profile.course, breakpoints.valuesM, distM);
+    if (next) breakpoints.onChange(next);
+  };
   const onPointerLeave = (event: PointerEvent) => {
-    if (event.pointerType !== "touch") setFocusDistM(null);
+    setOverHandle(false);
+    if (event.pointerType !== "touch" && drag.current === null) setFocusDistM(null);
   };
   // The browser took the touch over to scroll the panel.
   const onPointerCancel = () => {
     touched.current = false;
+    tap.current = null;
+    drag.current = null;
+    setDragging(null);
     setFocusDistM(null);
   };
 
   const smallStepM = unitToMeters(0.1, units);
   const onKeyDown = (event: KeyboardEvent) => {
-    const from = appStore.get().focusDistM ?? 0;
+    const focusM = appStore.get().focusDistM;
+    if (breakpoints && event.key === "Enter") {
+      event.preventDefault();
+      const next = focusM === null ? undefined : withBreakpoint(profile.course, breakpoints.valuesM, focusM);
+      if (next) breakpoints.onChange(next);
+      return;
+    }
+    const from = focusM ?? 0;
     const target: Record<string, number> = {
       ArrowRight: from + smallStepM,
       ArrowUp: from + smallStepM,
@@ -234,10 +339,12 @@ export function ElevationChart({ profile, units, segments }: ElevationChartProps
       aria-valuetext={`${quantityText(distance)}, elevation ${quantityText(elevation)}`}
       data-testid="elevation-chart"
       data-focus-m={focused ? focused.distM : undefined}
-      className="relative cursor-crosshair touch-pan-y rounded-lg select-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+      data-editing={breakpoints ? "breakpoints" : undefined}
+      className={`relative touch-pan-y rounded-lg select-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${dragging !== null || overHandle ? "cursor-ew-resize" : "cursor-crosshair"}`}
       style={{ height: CHART_HEIGHT_PX }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
       onPointerLeave={onPointerLeave}
       onPointerCancel={onPointerCancel}
       onKeyDown={onKeyDown}
@@ -248,6 +355,7 @@ export function ElevationChart({ profile, units, segments }: ElevationChartProps
         Elevation along the course, from {quantityText(formatElevation(profile.stats.minM, units))} to{" "}
         {quantityText(formatElevation(profile.stats.maxM, units))}. Use the arrow keys to move along the course and see
         the point on the map.
+        {breakpoints && " Press Enter to add a breakpoint at that point; edit or remove breakpoints in the list below."}
       </p>
       {geometry && (
         <svg width={geometry.width} height={CHART_HEIGHT_PX} className="block overflow-visible" aria-hidden="true">
@@ -316,6 +424,9 @@ export function ElevationChart({ profile, units, segments }: ElevationChartProps
               </text>
             ))}
           </g>
+          {breakpoints && (
+            <BreakpointHandles geometry={geometry} valuesM={breakpoints.valuesM} units={units} dragging={dragging} />
+          )}
           {cursor && (
             <g data-testid="chart-cursor">
               <line
@@ -430,5 +541,63 @@ function SegmentLayers({
         ))}
       </g>
     </>
+  );
+}
+
+/**
+ * The custom breakpoints on the chart: a line across the plot at each, with a grip at its top to
+ * show it can be dragged. The one being dragged is drawn stronger.
+ */
+function BreakpointHandles({
+  geometry,
+  valuesM,
+  units,
+  dragging,
+}: {
+  geometry: Geometry;
+  valuesM: readonly number[];
+  units: DistanceUnit;
+  dragging: number | null;
+}) {
+  const { x, plotTop, plotBottom } = geometry;
+  return (
+    <g data-testid="chart-breakpoints">
+      {valuesM.map((m, i) => {
+        const at = x(metersToUnit(m, units));
+        const active = dragging === i;
+        return (
+          <g key={i} data-testid="chart-breakpoint" data-m={m} data-dragging={active || undefined}>
+            <line
+              x1={at}
+              x2={at}
+              y1={plotTop}
+              y2={plotBottom}
+              stroke="var(--pp-ink)"
+              strokeOpacity={active ? 0.9 : 0.55}
+              strokeWidth={active ? 2 : 1.5}
+              strokeDasharray={active ? undefined : "3 3"}
+            />
+            <rect
+              x={at - 5.5}
+              y={plotTop - 9}
+              width={11}
+              height={17}
+              rx={5.5}
+              fill={active ? "var(--pp-ink)" : "var(--pp-surface)"}
+              stroke="var(--pp-ink)"
+              strokeOpacity={active ? 1 : 0.7}
+              strokeWidth={1.5}
+            />
+            <path
+              d={`M${at - 1.75} ${plotTop - 3.5}v6M${at + 1.75} ${plotTop - 3.5}v6`}
+              stroke={active ? "var(--pp-surface)" : "var(--pp-ink)"}
+              strokeOpacity={active ? 1 : 0.7}
+              strokeWidth={1.2}
+              strokeLinecap="round"
+            />
+          </g>
+        );
+      })}
+    </g>
   );
 }

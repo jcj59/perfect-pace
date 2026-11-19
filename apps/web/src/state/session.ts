@@ -11,6 +11,8 @@
  *   its own text, so it comes back exactly; one too large for storage keeps a simplified copy
  *   instead (whose elevation then comes from terrain data, and the panel says so). Storage can be
  *   missing, full or blocked: every access is guarded, and the app works the same without it.
+ * - **The first view.** `startView` applies the start-up framing precedence (`camera.ts`) to
+ *   the link the page was opened with, the saved camera and the saved session.
  */
 import {
   type DrawnRoute,
@@ -18,7 +20,11 @@ import {
   type LatLon,
   ShareError,
   DEFAULT_CURVE_MAX_PACE_CHANGES,
+  MAX_CUSTOM_BREAKPOINTS,
+  MAX_SHARE_BREAKPOINT_M,
   MAX_SHARE_GOAL_S,
+  PLAN_TYPES,
+  type PlanType,
   type ShareTrack,
   type SharedCourse,
   type SharedPlan,
@@ -30,11 +36,22 @@ import {
   decodeSharedCourse,
   encodeSharedCourse,
   isShareFragment,
+  metersPerUnit,
 } from "@pp/core";
-import { type AppState, type PlanSettings, appStore, applyPlanSettings, setLinkError, setSheet } from "./app.ts";
+import {
+  type AppState,
+  type PlanSettings,
+  TABLE_VIEWS,
+  type TableView,
+  appStore,
+  applyPlanSettings,
+  setLinkError,
+  setSheet,
+} from "./app.ts";
 import { afterRouteDrawn, loadCourseCopy, loadGpxText, onGpxText, trackTitle } from "./course.ts";
 import { coreClient } from "../worker/client.ts";
 import { drawStore, drawing } from "./draw.ts";
+import { type StartFraming, holdStartCamera, readSavedCamera, releaseStartCamera, startFraming } from "./camera.ts";
 import { openRace, restoreRace } from "./race.ts";
 
 export const SESSION_STORAGE_KEY = "pp:session";
@@ -57,12 +74,21 @@ type SavedCourse =
   | { kind: "copy"; copy: "link" | "saved"; name: string; c: string }
   | { kind: "drawn"; c: string };
 
+/**
+ * The saved session. `planType`, `splitM`, `breakpointsM` and `tableView` came with plan types;
+ * a session saved before them has none, and gets the defaults.
+ */
 interface SavedSession {
   v: number;
   course: SavedCourse | null;
   goalTimeS: number | null;
   paceChanges: number;
   minSegmentM: number;
+  planType: PlanType;
+  /** Null for the default, one unit. */
+  splitM: number | null;
+  breakpointsM: number[];
+  tableView: TableView;
 }
 
 function storage(): Storage | undefined {
@@ -97,8 +123,12 @@ function write(key: string, value: string | null): boolean {
 /** The longest plan inputs a link can carry, so a course that fits with these fits with any. */
 const LONGEST_SETTINGS: SharedSettings = {
   goalTimeS: MAX_SHARE_GOAL_S,
+  // Custom carries the breakpoints, the longest field after the course.
+  planType: "custom",
   paceChanges: DEFAULT_CURVE_MAX_PACE_CHANGES,
   minSegmentM: 1609.344,
+  splitM: 1609.344,
+  breakpointsM: Array.from({ length: MAX_CUSTOM_BREAKPOINTS }, (_, i) => MAX_SHARE_BREAKPOINT_M - i),
   unit: "mi",
 };
 
@@ -171,8 +201,8 @@ export function shareUrl(prepared: PreparedShare, settings: SharedSettings, base
 }
 
 function settingsOf(plan: SharedPlan): PlanSettings {
-  const { goalTimeS, paceChanges, minSegmentM, unit } = plan.settings;
-  return { goalTimeS, paceChanges, minSegmentM, units: unit };
+  const { unit, ...rest } = plan.settings;
+  return { ...rest, units: unit };
 }
 
 /** Load the course and inputs of a share link. */
@@ -214,31 +244,78 @@ function parseSession(text: string | null): SavedSession | undefined {
     const goal = value.goalTimeS;
     if (!(goal === null || (isNumber(goal) && goal > 0))) return undefined;
     if (!isNumber(value.paceChanges) || !isNumber(value.minSegmentM) || value.minSegmentM < 0) return undefined;
+    // Saved before plan types, or damaged: each falls back to its default on its own.
+    const planType = PLAN_TYPES.includes(value.planType as PlanType) ? (value.planType as PlanType) : "optimal";
+    const splitM = isNumber(value.splitM) && value.splitM > 0 ? value.splitM : null;
+    const breakpointsM = Array.isArray(value.breakpointsM) ? value.breakpointsM.filter(isNumber) : [];
+    const tableView = TABLE_VIEWS.includes(value.tableView as TableView) ? (value.tableView as TableView) : "segments";
     return {
       v: SESSION_VERSION,
       course: value.course ?? null,
       goalTimeS: goal,
       paceChanges: value.paceChanges,
       minSegmentM: value.minSegmentM,
+      planType,
+      splitM,
+      breakpointsM,
+      tableView,
     };
   } catch {
     return undefined;
   }
 }
 
+/** Whether `fragment` is a share link that opens (one that cannot be read loads the session instead). */
+function opensShareLink(fragment: string): boolean {
+  if (!isShareFragment(fragment)) return false;
+  try {
+    decodeShare(fragment);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+let start: StartFraming | undefined;
+
+/**
+ * How the map frames its first view, worked out once per page from the address it was opened
+ * with (before the session takes the link off it), the saved camera and the saved session.
+ */
+export function startView(): StartFraming {
+  start ??= startFraming({
+    shareLink: opensShareLink(location.hash),
+    savedCamera: readSavedCamera(),
+    sessionCourse: Boolean(parseSession(read(SESSION_STORAGE_KEY))?.course),
+  });
+  return start;
+}
+
 /** Bring back the saved session, if there is one. */
 function restoreSaved(): void {
   const saved = parseSession(read(SESSION_STORAGE_KEY));
   if (!saved) return;
-  const settings: PlanSettings = { ...saved, units: appStore.get().units };
+  const units = appStore.get().units;
+  const settings: PlanSettings = {
+    goalTimeS: saved.goalTimeS,
+    planType: saved.planType,
+    paceChanges: saved.paceChanges,
+    minSegmentM: saved.minSegmentM,
+    splitM: saved.splitM ?? metersPerUnit(units),
+    breakpointsM: saved.breakpointsM,
+    units,
+  };
+  appStore.set({ tableView: saved.tableView });
   const course = saved.course;
+  // The saved camera wins over framing the restored course: the map stays where the user left it.
+  if (course && startView().kind === "saved") holdStartCamera();
   try {
     if (course?.kind === "file") {
       const text = read(SESSION_GPX_STORAGE_KEY);
-      if (!text || typeof course.fileName !== "string") return;
+      if (!text || typeof course.fileName !== "string") return releaseStartCamera();
       const { fileName, race } = course;
       void loadGpxText(text, fileName, course.track).then((ok) => {
-        if (!ok) return;
+        if (!ok) return releaseStartCamera();
         if (typeof race === "string") restoreRace(race, fileName);
         applyPlanSettings(settings);
       });
@@ -246,15 +323,16 @@ function restoreSaved(): void {
     }
     if (course?.kind === "drawn") {
       const shared = decodeSharedCourse(course.c);
-      if (shared.kind !== "drawn") return;
+      if (shared.kind !== "drawn") return releaseStartCamera();
       drawing.load(shared.route);
     } else if (course?.kind === "copy") {
       const shared = decodeSharedCourse(course.c);
-      if (shared.kind !== "track") return;
+      if (shared.kind !== "track") return releaseStartCamera();
       loadCourseCopy(shared.points, String(course.name), course.copy === "link" ? "link" : "saved");
     }
     applyPlanSettings(settings);
   } catch (error) {
+    releaseStartCamera();
     // A damaged session is dropped, never shown: the app starts as if there were none.
     if (!(error instanceof ShareError)) throw error;
     console.warn("Could not restore the last session:", error.detail);
@@ -365,6 +443,10 @@ export function saveSession(): void {
     goalTimeS: state.goalTimeS,
     paceChanges: state.paceChanges,
     minSegmentM: state.minSegmentM,
+    planType: state.planType,
+    splitM: state.splitM,
+    breakpointsM: state.breakpointsM,
+    tableView: state.tableView,
   };
   write(SESSION_STORAGE_KEY, JSON.stringify(session));
 }
@@ -381,9 +463,13 @@ export function startSession(): () => void {
     pendingText = { text, file };
   }, MAX_STORED_GPX_CHARS);
 
+  // Read before the link is taken off the address.
+  startView();
   const takeFragment = (): boolean => {
     const fragment = location.hash;
     if (!isShareFragment(fragment)) return false;
+    // A link's course is always framed, even one pasted while the restored course is on its way.
+    releaseStartCamera();
     history.replaceState(history.state, "", `${location.pathname}${location.search}`);
     openShareFragment(fragment);
     return appStore.get().linkError === null;
@@ -433,7 +519,11 @@ export function startSession(): () => void {
       state.goalTimeS !== previous.goalTimeS ||
       state.paceChanges !== previous.paceChanges ||
       state.minSegmentM !== previous.minSegmentM ||
-      state.race !== previous.race
+      state.race !== previous.race ||
+      state.planType !== previous.planType ||
+      state.splitM !== previous.splitM ||
+      state.breakpointsM !== previous.breakpointsM ||
+      state.tableView !== previous.tableView
     ) {
       schedule();
     }

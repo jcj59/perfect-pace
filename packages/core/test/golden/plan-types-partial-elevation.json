@@ -1,0 +1,117 @@
+{
+  "goalTimeS": 166,
+  "units": [
+    {
+      "unit": "mi",
+      "types": [
+        {
+          "type": "even",
+          "totalTimeS": 166,
+          "rmsPaceGap": 2.1,
+          "segments": [
+            {
+              "endM": 556,
+              "pace": 480.5,
+              "reason": "gentle descent: -0.3% over 0.3 mi"
+            }
+          ]
+        },
+        {
+          "type": "splits",
+          "totalTimeS": 166,
+          "rmsPaceGap": 2.1,
+          "segments": [
+            {
+              "endM": 556,
+              "pace": 480.5,
+              "reason": "gentle descent: -0.3% over 0.3 mi"
+            }
+          ]
+        },
+        {
+          "type": "custom",
+          "totalTimeS": 166,
+          "rmsPaceGap": 1,
+          "segments": [
+            {
+              "endM": 140,
+              "pace": 483.7,
+              "reason": "flat: +0.1% over 0.09 mi"
+            },
+            {
+              "endM": 280,
+              "pace": 479,
+              "reason": "gentle descent: -0.5% over 0.09 mi"
+            },
+            {
+              "endM": 420,
+              "pace": 479.7,
+              "reason": "gentle descent: -0.4% over 0.09 mi"
+            },
+            {
+              "endM": 556,
+              "pace": 479.6,
+              "reason": "gentle descent: -0.4% over 0.08 mi"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "unit": "km",
+      "types": [
+        {
+          "type": "even",
+          "totalTimeS": 166,
+          "rmsPaceGap": 1.3,
+          "segments": [
+            {
+              "endM": 556,
+              "pace": 298.6,
+              "reason": "gentle descent: -0.3% over 0.6 km"
+            }
+          ]
+        },
+        {
+          "type": "splits",
+          "totalTimeS": 166,
+          "rmsPaceGap": 1.3,
+          "segments": [
+            {
+              "endM": 556,
+              "pace": 298.6,
+              "reason": "gentle descent: -0.3% over 0.6 km"
+            }
+          ]
+        },
+        {
+          "type": "custom",
+          "totalTimeS": 166,
+          "rmsPaceGap": 0.6,
+          "segments": [
+            {
+              "endM": 140,
+              "pace": 300.6,
+              "reason": "flat: +0.1% over 0.1 km"
+            },
+            {
+              "endM": 280,
+              "pace": 297.6,
+              "reason": "gentle descent: -0.5% over 0.1 km"
+            },
+            {
+              "endM": 420,
+              "pace": 298.1,
+              "reason": "gentle descent: -0.4% over 0.1 km"
+            },
+            {
+              "endM": 556,
+              "pace": 298,
+              "reason": "gentle descent: -0.4% over 0.1 km"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

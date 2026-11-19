@@ -2,10 +2,15 @@
  * Share links: a course and the plan inputs, in a URL fragment. Nothing is stored on a server,
  * so the link is the whole plan. The fragment is a versioned, `&`-separated list of fields:
  *
- *     v=1&c=<course>&g=<goal s>&k=<pace changes>&s=<shortest segment m>&u=<mi|km>&n=<name>
+ *     v=2&c=<course>&g=<goal s>&p=<plan type>&k=<pace changes>&s=<shortest segment m>
+ *        &l=<split m>&b=<breakpoints m>&u=<mi|km>&n=<name>
  *
- * - `v`: the format version (`SHARE_VERSION`). A newer one gets a message to reload, an older or
- *   unknown one a clear refusal; neither is guessed at.
+ * - `v`: the format version (`SHARE_VERSION`). A newer one gets a message to reload, an unknown
+ *   one a clear refusal; neither is guessed at. Version 1 links (from before plan types) still
+ *   open, as an `optimal` plan.
+ * - `p`: the plan type, `o` (optimal), `e` (even), `s` (splits) or `c` (custom). `l` is the split
+ *   length in meters, for splits only; `b` the custom breakpoints in whole meters from the start,
+ *   `.`-separated in order, for custom only (left out when there are none).
  * - `c`: the course. A drawn route is `d.<modes>.<waypoints>`: its leg modes run-length encoded
  *   (`p` for paths, `s` for straight, each after its count when more than 1, so `3ps` is three
  *   path legs then a straight one) and its waypoints as a URL-safe polyline (`polyline.ts`) at the
@@ -17,16 +22,18 @@
  * Every field is checked when decoding; a link that fails gets a `ShareError` with a message fit
  * to show the person who opened it.
  */
-import { type DistanceUnit, METERS_PER_MILE } from "./units.ts";
+import { type DistanceUnit, METERS_PER_MILE, metersPerUnit } from "./units.ts";
 import { type DrawnRoute, LEG_MODES, type LegMode } from "./draw.ts";
 import type { LatLon } from "./geo.ts";
-import { DEFAULT_CURVE_MAX_PACE_CHANGES } from "./plan.ts";
+import { DEFAULT_CURVE_MAX_PACE_CHANGES, MAX_CUSTOM_BREAKPOINTS, type PlanType } from "./plan.ts";
 import { PolylineError, decodePolyline, encodePolyline, fromUrlSafe, toUrlSafe } from "./polyline.ts";
 import { polylineLengthM } from "./routing.ts";
 import { simplify } from "./simplify.ts";
 
-/** The share format version this code writes, and the only one it reads. */
-export const SHARE_VERSION = 1;
+/** The share format version this code writes. It also reads every version from `OLDEST_SHARE_VERSION` up. */
+export const SHARE_VERSION = 2;
+/** The oldest share format version this code still reads (version 1 links open as `optimal` plans). */
+export const OLDEST_SHARE_VERSION = 1;
 
 /**
  * The longest link the app makes, in characters. Browsers take far longer ones, but links pass
@@ -46,8 +53,12 @@ export const MAX_SHARE_NAME_LENGTH = 80;
 /** The longest goal a link may carry: a week, past any race. */
 export const MAX_SHARE_GOAL_S = 7 * 24 * 3600;
 
-/** The longest shortest-segment a link may carry, meters. */
+/** The longest shortest-segment (and split) a link may carry, meters. */
 const MAX_SHARE_MIN_SEGMENT_M = 100 * METERS_PER_MILE;
+/** The shortest split a link may carry, meters. */
+const MIN_SHARE_SPLIT_M = 10;
+/** The farthest breakpoint a link may carry, meters (7 digits). */
+export const MAX_SHARE_BREAKPOINT_M = 9_999_999;
 
 /** The course in a share link. */
 export type SharedCourse =
@@ -59,8 +70,13 @@ export type SharedCourse =
 export interface SharedSettings {
   /** The goal entered, or null for the suggested one. */
   goalTimeS: number | null;
+  planType: PlanType;
   paceChanges: number;
   minSegmentM: number;
+  /** The split length, meters. Carried for `splits` only; elsewhere a link gives one `unit`. */
+  splitM: number;
+  /** Custom breakpoints, meters from the start. Carried (as whole meters) for `custom` only. */
+  breakpointsM: readonly number[];
   unit: DistanceUnit;
 }
 
@@ -177,12 +193,26 @@ export function decodeSharedCourse(text: string): SharedCourse {
 /** A number without trailing zeros, to at most 3 decimal places (`402.336`, `500`). */
 const compact = (value: number) => String(Math.round(value * 1000) / 1000);
 
+const PLAN_TYPE_CHARS: Record<PlanType, string> = { optimal: "o", even: "e", splits: "s", custom: "c" };
+
+/** Custom breakpoints as the `b` field carries them: whole meters, in order, without repeats. */
+function wholeBreakpoints(breakpointsM: readonly number[]): number[] {
+  return [...new Set(breakpointsM.map((b) => Math.round(b)))]
+    .filter((b) => b > 0 && b <= MAX_SHARE_BREAKPOINT_M)
+    .sort((a, b) => a - b)
+    .slice(0, MAX_CUSTOM_BREAKPOINTS);
+}
+
 /** The fragment (without `#`) for a plan. */
 export function encodeShare(plan: SharedPlan): string {
-  const { goalTimeS, paceChanges, minSegmentM, unit } = plan.settings;
+  const { goalTimeS, planType, paceChanges, minSegmentM, splitM, breakpointsM, unit } = plan.settings;
   const fields = [`v=${SHARE_VERSION}`, `c=${encodeSharedCourse(plan.course)}`];
   if (goalTimeS !== null) fields.push(`g=${Math.round(goalTimeS)}`);
-  fields.push(`k=${paceChanges}`, `s=${compact(minSegmentM)}`, `u=${unit}`);
+  fields.push(`p=${PLAN_TYPE_CHARS[planType]}`, `k=${paceChanges}`, `s=${compact(minSegmentM)}`);
+  if (planType === "splits") fields.push(`l=${compact(splitM)}`);
+  const breakpoints = planType === "custom" ? wholeBreakpoints(breakpointsM) : [];
+  if (breakpoints.length > 0) fields.push(`b=${breakpoints.join(".")}`);
+  fields.push(`u=${unit}`);
   const name = plan.name?.trim().slice(0, MAX_SHARE_NAME_LENGTH);
   if (name) fields.push(`n=${encodeURIComponent(name)}`);
   return fields.join("&");
@@ -210,9 +240,31 @@ function wholeNumber(text: string | undefined, field: string, min: number, max: 
   return value;
 }
 
+function decodePlanType(text: string | undefined): PlanType {
+  const type = (Object.keys(PLAN_TYPE_CHARS) as PlanType[]).find((t) => PLAN_TYPE_CHARS[t] === text);
+  if (!type) throw corrupt(`bad p "${text ?? ""}"`);
+  return type;
+}
+
+function decodeSplit(text: string | undefined): number {
+  const splitM = text !== undefined && /^\d+(\.\d+)?$/.test(text) ? Number(text) : NaN;
+  if (!(splitM >= MIN_SHARE_SPLIT_M && splitM <= MAX_SHARE_MIN_SEGMENT_M)) throw corrupt(`bad l "${text ?? ""}"`);
+  return splitM;
+}
+
+function decodeBreakpoints(text: string | undefined): number[] {
+  if (text === undefined) return [];
+  const parts = text.split(".");
+  if (parts.length > MAX_CUSTOM_BREAKPOINTS) throw corrupt(`${parts.length} breakpoints`);
+  const breakpointsM = parts.map((part) => wholeNumber(part, "b", 1, MAX_SHARE_BREAKPOINT_M));
+  if (breakpointsM.some((b, i) => i > 0 && b <= breakpointsM[i - 1]!)) throw corrupt("breakpoints out of order");
+  return breakpointsM;
+}
+
 /**
  * The plan in a share link's fragment (with or without the `#`). Throws a `ShareError`: `newer`
- * or `unsupported` for another format version, `corrupt` for a field missing or unreadable.
+ * or `unsupported` for a format version this code does not read, `corrupt` for a field missing or
+ * unreadable. A version 1 link has no plan type, so it opens as `optimal`.
  */
 export function decodeShare(fragment: string): SharedPlan {
   const fields = fieldsOf(fragment);
@@ -220,7 +272,7 @@ export function decodeShare(fragment: string): SharedPlan {
   if (version === undefined) throw corrupt("no version");
   if (!/^\d{1,6}$/.test(version)) throw new ShareError("unsupported", `version "${version}"`);
   if (Number(version) > SHARE_VERSION) throw new ShareError("newer", `version ${version}`);
-  if (Number(version) < SHARE_VERSION) throw new ShareError("unsupported", `version ${version}`);
+  if (Number(version) < OLDEST_SHARE_VERSION) throw new ShareError("unsupported", `version ${version}`);
 
   const courseText = fields.get("c");
   if (!courseText) throw corrupt("no course");
@@ -231,10 +283,14 @@ export function decodeShare(fragment: string): SharedPlan {
   if (!(minSegmentM >= 0 && minSegmentM <= MAX_SHARE_MIN_SEGMENT_M)) throw corrupt(`bad s "${minSegment ?? ""}"`);
   const unit = fields.get("u");
   if (unit !== "mi" && unit !== "km") throw corrupt(`bad u "${unit ?? ""}"`);
+  const planType = Number(version) === 1 ? "optimal" : decodePlanType(fields.get("p"));
   const settings: SharedSettings = {
     goalTimeS: goal === undefined ? null : wholeNumber(goal, "g", 1, MAX_SHARE_GOAL_S),
+    planType,
     paceChanges: wholeNumber(fields.get("k"), "k", 0, DEFAULT_CURVE_MAX_PACE_CHANGES),
     minSegmentM,
+    splitM: planType === "splits" ? decodeSplit(fields.get("l")) : metersPerUnit(unit),
+    breakpointsM: planType === "custom" ? decodeBreakpoints(fields.get("b")) : [],
     unit,
   };
   let name: string | undefined;

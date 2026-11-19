@@ -15,9 +15,24 @@
   // Per-IP limit on upstream routing requests (see src/route.ts). `limit` and `period` must match
   // ROUTE_RATE_LIMIT and ROUTE_RATE_PERIOD_S there. The namespace id is any integer unique to this
   // account.
-  "ratelimits": [{ "name": "ROUTE_RATE_LIMITER", "namespace_id": "1001", "simple": { "limit": 20, "period": 60 } }],
-  // ORS_API_KEY is a secret: `wrangler secret put ORS_API_KEY`, or the ORS_API_KEY GitHub secret
-  // (the Deploy workflow uploads it). Locally, put it in apps/worker/.dev.vars.
+  // REPORT_RATE_LIMITER is the per-IP burst limit on /api/report (src/report.ts): `limit` and
+  // `period` must match REPORT_BURST_LIMIT and REPORT_BURST_PERIOD_S there.
+  "ratelimits": [
+    { "name": "ROUTE_RATE_LIMITER", "namespace_id": "1001", "simple": { "limit": 20, "period": 60 } },
+    { "name": "REPORT_RATE_LIMITER", "namespace_id": "1002", "simple": { "limit": 5, "period": 60 } },
+  ],
+  // The hourly per-IP report limit (src/report.ts). Locally and in tests this is simulated.
+  "kv_namespaces": [{ "binding": "REPORT_LIMITS", "id": "06a5a02be99c4184980ef8b53be5c89c" }],
+  "vars": {
+    // The public Cloudflare Turnstile site key for /api/report. Empty until the widget exists
+    // (see CONTRIBUTING.md, Reports); /api/report answers not_configured until it is set.
+    // Locally, apps/worker/.dev.vars can set Cloudflare's always-pass test key instead.
+    "TURNSTILE_SITE_KEY": "",
+    "REPORT_REPO": "jcj59/perfect-pace",
+  },
+  // ORS_API_KEY, GITHUB_REPORT_TOKEN and TURNSTILE_SECRET are secrets: `wrangler secret put
+  // <NAME>`, or the GitHub secret of the same name (the Deploy workflow uploads it). Locally, put
+  // them in apps/worker/.dev.vars.
   "version_metadata": { "binding": "CF_VERSION_METADATA" },
   "observability": { "enabled": true },
 }

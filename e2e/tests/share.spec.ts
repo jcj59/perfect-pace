@@ -47,7 +47,7 @@ test("a drawn route's link opens the same plan in a fresh browser", async ({ pag
   await planDrawnRoute(page);
   const before = await planSnapshot(page);
   const link = await copyShareLink(page);
-  expect(link).toMatch(/#v=1&c=d\.3p\.[A-Za-z0-9_-]+&g=1500&k=3&s=0&u=mi$/);
+  expect(link).toMatch(/#v=2&c=d\.3p\.[A-Za-z0-9_-]+&g=1500&p=o&k=3&s=0&u=mi$/);
 
   const context = await freshContext(browser, testInfo);
   const other = await context.newPage();
@@ -65,7 +65,7 @@ test("an uploaded course's link opens a simplified copy with the same inputs", a
   const before = await planSnapshot(page);
   await expect(page.getByTestId("share-note")).toContainText("simplified copy of this course, within");
   const link = await copyShareLink(page);
-  expect(link).toMatch(/#v=1&c=t\.[A-Za-z0-9_-]+&g=1470&k=2&s=402\.336&u=mi&n=/);
+  expect(link).toMatch(/#v=2&c=t\.[A-Za-z0-9_-]+&g=1470&p=o&k=2&s=402\.336&u=mi&n=/);
 
   const context = await freshContext(browser, testInfo);
   const other = await context.newPage();
@@ -98,7 +98,7 @@ test("a damaged or newer link says so, and the page still works", async ({ page 
 
   // Pasted into the address bar of the open app: only the fragment changes.
   await page.evaluate(() => {
-    location.hash = "v=2&c=t.AAAA";
+    location.hash = "v=3&c=t.AAAA";
   });
   await expect(page.getByTestId("link-error-message")).toContainText("newer version of Perfect Pace");
   // Loading a course clears the message.
@@ -155,7 +155,7 @@ test("without the clipboard the link shows in a field to copy by hand", async ({
   await page.getByTestId("copy-link").click();
   const field = page.getByTestId("share-url");
   await expect(field).toBeVisible();
-  expect(await field.inputValue()).toMatch(/#v=1&c=t\./);
+  expect(await field.inputValue()).toMatch(/#v=2&c=t\./);
   await expect(page.getByTestId("copy-link")).toHaveText("Copy link");
 });
 
@@ -200,6 +200,10 @@ test("a drawn route downloads as GPX with its terrain elevation", async ({ page 
 
 test("printing shows only the pace band, with a time at every mile adding up to the goal", async ({ page }) => {
   await planBoston(page);
+  // In the Splits view the band holds every mile (the Segments view's band: plan-types.spec.ts).
+  const splits = page.getByTestId("table-view").getByRole("radio", { name: "Splits table" });
+  await splits.locator("xpath=..").click();
+  await expect(page.getByTestId("split-table")).toBeVisible();
   await expect(page.getByTestId("print-band")).toBeVisible();
   await expect(page.getByTestId("pace-band")).toBeHidden();
   await page.emulateMedia({ media: "print" });
